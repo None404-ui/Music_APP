@@ -1,0 +1,151 @@
+/* ============================================================
+   buttons.qss — global: window, top bar, tab bar, shared buttons
+   Retro 70s Palette:
+     #312938  Dark purple-black  — app chrome, primary text
+     #89A194  Sage green         — secondary, muted, borders
+     #CFC89A  Warm beige         — page backgrounds, light surfaces
+     #CB883A  Amber              — accent, active, selected
+     #A14016  Rust               — buttons, strong accent, headings
+   ============================================================ */
+
+/* --- App shell --- */
+QMainWindow, QWidget#centralWidget {
+    background-color: #312938;
+}
+
+QWidget#pageStack {
+    background-color: #CFC89A;
+}
+
+/* --- Top bar --- */
+QWidget#topBar {
+    background-color: #312938;
+    border-bottom: 2px solid #A14016;
+}
+
+/* --- Main horizontal tab bar --- */
+QTabBar#mainTabBar {
+    background: transparent;
+    border: none;
+}
+QTabBar#mainTabBar::tab {
+    background-color: #3d3347;
+    color: #89A194;
+    font-family: "Courier New";
+    font-size: 13px;
+    letter-spacing: 2px;
+    padding: 8px 22px;
+    border-radius: 10px 10px 0px 0px;
+    margin-right: 3px;
+    border: 1px solid #4a3a54;
+    border-bottom: none;
+    min-width: 100px;
+}
+QTabBar#mainTabBar::tab:selected {
+    background-color: #CB883A;
+    color: #312938;
+    border: 1px solid #A14016;
+    border-bottom: none;
+    font-weight: bold;
+}
+QTabBar#mainTabBar::tab:hover:!selected {
+    background-color: #A14016;
+    color: #CFC89A;
+}
+
+/* ============================================================ */
+
+/* --- Primary button (rust fill) --- */
+QPushButton#btnPrimary {
+    background-color: #A14016;
+    color: #CFC89A;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 28px;
+    font-family: "Courier New";
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+QPushButton#btnPrimary:hover {
+    background-color: #CB883A;
+    color: #312938;
+}
+QPushButton#btnPrimary:pressed {
+    background-color: #312938;
+    color: #CFC89A;
+}
+
+/* --- Secondary button (rust outline) --- */
+QPushButton#btnSecondary {
+    background-color: transparent;
+    color: #A14016;
+    border: 2px solid #A14016;
+    border-radius: 8px;
+    padding: 8px 24px;
+    font-family: "Courier New";
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+QPushButton#btnSecondary:hover {
+    background-color: rgba(161, 64, 22, 0.12);
+}
+QPushButton#btnSecondary:pressed {
+    background-color: rgba(161, 64, 22, 0.25);
+}
+
+/* --- Navigation / filter tab button --- */
+QPushButton#btnNav {
+    background-color: #3d3347;
+    color: #89A194;
+    border: 1px solid #4a3a54;
+    border-radius: 16px;
+    padding: 6px 20px;
+    font-family: "Courier New";
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+QPushButton#btnNav:hover {
+    background-color: #A14016;
+    color: #CFC89A;
+}
+QPushButton#btnNav:checked {
+    background-color: #CB883A;
+    color: #312938;
+    border: 1px solid #A14016;
+}
+
+/* --- Playback control buttons (on beige page) --- */
+QPushButton#btnPlayback {
+    background-color: transparent;
+    color: #312938;
+    border: none;
+    font-size: 22px;
+    padding: 8px 14px;
+}
+QPushButton#btnPlayback:hover {
+    color: #A14016;
+}
+QPushButton#btnPlayback:pressed {
+    color: #CB883A;
+}
+
+/* --- Carousel arrow buttons --- */
+QPushButton#btnArrow {
+    background-color: rgba(161, 64, 22, 0.55);
+    color: #CFC89A;
+    border: none;
+    border-radius: 20px;
+    font-size: 18px;
+    min-width: 40px;
+    min-height: 40px;
+    max-width: 40px;
+    max-height: 40px;
+}
+QPushButton#btnArrow:hover {
+    background-color: rgba(161, 64, 22, 0.85);
+}
+QPushButton#btnArrow:pressed {
+    background-color: #A14016;
+}

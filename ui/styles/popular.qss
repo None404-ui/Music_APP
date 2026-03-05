@@ -1,0 +1,153 @@
+/* ============================================================
+   popular.qss — Popular tab styles (Retro 70s palette)
+   ============================================================ */
+
+QWidget#popularPage {
+    background-color: #CFC89A;
+}
+
+/* Section heading (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) */
+QLabel#sectionHeading {
+    font-family: "Courier New";
+    font-size: 28px;
+    font-weight: bold;
+    color: #2A7A8C;
+    letter-spacing: 5px;
+    margin-bottom: 4px;
+}
+
+/* Sub-section heading inside a carousel panel */
+QLabel#carouselHeading {
+    font-family: "Courier New";
+    font-size: 14px;
+    font-weight: bold;
+    color: #2A7A8C;
+    letter-spacing: 3px;
+}
+
+/* Carousel scroll panel */
+QWidget#carouselPanel {
+    background-color: #BDB685;
+    border: 1px solid #89A194;
+    border-radius: 8px;
+}
+
+/* Scroll area inside carousel */
+QScrollArea#carouselScroll {
+    background: transparent;
+    border: none;
+}
+QScrollArea#carouselScroll > QWidget > QWidget {
+    background: transparent;
+}
+QScrollBar:horizontal {
+    background: #BDB685;
+    height: 6px;
+    border-radius: 3px;
+}
+QScrollBar::handle:horizontal {
+    background: #89A194;
+    border-radius: 3px;
+    min-width: 30px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #CB883A;
+}
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* Album card */
+QFrame#albumCard {
+    background-color: #CFC89A;
+    border: 1px solid #89A194;
+    border-radius: 8px;
+}
+QFrame#albumCard:hover {
+    border: 2px solid #CB883A;
+    background-color: #D9D3A8;
+}
+
+/* Album cover placeholder */
+QLabel#albumCover {
+    background-color: #BDB685;
+    border-radius: 6px;
+    border: 1px solid #89A194;
+    font-size: 32px;
+    color: #A14016;
+}
+
+/* Album name label */
+QLabel#albumTitle {
+    font-family: "Courier New";
+    font-size: 12px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 1px;
+}
+
+/* Album artist label */
+QLabel#albumArtist {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #89A194;
+}
+
+/* Artist card / circle avatar */
+QLabel#artistAvatar {
+    background-color: #BDB685;
+    border-radius: 50px;
+    border: 2px solid #89A194;
+    font-size: 24px;
+    color: #A14016;
+}
+QLabel#artistAvatar:hover {
+    border: 2px solid #CB883A;
+}
+
+QLabel#artistName {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 1px;
+}
+
+/* Track list rows */
+QFrame#trackRow {
+    background-color: #CFC89A;
+    border: 1px solid #89A194;
+    border-radius: 6px;
+}
+QFrame#trackRow:hover {
+    background-color: #D9D3A8;
+    border: 1px solid #CB883A;
+}
+
+QLabel#trackNumber {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #89A194;
+    min-width: 28px;
+}
+
+QLabel#trackTitle {
+    font-family: "Courier New";
+    font-size: 13px;
+    font-weight: bold;
+    color: #312938;
+}
+
+QLabel#trackArtist {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #89A194;
+}
+
+QLabel#trackDuration {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #A14016;
+    min-width: 42px;
+}

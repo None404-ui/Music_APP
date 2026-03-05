@@ -1,0 +1,141 @@
+/* ============================================================
+   search.qss — Search tab styles (Retro 70s + teal accent)
+   Teal accent:  #2A7A8C  (blue-teal heading / active highlight)
+   Dark navy:    #0A1E2C  (search button bg)
+   ============================================================ */
+
+QWidget#searchPage {
+    background-color: #CFC89A;
+}
+
+/* ---- Search bar frame: teal gradient ---- */
+QFrame#searchBarFrame {
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0,
+        stop:0   #1A5A6A,
+        stop:0.5 #2A8A9A,
+        stop:1   #8DD0C8
+    );
+    border-radius: 10px;
+    border: none;
+}
+
+/* Input field inside the gradient frame */
+QLineEdit#searchInput {
+    background: transparent;
+    border: none;
+    color: #0A1E2C;
+    font-family: "Courier New";
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 0 14px;
+    selection-background-color: #1A5A6A;
+    selection-color: #8DD0C8;
+}
+QLineEdit#searchInput[placeholderText] {
+    color: rgba(10, 30, 44, 0.6);
+}
+
+/* Search icon button */
+QPushButton#btnSearch {
+    background-color: #0A1E2C;
+    border: none;
+    border-radius: 0 10px 10px 0;
+    padding: 0;
+}
+QPushButton#btnSearch:hover {
+    background-color: #1A3A50;
+}
+QPushButton#btnSearch:pressed {
+    background-color: #2A7A8C;
+}
+
+/* ---- Filter buttons: dark pills ---- */
+QPushButton#btnFilter {
+    background-color: #312938;
+    color: #CFC89A;
+    border: none;
+    border-radius: 14px;
+    padding: 6px 20px;
+    font-family: "Courier New";
+    font-size: 12px;
+    letter-spacing: 1px;
+    min-width: 80px;
+}
+QPushButton#btnFilter:hover {
+    background-color: #4a3a54;
+}
+QPushButton#btnFilter:checked {
+    background-color: #2A7A8C;
+    color: #CFC89A;
+}
+
+/* ---- History label ---- */
+QLabel#historyLabel {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #A14016;
+    letter-spacing: 4px;
+}
+
+/* ---- History list ---- */
+QListWidget#searchHistory {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget#searchHistory::item {
+    background-color: #D4CFA0;
+    color: #312938;
+    border: 1px solid #89A194;
+    border-left: 4px solid #2A7A8C;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: "Courier New";
+    font-size: 13px;
+}
+QListWidget#searchHistory::item:hover {
+    background-color: #D9D3A8;
+    border-left: 4px solid #CB883A;
+}
+QListWidget#searchHistory::item:selected {
+    background-color: #2A7A8C;
+    color: #CFC89A;
+    border-left: 4px solid #0A1E2C;
+}
+
+/* ---- Search results list (shown after query) ---- */
+QListWidget#searchResults {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget#searchResults::item {
+    background-color: #D4CFA0;
+    color: #312938;
+    border: 1px solid #89A194;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 5px;
+    font-family: "Courier New";
+    font-size: 13px;
+}
+QListWidget#searchResults::item:hover {
+    background-color: #D9D3A8;
+    border: 1px solid #2A7A8C;
+}
+QListWidget#searchResults::item:selected {
+    background-color: #2A7A8C;
+    color: #CFC89A;
+    border: 1px solid #0A1E2C;
+}
+
+/* ---- Empty state label ---- */
+QLabel#searchEmptyLabel {
+    font-family: "Courier New";
+    font-size: 15px;
+    color: #89A194;
+    letter-spacing: 2px;
+}

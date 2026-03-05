@@ -1,0 +1,135 @@
+/* ============================================================
+   settings.qss — User Settings tab styles (Retro 70s palette)
+   ============================================================ */
+
+QWidget#settingsPage {
+    background-color: #CFC89A;
+}
+
+/* Scroll area */
+QScrollArea#settingsScroll {
+    background: transparent;
+    border: none;
+}
+QScrollBar:vertical {
+    background: #BDB685;
+    width: 6px;
+    border-radius: 3px;
+}
+QScrollBar::handle:vertical {
+    background: #89A194;
+    border-radius: 3px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #CB883A;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* Profile card */
+QFrame#profileCard {
+    background-color: #D4CFA0;
+    border: 1px solid #89A194;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+/* Profile avatar circle */
+QLabel#profileAvatar {
+    background-color: #BDB685;
+    border-radius: 45px;
+    border: 3px solid #CB883A;
+    font-size: 28px;
+    color: #A14016;
+}
+
+QLabel#profileName {
+    font-family: "Courier New";
+    font-size: 18px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 2px;
+}
+
+QLabel#profileHandle {
+    font-family: "Courier New";
+    font-size: 13px;
+    color: #89A194;
+    letter-spacing: 1px;
+}
+
+/* Section label (АККАУНТ, ИНТЕРФЕЙС, …) */
+QLabel#settingsSectionLabel {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #A14016;
+    letter-spacing: 4px;
+    margin-top: 10px;
+    margin-bottom: 2px;
+}
+
+/* Settings row */
+QFrame#settingsRow {
+    background-color: #D4CFA0;
+    border: 1px solid #89A194;
+    border-radius: 8px;
+}
+QFrame#settingsRow:hover {
+    background-color: #D9D3A8;
+    border: 1px solid #CB883A;
+}
+
+QLabel#settingsRowLabel {
+    font-family: "Courier New";
+    font-size: 13px;
+    color: #312938;
+    letter-spacing: 1px;
+}
+
+QLabel#settingsRowValue {
+    font-family: "Courier New";
+    font-size: 13px;
+    color: #89A194;
+}
+
+/* Combo box for sound quality */
+QComboBox#settingsCombo {
+    background-color: #D4CFA0;
+    color: #312938;
+    border: 1px solid #89A194;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-family: "Courier New";
+    font-size: 12px;
+    min-width: 100px;
+}
+QComboBox#settingsCombo:hover {
+    border: 1px solid #CB883A;
+}
+QComboBox#settingsCombo::drop-down {
+    border: none;
+    width: 20px;
+}
+QComboBox#settingsCombo::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #A14016;
+    width: 0;
+    height: 0;
+    margin-right: 6px;
+}
+QComboBox#settingsCombo QAbstractItemView {
+    background-color: #D4CFA0;
+    color: #312938;
+    border: 1px solid #89A194;
+    selection-background-color: #CB883A;
+    selection-color: #312938;
+    outline: none;
+    font-family: "Courier New";
+    font-size: 12px;
+}

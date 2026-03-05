@@ -1,0 +1,150 @@
+/* ============================================================
+   player.qss — Music Player tab styles (Retro 70s palette)
+   ============================================================ */
+
+QWidget#playerPage {
+    background-color: #CFC89A;
+}
+
+/* Album art placeholder */
+QLabel#playerArt {
+    background-color: #BDB685;
+    border-radius: 12px;
+    border: 3px solid #89A194;
+    font-size: 72px;
+    color: #A14016;
+}
+
+/* Track title */
+QLabel#playerTitle {
+    font-family: "Courier New";
+    font-size: 20px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 3px;
+}
+
+/* Artist name below title */
+QLabel#playerArtist {
+    font-family: "Courier New";
+    font-size: 14px;
+    color: #89A194;
+    letter-spacing: 2px;
+}
+
+/* Progress/seek slider */
+QSlider#playerProgress {
+    height: 18px;
+}
+QSlider#playerProgress::groove:horizontal {
+    background-color: #BDB685;
+    height: 4px;
+    border-radius: 2px;
+}
+QSlider#playerProgress::sub-page:horizontal {
+    background-color: #CB883A;
+    height: 4px;
+    border-radius: 2px;
+}
+QSlider#playerProgress::handle:horizontal {
+    background-color: #A14016;
+    border: 2px solid #CFC89A;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    margin: -5px 0;
+}
+QSlider#playerProgress::handle:horizontal:hover {
+    background-color: #CB883A;
+}
+
+/* Elapsed / remaining time labels */
+QLabel#playerTimeElapsed,
+QLabel#playerTimeRemain {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #89A194;
+}
+
+/* Volume slider */
+QSlider#playerVolume {
+    height: 16px;
+    max-width: 140px;
+}
+QSlider#playerVolume::groove:horizontal {
+    background-color: #BDB685;
+    height: 3px;
+    border-radius: 2px;
+}
+QSlider#playerVolume::sub-page:horizontal {
+    background-color: #A14016;
+    height: 3px;
+    border-radius: 2px;
+}
+QSlider#playerVolume::handle:horizontal {
+    background-color: #A14016;
+    border: 2px solid #CFC89A;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    margin: -5px 0;
+}
+QSlider#playerVolume::handle:horizontal:hover {
+    background-color: #CB883A;
+}
+
+/* Volume icon label */
+QLabel#playerVolumeIcon {
+    font-size: 16px;
+    color: #89A194;
+}
+
+/* Queue / playlist panel */
+QFrame#queuePanel {
+    background-color: #D4CFA0;
+    border-left: 2px solid #89A194;
+    border-radius: 0 8px 8px 0;
+}
+
+QLabel#queueHeading {
+    font-family: "Courier New";
+    font-size: 12px;
+    font-weight: bold;
+    color: #A14016;
+    letter-spacing: 3px;
+}
+
+QListWidget#queueList {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget#queueList::item {
+    color: #312938;
+    font-family: "Courier New";
+    font-size: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(137, 161, 148, 0.35);
+}
+QListWidget#queueList::item:hover {
+    background-color: rgba(203, 136, 58, 0.20);
+}
+QListWidget#queueList::item:selected {
+    background-color: #CB883A;
+    color: #312938;
+}
+
+/* Shuffle / repeat small buttons */
+QPushButton#btnShuffleRepeat {
+    background: transparent;
+    color: #89A194;
+    border: none;
+    font-size: 16px;
+    padding: 4px 8px;
+}
+QPushButton#btnShuffleRepeat:checked {
+    color: #CB883A;
+}
+QPushButton#btnShuffleRepeat:hover {
+    color: #A14016;
+}
