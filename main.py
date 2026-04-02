@@ -1,15 +1,21 @@
 import sys
 import os
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 from ui.windows.main_window import MainWindow
+from ui.windows.auth_dialog import AuthDialog
+from backend.db import init_db
+from ui.retro_font import register_retro_font, inject_font_into_qss
 
 _QSS_FILES = [
     "buttons",
     "popular",
     "reviews",
     "search",
+    "selected",
     "player",
     "settings",
+    "auth",
+    "review_dialog",
 ]
 
 
@@ -26,12 +32,22 @@ def load_stylesheets() -> str:
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("CRATES")
-    app.setStyleSheet(load_stylesheets())
+    family = register_retro_font()
+    app.setStyleSheet(inject_font_into_qss(load_stylesheets(), family))
 
-    window = MainWindow()
+    db_conn = init_db()
+
+    auth = AuthDialog()
+    if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
+        db_conn.close()
+        sys.exit(0)
+
+    window = MainWindow(auth.session)
     window.show()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    db_conn.close()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

@@ -61,3 +61,9 @@ def init_schema() -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def init_db() -> sqlite3.Connection:
+    """Создаёт схему при первом запуске; возвращает соединение для закрытия при выходе."""
+    init_schema()
+    return get_connection()

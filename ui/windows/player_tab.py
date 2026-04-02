@@ -110,6 +110,12 @@ class PlayerTab(QWidget):
 
         self._playing = True
 
+    def set_track(self, music_item: dict) -> None:
+        title = music_item.get("title") or music_item.get("name") or "—"
+        artist = music_item.get("artist") or "—"
+        self._track_title.setText(str(title))
+        self._track_artist.setText(str(artist))
+
     def _toggle_play(self):
         self._playing = not self._playing
         self._btn_play.setText("⏸" if self._playing else "▶")

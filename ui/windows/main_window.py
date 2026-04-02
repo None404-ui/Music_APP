@@ -4,9 +4,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from backend.session import UserSession
 from ui.windows.popular_tab import PopularTab
 from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
+from ui.windows.selected_tab import SelectedTab
 from ui.windows.player_tab import PlayerTab
 from ui.windows.settings_tab import SettingsTab
 
@@ -15,6 +17,7 @@ _TAB_NAMES = [
     "популярное",
     "рецензии",
     "поиск",
+    "моё",
     "плеер",
     "настройки",
 ]
@@ -43,7 +46,7 @@ class TopBar(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, session: UserSession):
         super().__init__()
         self.setWindowTitle("CRATES")
         self.setMinimumSize(900, 600)
@@ -63,11 +66,20 @@ class MainWindow(QMainWindow):
         self._stack.setObjectName("pageStack")
         root_layout.addWidget(self._stack, stretch=1)
 
+        PLAYER_PAGE_INDEX = 4
+        self._player = PlayerTab()
+
+        def on_select_track(music_item: dict) -> None:
+            self._player.set_track(music_item)
+            self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
+            self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
+
         self._pages: list[QWidget] = [
             PopularTab(),
             ReviewsTab(),
-            SearchTab(),
-            PlayerTab(),
+            SearchTab(on_select_track=on_select_track),
+            SelectedTab(session),
+            self._player,
             SettingsTab(),
         ]
         for page in self._pages:

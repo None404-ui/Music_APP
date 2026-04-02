@@ -19,9 +19,10 @@ _ICON_SEARCH = os.path.join(os.path.dirname(__file__), "..", "icons", "search.sv
 
 
 class SearchTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_select_track=None):
         super().__init__(parent)
         self.setObjectName("searchPage")
+        self._on_select_track = on_select_track
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
