@@ -63,11 +63,20 @@ class MainWindow(QMainWindow):
         self._stack.setObjectName("pageStack")
         root_layout.addWidget(self._stack, stretch=1)
 
+        PLAYER_PAGE_INDEX = 3
+        self._player = PlayerTab()
+
+        def on_select_track(music_item: dict) -> None:
+            self._player.set_track(music_item)
+            # Переключаемся на вкладку плеера.
+            self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
+            self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
+
         self._pages: list[QWidget] = [
             PopularTab(),
             ReviewsTab(),
-            SearchTab(),
-            PlayerTab(),
+            SearchTab(on_select_track=on_select_track),
+            self._player,
             SettingsTab(),
         ]
         for page in self._pages:
