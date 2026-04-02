@@ -11,7 +11,7 @@ import socket
 
 from PyQt6.QtCore import QSettings
 
-from backend.auth import login
+from backend.api_client import CratesApiClient, api_login, build_user_session
 from backend.session import UserSession
 
 _ORG = "CRATES"
@@ -80,7 +80,12 @@ def try_session_from_saved() -> UserSession | None:
     if creds is None:
         return None
     email, password = creds
-    session = login(email, password)
+    client = CratesApiClient()
+    ok, _ = api_login(client, email, password)
+    if not ok:
+        clear_remembered()
+        return None
+    session = build_user_session(client, email)
     if session is None:
         clear_remembered()
         return None

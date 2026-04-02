@@ -3,7 +3,7 @@
    ============================================================ */
 
 QWidget#settingsPage {
-    background-color: #CFC89A;
+    background-color: rgba(207, 200, 154, 0.88);
 }
 
 /* Scroll area */

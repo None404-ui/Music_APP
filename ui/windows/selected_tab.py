@@ -12,18 +12,25 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
-from backend import tracks as tracks_api
 from ui.tape_background import CassetteBackgroundMixin
 
 
+def _response_list(body) -> list:
+    if isinstance(body, list):
+        return body
+    if isinstance(body, dict) and "results" in body:
+        return body["results"]
+    return []
+
+
 class SelectedTab(CassetteBackgroundMixin, QWidget):
-    """Избранное, загруженные треки, рецензии пользователя (данные из БД + заглушки)."""
+    """Избранное, подборки и рецензии пользователя через Django API."""
 
     def __init__(self, session: UserSession, parent=None):
         super().__init__(parent)
         self.setObjectName("selectedPage")
         self.setAutoFillBackground(False)
-        self._session = session
+        client = session.client
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 16, 24, 24)
@@ -38,7 +45,7 @@ class SelectedTab(CassetteBackgroundMixin, QWidget):
         title.setGraphicsEffect(sh)
         outer.addWidget(title)
 
-        subtitle = QLabel("Избранное, загрузки и ваши действия в приложении")
+        subtitle = QLabel("Избранное, подборки и рецензии (данные с сервера)")
         subtitle.setObjectName("selectedRowSub")
         subtitle.setWordWrap(True)
         outer.addWidget(subtitle)
@@ -56,27 +63,53 @@ class SelectedTab(CassetteBackgroundMixin, QWidget):
         col.setSpacing(6)
 
         col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
-        favs = tracks_api.list_favorites(session.user_id)
+        st_fav, fav_body = client.get_json("/api/favorites/")
+        favs = _response_list(fav_body) if st_fav == 200 else []
         if favs:
-            for t in favs:
-                col.addWidget(self._track_row(t["title"], t["artist"]))
+            for row in favs:
+                mi = row.get("music_item") or {}
+                title_t = mi.get("title") or "—"
+                artist = mi.get("artist") or ""
+                col.addWidget(self._track_row(str(title_t), str(artist)))
         else:
-            col.addWidget(self._empty("Пока нет треков в избранном."))
+            msg = (
+                "Нет избранного или сервер недоступен."
+                if st_fav != 200
+                else "Пока нет треков в избранном."
+            )
+            col.addWidget(self._empty(msg))
 
-        col.addWidget(self._section_label("МОИ ТРЕКИ (ЗАГРУЖЕННЫЕ)"))
-        own = tracks_api.list_user_owned_tracks(session.user_id)
+        col.addWidget(self._section_label("МОИ ПОДБОРКИ"))
+        st_col, col_body = client.get_json("/api/collections/")
+        collections = _response_list(col_body) if st_col == 200 else []
+        own = [c for c in collections if c.get("owner") == session.user_id]
         if own:
-            for t in own:
-                col.addWidget(self._track_row(t["title"], t["artist"]))
+            for c in own:
+                col.addWidget(self._track_row(c.get("title") or "—", c.get("description") or ""))
         else:
-            col.addWidget(self._empty("Вы ещё не добавляли свои треки."))
+            msg = (
+                "Не удалось загрузить подборки."
+                if st_col != 200
+                else "Подборок пока нет."
+            )
+            col.addWidget(self._empty(msg))
 
         col.addWidget(self._section_label("МОИ РЕЦЕНЗИИ"))
-        col.addWidget(
-            self._empty(
-                "Раздел рецензий пользователя подключим к базе на следующем шаге."
+        st_rev, rev_body = client.get_json(f"/api/reviews/?author_id={session.user_id}")
+        reviews = _response_list(rev_body) if st_rev == 200 else []
+        if reviews:
+            for r in reviews[:20]:
+                text = (r.get("text") or "")[:120]
+                if len(r.get("text") or "") > 120:
+                    text += "…"
+                col.addWidget(self._track_row("Рецензия", text or "—"))
+        else:
+            msg = (
+                "Не удалось загрузить рецензии."
+                if st_rev != 200
+                else "Рецензий пока нет."
             )
-        )
+            col.addWidget(self._empty(msg))
 
         col.addStretch()
         scroll.setWidget(container)

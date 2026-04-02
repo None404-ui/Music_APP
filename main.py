@@ -3,7 +3,7 @@ import os
 from PyQt6.QtWidgets import QApplication, QDialog
 from ui.windows.main_window import MainWindow
 from ui.windows.auth_dialog import AuthDialog
-from backend.db import init_db
+from backend.remember_login import try_session_from_saved
 from ui.retro_font import register_retro_font, inject_font_into_qss
 
 _QSS_FILES = [
@@ -35,19 +35,17 @@ def main():
     family = register_retro_font()
     app.setStyleSheet(inject_font_into_qss(load_stylesheets(), family))
 
-    db_conn = init_db()
+    session = try_session_from_saved()
+    if session is None:
+        auth = AuthDialog()
+        if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
+            sys.exit(0)
+        session = auth.session
 
-    auth = AuthDialog()
-    if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
-        db_conn.close()
-        sys.exit(0)
-
-    window = MainWindow(auth.session)
+    window = MainWindow(session)
     window.show()
 
-    exit_code = app.exec()
-    db_conn.close()
-    sys.exit(exit_code)
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

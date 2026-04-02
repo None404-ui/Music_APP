@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabBar, QStackedWidget, QSizePolicy,
+    QTabBar, QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 
 from backend.session import UserSession
+from ui.ambient_background import ContentWithAmbient
 from ui.windows.popular_tab import PopularTab
 from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
@@ -62,9 +63,9 @@ class MainWindow(QMainWindow):
         self._top_bar = TopBar()
         root_layout.addWidget(self._top_bar)
 
-        self._stack = QStackedWidget()
-        self._stack.setObjectName("pageStack")
-        root_layout.addWidget(self._stack, stretch=1)
+        self._ambient_host = ContentWithAmbient()
+        self._stack = self._ambient_host.page_stack
+        root_layout.addWidget(self._ambient_host, stretch=1)
 
         PLAYER_PAGE_INDEX = 4
         self._player = PlayerTab()
@@ -74,13 +75,15 @@ class MainWindow(QMainWindow):
             self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
             self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
 
+        self._settings = SettingsTab(on_playback_changed=self._player.refresh_playback_settings)
+
         self._pages: list[QWidget] = [
             PopularTab(),
             ReviewsTab(),
             SearchTab(on_select_track=on_select_track),
             SelectedTab(session),
             self._player,
-            SettingsTab(),
+            self._settings,
         ]
         for page in self._pages:
             self._stack.addWidget(page)

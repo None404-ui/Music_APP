@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPainter, QColor
 
+from ui import playback_settings
+
 
 class ToggleSwitch(QWidget):
     """Animated toggle: circle slides right on activation, track fills beige, circle is blue."""
@@ -25,7 +27,6 @@ class ToggleSwitch(QWidget):
         self._anim.setDuration(220)
         self._anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
-    # ----- pyqtProperty for QPropertyAnimation -----
     def _get_circle_x(self):
         return self._circle_x
 
@@ -35,7 +36,6 @@ class ToggleSwitch(QWidget):
 
     circle_x = pyqtProperty(float, _get_circle_x, _set_circle_x)
 
-    # ----- public API -----
     def isChecked(self) -> bool:
         return self._checked
 
@@ -44,7 +44,6 @@ class ToggleSwitch(QWidget):
             self._checked = checked
             self._start_animation(checked)
 
-    # ----- internals -----
     def _start_animation(self, checked: bool):
         self._anim.stop()
         self._anim.setStartValue(self._circle_x)
@@ -61,21 +60,18 @@ class ToggleSwitch(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        r = h // 2          # 14 — track corner radius
-        circle_r = r - 4    # 10 — circle radius
+        r = h // 2
+        circle_r = r - 4
 
-        # Interpolation factor 0.0 (off) → 1.0 (on)
         t = max(0.0, min(1.0, (self._circle_x - self._OFF_X) / (self._ON_X - self._OFF_X)))
 
-        # Track: sage #89A194 (137,161,148) → amber #CB883A (203,136,58)
         br = int(137 + t * (203 - 137))
         bg = int(161 + t * (136 - 161))
-        bb = int(148 + t * (58  - 148))
+        bb = int(148 + t * (58 - 148))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(br, bg, bb))
         p.drawRoundedRect(0, 0, w, h, r, r)
 
-        # Dark circle #312938
         cx = int(self._circle_x)
         p.setBrush(QColor("#312938"))
         p.drawEllipse(cx - circle_r, h // 2 - circle_r, circle_r * 2, circle_r * 2)
@@ -84,13 +80,6 @@ class ToggleSwitch(QWidget):
 
 
 class SettingsRow(QFrame):
-    """
-    row_type:
-      "text"   — shows a label with value + arrow
-      "toggle" — shows ToggleSwitch
-      "combo"  — shows QComboBox (row_data = list of option strings)
-    """
-
     def __init__(self, label: str, row_data=None, row_type: str = "text", parent=None):
         super().__init__(parent)
         self.setObjectName("settingsRow")
@@ -114,7 +103,6 @@ class SettingsRow(QFrame):
             combo.setObjectName("settingsCombo")
             for opt in (row_data or []):
                 combo.addItem(opt)
-            combo.setCurrentIndex(1)   # default "Высокое"
             layout.addWidget(combo)
 
         elif row_type == "text" and row_data:
@@ -124,7 +112,7 @@ class SettingsRow(QFrame):
             layout.addWidget(val)
 
 
-_SECTIONS = {
+_SECTIONS_OTHER = {
     "АККАУНТ": [
         ("Имя пользователя", "crates_user", "text"),
         ("Электронная почта", "user@mail.com", "text"),
@@ -134,18 +122,14 @@ _SECTIONS = {
         ("Тёмная тема", None, "toggle"),
         ("Язык", "Русский", "text"),
     ],
-    "ВОСПРОИЗВЕДЕНИЕ": [
-        ("Качество звука", ["Авто", "Высокое", "Среднее", "Низкое"], "combo"),
-        ("Автовоспроизведение", None, "toggle"),
-        ("Нормализация громкости", None, "toggle"),
-    ],
 }
 
 
 class SettingsTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, on_playback_changed=None, parent=None):
         super().__init__(parent)
         self.setObjectName("settingsPage")
+        self._on_playback_changed = on_playback_changed
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 24)
@@ -190,13 +174,82 @@ class SettingsTab(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
 
-        for section_name, rows in _SECTIONS.items():
+        for section_name, rows in _SECTIONS_OTHER.items():
             section_lbl = QLabel(section_name)
             section_lbl.setObjectName("settingsSectionLabel")
             col.addWidget(section_lbl)
             for row_label, row_data, row_type in rows:
                 col.addWidget(SettingsRow(row_label, row_data, row_type))
 
+        pb_lbl = QLabel("ВОСПРОИЗВЕДЕНИЕ")
+        pb_lbl.setObjectName("settingsSectionLabel")
+        col.addWidget(pb_lbl)
+
+        self._quality_combo = QComboBox()
+        self._quality_combo.setObjectName("settingsCombo")
+        for opt in ["Авто", "Высокое", "Среднее", "Низкое"]:
+            self._quality_combo.addItem(opt)
+        qrow = QFrame()
+        qrow.setObjectName("settingsRow")
+        qrow.setFixedHeight(52)
+        ql = QHBoxLayout(qrow)
+        ql.setContentsMargins(16, 0, 16, 0)
+        q_lab = QLabel("Качество звука")
+        q_lab.setObjectName("settingsRowLabel")
+        ql.addWidget(q_lab)
+        ql.addStretch()
+        ql.addWidget(self._quality_combo)
+        idx = self._quality_combo.findText(playback_settings.quality_label())
+        self._quality_combo.setCurrentIndex(max(0, idx))
+        self._quality_combo.currentTextChanged.connect(self._on_quality_changed)
+        col.addWidget(qrow)
+
+        self._autoplay_toggle = ToggleSwitch()
+        self._autoplay_toggle.setChecked(playback_settings.autoplay())
+        self._autoplay_toggle.toggled.connect(self._on_autoplay_toggled)
+        arow = QFrame()
+        arow.setObjectName("settingsRow")
+        arow.setFixedHeight(52)
+        al = QHBoxLayout(arow)
+        al.setContentsMargins(16, 0, 16, 0)
+        a_lab = QLabel("Автовоспроизведение")
+        a_lab.setObjectName("settingsRowLabel")
+        al.addWidget(a_lab)
+        al.addStretch()
+        al.addWidget(self._autoplay_toggle)
+        col.addWidget(arow)
+
+        self._norm_toggle = ToggleSwitch()
+        self._norm_toggle.setChecked(playback_settings.normalization())
+        self._norm_toggle.toggled.connect(self._on_norm_toggled)
+        nrow = QFrame()
+        nrow.setObjectName("settingsRow")
+        nrow.setFixedHeight(52)
+        nl = QHBoxLayout(nrow)
+        nl.setContentsMargins(16, 0, 16, 0)
+        n_lab = QLabel("Нормализация громкости")
+        n_lab.setObjectName("settingsRowLabel")
+        nl.addWidget(n_lab)
+        nl.addStretch()
+        nl.addWidget(self._norm_toggle)
+        col.addWidget(nrow)
+
         col.addStretch()
         scroll.setWidget(container)
         outer.addWidget(scroll, stretch=1)
+
+    def _emit_playback(self) -> None:
+        if self._on_playback_changed:
+            self._on_playback_changed()
+
+    def _on_quality_changed(self, text: str) -> None:
+        playback_settings.set_quality_label(text)
+        self._emit_playback()
+
+    def _on_autoplay_toggled(self, checked: bool) -> None:
+        playback_settings.set_autoplay(checked)
+        self._emit_playback()
+
+    def _on_norm_toggled(self, checked: bool) -> None:
+        playback_settings.set_normalization(checked)
+        self._emit_playback()

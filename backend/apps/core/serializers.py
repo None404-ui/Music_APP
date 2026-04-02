@@ -151,6 +151,11 @@ class FavoriteSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "music_item", "created_at"]
         read_only_fields = ["id", "user", "created_at"]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["music_item"] = MusicItemSerializer(instance.music_item).data
+        return data
+
 
 class ListeningEventSerializer(serializers.ModelSerializer):
     # Для удобства клиента `started_at` не обязателен: если не передан — ставим текущее время.

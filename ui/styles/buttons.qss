@@ -14,12 +14,21 @@ QMainWindow, QWidget#centralWidget {
 }
 
 QWidget#pageStack {
-    background-color: #CFC89A;
+    background: transparent;
+}
+
+/* Полупрозрачные страницы — виден общий ambient-фон */
+QWidget#popularPage,
+QWidget#reviewsPage,
+QWidget#searchPage,
+QWidget#selectedPage,
+QWidget#settingsPage {
+    background-color: rgba(207, 200, 154, 0.88);
 }
 
 /* --- Top bar --- */
 QWidget#topBar {
-    background-color: #312938;
+    background-color: rgba(49, 41, 56, 0.92);
     border-bottom: 2px solid #A14016;
 }
 

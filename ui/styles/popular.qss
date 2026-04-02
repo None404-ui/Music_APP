@@ -3,7 +3,7 @@
    ============================================================ */
 
 QWidget#popularPage {
-    background-color: #CFC89A;
+    background-color: rgba(207, 200, 154, 0.88);
 }
 
 /* Section heading (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) */

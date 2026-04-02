@@ -13,7 +13,12 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from backend.auth import login, register
+from backend.api_client import (
+    CratesApiClient,
+    api_login,
+    api_register,
+    build_user_session,
+)
 from backend.remember_login import (
     clear_remembered,
     is_remember_me_enabled,
@@ -183,15 +188,20 @@ class AuthDialog(QDialog):
         self._err_login.clear()
         email = self._login_email.text()
         password = self._login_password.text()
-        s = login(email, password)
-        if s is None:
-            self._err_login.setText("Неверный email или пароль.")
+        client = CratesApiClient()
+        ok, err = api_login(client, email, password)
+        if not ok:
+            self._err_login.setText(err or "Неверный email или пароль.")
+            return
+        session = build_user_session(client, email)
+        if session is None:
+            self._err_login.setText("Не удалось загрузить профиль.")
             return
         if self._remember_me.isChecked():
             save_remembered(email, password)
         else:
             clear_remembered()
-        self.session = s
+        self.session = session
         self.accept()
 
     def _on_register(self):
@@ -201,13 +211,25 @@ class AuthDialog(QDialog):
         if p1 != p2:
             self._err_reg.setText("Пароли не совпадают.")
             return
-        try:
-            self.session = register(self._reg_email.text(), p1)
-        except ValueError as e:
-            self._err_reg.setText(str(e))
+        email = self._reg_email.text().strip().lower()
+        if not email or "@" not in email:
+            self._err_reg.setText("Укажите корректный email.")
+            return
+        if len(p1) < 6:
+            self._err_reg.setText("Пароль не короче 6 символов.")
+            return
+        client = CratesApiClient()
+        ok, err = api_register(client, email, p1)
+        if not ok:
+            self._err_reg.setText(err or "Ошибка регистрации.")
+            return
+        session = build_user_session(client, email)
+        if session is None:
+            self._err_reg.setText("Аккаунт создан, но профиль не загрузился.")
             return
         clear_remembered()
         self._remember_me.setChecked(False)
+        self.session = session
         self.accept()
 
     def reject(self):

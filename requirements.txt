@@ -1,2 +1,4 @@
-# Один venv на весь проект (GUI + пакет backend в одном процессе).
+# Общий venv: PyQt6 (клиент) + Django/DRF (API).
+Django>=4.2,<5.0
+djangorestframework>=3.15
 PyQt6>=6.6.0
