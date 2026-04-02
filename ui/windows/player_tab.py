@@ -2,7 +2,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QSlider, QSizePolicy,
 )
-from PyQt6.QtCore import Qt
+from typing import Optional
+
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 
 class PlayerTab(QWidget):
@@ -78,7 +81,7 @@ class PlayerTab(QWidget):
         btn_prev = QPushButton("⏮")
         btn_prev.setObjectName("btnPlayback")
 
-        self._btn_play = QPushButton("⏸")
+        self._btn_play = QPushButton("▶")
         self._btn_play.setObjectName("btnPlayback")
         self._btn_play.setStyleSheet("font-size: 28px;")
         self._btn_play.clicked.connect(self._toggle_play)
@@ -108,7 +111,10 @@ class PlayerTab(QWidget):
         outer.addWidget(center, alignment=Qt.AlignmentFlag.AlignHCenter)
         outer.addStretch()
 
-        self._playing = True
+        self._playing = False
+        self._current_playback_ref: Optional[str] = None
+        self._current_title: Optional[str] = None
+        self._current_artist: Optional[str] = None
 
     def set_track(self, music_item: dict) -> None:
         title = music_item.get("title") or music_item.get("name") or "—"
@@ -119,3 +125,27 @@ class PlayerTab(QWidget):
     def _toggle_play(self):
         self._playing = not self._playing
         self._btn_play.setText("⏸" if self._playing else "▶")
+
+        # В MVP воспроизведение открывается в браузере,
+        # поэтому при нажатии "Play" действуем, когда `_playing` стал True.
+        if self._playing:
+            self._open_playback()
+
+    def _open_playback(self) -> None:
+        if not self._current_playback_ref:
+            self._track_title.setText("Нет URL для воспроизведения")
+            return
+        QDesktopServices.openUrl(QUrl(self._current_playback_ref))
+
+    def set_track(self, music_item: dict) -> None:
+        """
+        Устанавливает текущий трек для отображения.
+        Открытие `playback_ref` делается при нажатии Play.
+        """
+        self._current_title = music_item.get("title") or "Название трека"
+        self._current_artist = music_item.get("artist") or "Исполнитель"
+        self._current_playback_ref = music_item.get("playback_ref") or None
+
+        self._track_title.setText(self._current_title)
+        self._track_artist.setText(self._current_artist)
+        # Обновление обложки пока опционально (сейчас в UI только placeholder).

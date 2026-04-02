@@ -1,4 +1,8 @@
 import os
+import json
+import threading
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -19,10 +23,14 @@ _ICON_SEARCH = os.path.join(os.path.dirname(__file__), "..", "icons", "search.sv
 
 
 class SearchTab(QWidget):
-    def __init__(self, parent=None, on_select_track=None):
+    def __init__(self, on_select_track=None, parent=None):
         super().__init__(parent)
         self.setObjectName("searchPage")
+
         self._on_select_track = on_select_track
+        self._backend_url = os.getenv("CRATES_BACKEND_URL", "http://127.0.0.1:8000").rstrip(
+            "/"
+        )
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
@@ -49,6 +57,7 @@ class SearchTab(QWidget):
         btn_search.setIconSize(QSize(28, 26))
 
         bar_layout.addWidget(btn_search)
+        btn_search.clicked.connect(self._on_search_clicked)
         root.addWidget(search_frame)
 
         # --- Filter buttons ---
@@ -88,6 +97,17 @@ class SearchTab(QWidget):
         self._history_list.setFixedHeight(n * 44 + (n + 1) * 4)
         root.addWidget(self._history_list)
 
+        # --- Search results ---
+        results_label = QLabel("результаты")
+        results_label.setObjectName("searchResultsLabel")
+        root.addWidget(results_label)
+
+        self._results_list = QListWidget()
+        self._results_list.setObjectName("searchResults")
+        self._results_list.setSpacing(4)
+        self._results_list.itemClicked.connect(self._on_result_clicked)
+        root.addWidget(self._results_list)
+
         root.addStretch()
 
     def _on_filter_clicked(self):
@@ -95,3 +115,54 @@ class SearchTab(QWidget):
         for btn in self._filter_btns:
             if btn is not sender:
                 btn.setChecked(False)
+
+    def _on_search_clicked(self):
+        q = self._search_input.text().strip()
+        if not q:
+            return
+        self._results_list.clear()
+
+        # MVP: синхронный запрос обычно достаточно быстрый (локальный backend),
+        # но чтобы UI не подвисал, сделаем простой background fetch.
+        def run():
+            try:
+                url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
+                req = Request(url, headers={"Accept": "application/json"})
+                with urlopen(req, timeout=10) as resp:
+                    raw = resp.read().decode("utf-8")
+                    data = json.loads(raw)
+                items = data.get("results", data) if isinstance(data, dict) else data
+                if not isinstance(items, list):
+                    items = []
+            except Exception as e:
+                items = []
+            return items
+
+        def on_done():
+            items = holder.get("items", [])
+            self._results_list.clear()
+            for it in items:
+                title = it.get("title") or "Без названия"
+                artist = it.get("artist") or ""
+                label = f"{title} — {artist}".strip(" —")
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, it)
+                self._results_list.addItem(item)
+
+        holder = {}
+
+        def worker():
+            holder["items"] = run()
+            # Обновляем UI из UI-потока.
+            # QTimer не добавляем для простоты — используем сигнал через Qt через main thread.
+            from PyQt6.QtCore import QTimer
+
+            QTimer.singleShot(0, on_done)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_result_clicked(self, item: QListWidgetItem):
+        if not self._on_select_track:
+            return
+        music_item = item.data(Qt.ItemDataRole.UserRole) or {}
+        self._on_select_track(music_item)

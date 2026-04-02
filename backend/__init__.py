@@ -1,1 +1,2 @@
-# Backend package: SQLite, auth, tracks.
+"""Backend package for CRATES (DB, services, etc.)."""
+
