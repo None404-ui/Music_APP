@@ -18,6 +18,7 @@ from .models import (
     CollectionItem,
     Comment,
     Favorite,
+    ReviewFavorite,
     ListeningEvent,
     MusicItem,
     Notification,
@@ -78,6 +79,12 @@ class ReactionAdmin(admin.ModelAdmin):
 class FavoriteAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "music_item", "created_at")
     search_fields = ("user__username", "music_item__title", "music_item__artist")
+
+
+@admin.register(ReviewFavorite)
+class ReviewFavoriteAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "review", "created_at")
+    search_fields = ("user__username", "review__text")
 
 
 @admin.register(ListeningEvent)

@@ -224,6 +224,32 @@ class Favorite(models.Model):
         ]
 
 
+class ReviewFavorite(models.Model):
+    """
+    Избранное для рецензий (Review).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="review_favorites",
+    )
+    review = models.ForeignKey(
+        Review,
+        on_delete=models.CASCADE,
+        related_name="favorites",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "review"],
+                name="uniq_user_favorite_review",
+            )
+        ]
+
+
 class ListeningEvent(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listening_events"

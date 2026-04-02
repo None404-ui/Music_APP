@@ -22,6 +22,9 @@ router.register("follows", views.FollowViewSet, basename="follow")
 router.register("notifications", views.NotificationViewSet, basename="notification")
 router.register("reports", views.ReportViewSet, basename="report")
 router.register("conversations", views.ConversationViewSet, basename="conversation")
+router.register("review-favorites", views.ReviewFavoriteViewSet, basename="review-favorite")
+router.register("collection-items", views.CollectionItemViewSet, basename="collection-item")
+router.register("ad-units", views.AdUnitViewSet, basename="ad-unit")
 
 
 urlpatterns = [
@@ -30,5 +33,9 @@ urlpatterns = [
     path("auth/logout/", auth_views.LogoutView.as_view(), name="auth-logout"),
     path("profile/me/", views.MeProfileView.as_view(), name="me-profile"),
     path("feed/", views.FeedView.as_view(), name="feed"),
+    path("recommendations/", views.GenreRecommendationsView.as_view(), name="recommendations"),
+    path("listening-events/", views.ListeningEventsView.as_view(), name="listening-events"),
+    path("stats/listening/", views.ListeningStatsView.as_view(), name="stats-listening"),
+    path("ads/", views.AdsView.as_view(), name="ads"),
 ]
 

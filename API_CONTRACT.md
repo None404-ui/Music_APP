@@ -86,6 +86,7 @@
 
 - **Auth**: **admin/staff только**
 - **Body**: `provider`, `external_id`, `kind`, `title`, опционально `artist`, `artwork_url`, `duration_sec`, `playback_ref`, `meta_json`
+- **Примечание для UI**: `playback_ref` — это ссылка/uri, которую клиент открывает при нажатии `Play` (аудио файлы в БД не хранятся).
 - **201**: созданный `MusicItem`
 - **403**: если пользователь не staff/admin
 
@@ -156,6 +157,40 @@
   ]
 }
 ```
+
+---
+
+## Содержимое подборок (треки в плейлистах)
+
+### GET `/api/collection-items/`
+Список треков внутри коллекции.
+
+- **Query**:
+  - `collection_id` (int, optional)
+- **200**: массив `CollectionItem`
+
+### POST `/api/collection-items/`
+Добавить трек в плейлист.
+
+- **Auth**: требуется
+- **Права**: только `owner` коллекции
+- **Body**:
+  - `collection` (int)
+  - `music_item_id` (int)
+  - `position` (int, optional)
+- **201**: созданная/существующая запись `CollectionItem` (идемпотентно)
+
+### PATCH `/api/collection-items/{id}/`
+Изменить позицию (например `position`).
+
+- **Auth**: требуется
+- **Права**: только `owner`
+
+### DELETE `/api/collection-items/{id}/`
+Удалить трек из плейлиста.
+
+- **Auth**: требуется
+- **Права**: только `owner`
 
 ---
 
@@ -281,6 +316,35 @@
 
 ---
 
+## Избранное рецензий
+
+### GET `/api/review-favorites/`
+Список избранных рецензий текущего пользователя.
+
+- **Auth**: требуется
+- **200**: массив `ReviewFavorite`
+
+### POST `/api/review-favorites/`
+Добавить рецензию в избранное.
+
+- **Auth**: требуется
+- **Body**:
+  - `review` (int)
+- **201**: созданная связь (идемпотентно)
+
+### DELETE `/api/review-favorites/{id}/`
+Удалить рецензию из избранного.
+
+#### `ReviewFavorite` (поля)
+```json
+{
+  "id": 1,
+  "user": 12,
+  "review": 5,
+  "created_at": "2026-03-18T12:00:00Z"
+}
+```
+
 ## Подписки (друзья)
 
 ### GET `/api/follows/`
@@ -317,6 +381,20 @@
 - **200**: массив `Review`
 
 ---
+
+## Рекомендации по жанрам
+
+### GET `/api/recommendations/`
+Рекомендации (MVP) по любимым жанрам пользователя из `Profile.favorite_genres`.
+
+- **Auth**: требуется
+- **Query**:
+  - `limit` (int, по умолчанию 50, максимум 200)
+- **200**: массив `Review`
+
+Примечание (MVP-логика):
+- ключевые слова жанров ищутся грубо как подстрока в `Review.text`
+- и в связанных `MusicItem` полях `meta_json/title/artist` (если рецензия привязана к музыке)
 
 ## Уведомления
 
@@ -380,6 +458,7 @@
   - `participant_ids` (массив int) — остальные пользователи в диалоге (без текущего пользователя)
 - **201**: `Conversation`
 - **В диалог всегда включается текущий пользователь**.
+- Создание **идемпотентно**: если такой состав участников уже существует, вернётся существующий диалог.
 
 Ответ `Conversation` содержит `participants` — массив user_id участников.
 
@@ -387,6 +466,8 @@
 Получить сообщения диалога (только если вы участник).
 
 - **Auth**: требуется
+- **Query**:
+  - `limit` (int, optional) — максимальное число сообщений (сервер режет до 200)
 - **200**: массив `Message`
 - **Если вы не участник диалога**: вернётся **404** (так как queryset ограничен участниками)
 
@@ -408,4 +489,98 @@
   "created_at": "2026-03-18T12:00:00Z"
 }
 ```
+
+---
+
+## Дневник прослушиваний
+
+### GET `/api/listening-events/`
+Список событий текущего пользователя.
+
+- **Auth**: требуется
+- **Query**:
+  - `music_item_id` (int, optional)
+  - `limit` (int, optional; по умолчанию 50)
+- **200**: массив `ListeningEvent`
+
+### POST `/api/listening-events/`
+Добавить событие прослушивания.
+
+- **Auth**: требуется
+- **Body**:
+  - `music_item` (int)
+  - `started_at` (datetime, optional; если не передан — ставится текущее время)
+  - `ended_at` (datetime|null, optional)
+  - `source` (string, optional)
+- **201**: созданный `ListeningEvent`
+
+---
+
+## Статистика прослушиваний
+
+### GET `/api/stats/listening/`
+Агрегация по дням за период.
+
+- **Auth**: требуется
+- **Query**:
+  - `days` (int; по умолчанию 7, максимум 30)
+- **200**:
+```json
+{
+  "days": 7,
+  "total_events": 12,
+  "total_seconds": 3450.5,
+  "by_day": [
+    { "day": "2026-03-12", "count": 2, "seconds": 540.0 }
+  ]
+}
+```
+
+---
+
+## Реклама (ad_units) и premium
+
+### GET `/api/ads/`
+Получить рекламу для размещения.
+
+- **Auth**: не требуется
+- **Query**:
+  - `placement` (string; по умолчанию `feed_banner`)
+  - `limit` (int; по умолчанию 3)
+- **Логика**:
+  - если пользователь premium (`Profile.is_premium=true`) -> `ads: []`
+  - иначе -> активные `AdUnit` по `placement`
+- **200**:
+```json
+{
+  "ads": [
+    { "id": 1, "placement": "feed_banner", "config": { "...": true } }
+  ]
+}
+```
+
+---
+
+## Админ API рекламы (ad_units)
+
+Управление рекламными слотами `AdUnit` из админ-панели.
+
+Доступ: **только staff/admin**.
+
+### GET `/api/ad-units/`
+Список `AdUnit`.
+
+### POST `/api/ad-units/`
+Создать `AdUnit`.
+
+### PATCH/PUT `/api/ad-units/{id}/`
+Обновить `AdUnit`.
+
+### DELETE `/api/ad-units/{id}/`
+Удалить `AdUnit`.
+
+#### Поля `AdUnit`
+- `placement` (string, обязательное)
+- `is_active` (bool, обязательное/по умолчанию)
+- `config_json` (string, обязательное) — JSON как строка
 

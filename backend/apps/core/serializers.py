@@ -6,6 +6,7 @@ defined in `views.py`.
 """
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -21,6 +22,7 @@ from .models import (
     Message,
     MusicItem,
     Notification,
+    ReviewFavorite,
     Profile,
     Reaction,
     Report,
@@ -151,10 +153,18 @@ class FavoriteSerializer(serializers.ModelSerializer):
 
 
 class ListeningEventSerializer(serializers.ModelSerializer):
+    # Для удобства клиента `started_at` не обязателен: если не передан — ставим текущее время.
+    started_at = serializers.DateTimeField(required=False)
+    ended_at = serializers.DateTimeField(required=False, allow_null=True)
+
     class Meta:
         model = ListeningEvent
         fields = ["id", "user", "music_item", "started_at", "ended_at", "source"]
         read_only_fields = ["id", "user"]
+
+    def create(self, validated_data):
+        validated_data.setdefault("started_at", timezone.now())
+        return super().create(validated_data)
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -200,6 +210,13 @@ class NotificationSerializer(serializers.ModelSerializer):
             "is_read",
             "created_at",
         ]
+        read_only_fields = ["id", "user", "created_at"]
+
+
+class ReviewFavoriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewFavorite
+        fields = ["id", "user", "review", "created_at"]
         read_only_fields = ["id", "user", "created_at"]
 
 
