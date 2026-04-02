@@ -1,6 +1,5 @@
 import os
 import json
-import threading
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
@@ -121,45 +120,27 @@ class SearchTab(QWidget):
         if not q:
             return
         self._results_list.clear()
-
-        # MVP: синхронный запрос обычно достаточно быстрый (локальный backend),
-        # но чтобы UI не подвисал, сделаем простой background fetch.
-        def run():
-            try:
-                url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
-                req = Request(url, headers={"Accept": "application/json"})
-                with urlopen(req, timeout=10) as resp:
-                    raw = resp.read().decode("utf-8")
-                    data = json.loads(raw)
-                items = data.get("results", data) if isinstance(data, dict) else data
-                if not isinstance(items, list):
-                    items = []
-            except Exception as e:
+        try:
+            # Локальный запрос к backend обычно очень быстрый, а такой путь
+            # гарантированно обновляет QListWidget в UI-потоке.
+            url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
+            req = Request(url, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode("utf-8")
+                data = json.loads(raw)
+            items = data.get("results", data) if isinstance(data, dict) else data
+            if not isinstance(items, list):
                 items = []
-            return items
+        except Exception:
+            items = []
 
-        def on_done():
-            items = holder.get("items", [])
-            self._results_list.clear()
-            for it in items:
-                title = it.get("title") or "Без названия"
-                artist = it.get("artist") or ""
-                label = f"{title} — {artist}".strip(" —")
-                item = QListWidgetItem(label)
-                item.setData(Qt.ItemDataRole.UserRole, it)
-                self._results_list.addItem(item)
-
-        holder = {}
-
-        def worker():
-            holder["items"] = run()
-            # Обновляем UI из UI-потока.
-            # QTimer не добавляем для простоты — используем сигнал через Qt через main thread.
-            from PyQt6.QtCore import QTimer
-
-            QTimer.singleShot(0, on_done)
-
-        threading.Thread(target=worker, daemon=True).start()
+        for it in items:
+            title = it.get("title") or "Без названия"
+            artist = it.get("artist") or ""
+            label = f"{title} — {artist}".strip(" —")
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, it)
+            self._results_list.addItem(item)
 
     def _on_result_clicked(self, item: QListWidgetItem):
         if not self._on_select_track:

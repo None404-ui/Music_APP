@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt, QUrl, QSize, QByteArray
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor
@@ -19,6 +20,10 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QGraphicsDropShadowEffect,
 )
+try:
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+except Exception:
+    QWebEngineView = None
 
 from ui import playback_settings
 
@@ -44,6 +49,69 @@ def _album_name(item: dict) -> str:
     if artist:
         return artist.upper()
     return "ИМЯ АЛЬБОМА"
+
+
+def _is_page_playback_ref(ref: str) -> bool:
+    r = (ref or "").strip().lower()
+    if not r:
+        return False
+    # Streaming pages are not direct media streams for QMediaPlayer/FFmpeg.
+    page_hosts = (
+        "youtube.com",
+        "youtu.be",
+        "music.yandex",
+        "vk.com/music",
+        "music.vk.com",
+    )
+    return any(h in r for h in page_hosts)
+
+
+def _web_embed_url(ref: str) -> str:
+    """
+    Converts known page URLs to embeddable player URLs.
+    Falls back to original URL when conversion is not supported.
+    """
+    raw = (ref or "").strip()
+    if not raw:
+        return raw
+    try:
+        u = urlparse(raw)
+        host = (u.netloc or "").lower()
+        if "youtube.com" in host:
+            if u.path == "/watch":
+                vid = parse_qs(u.query).get("v", [None])[0]
+                if vid:
+                    return f"https://www.youtube.com/embed/{vid}?autoplay=1"
+            if u.path.startswith("/shorts/"):
+                vid = u.path.split("/shorts/", 1)[1].split("/", 1)[0]
+                if vid:
+                    return f"https://www.youtube.com/embed/{vid}?autoplay=1"
+        if "youtu.be" in host:
+            vid = (u.path or "").lstrip("/").split("/", 1)[0]
+            if vid:
+                return f"https://www.youtube.com/embed/{vid}?autoplay=1"
+    except Exception:
+        return raw
+    return raw
+
+
+def _youtube_embed_id(ref: str) -> Optional[str]:
+    raw = (ref or "").strip()
+    if not raw:
+        return None
+    try:
+        u = urlparse(raw)
+        host = (u.netloc or "").lower()
+        if "youtube.com" in host:
+            if u.path == "/watch":
+                return parse_qs(u.query).get("v", [None])[0]
+            if u.path.startswith("/shorts/"):
+                return u.path.split("/shorts/", 1)[1].split("/", 1)[0]
+        if "youtu.be" in host:
+            return (u.path or "").lstrip("/").split("/", 1)[0]
+    except Exception:
+        return None
+    return None
 
 
 class _TrackRow(QFrame):
@@ -107,6 +175,7 @@ class PlayerTab(QWidget):
         self._player.errorOccurred.connect(self._on_player_error)
 
         self._nam = QNetworkAccessManager(self)
+        self._web: Optional[QWebEngineView] = None
 
         root = QHBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 16)
@@ -242,6 +311,14 @@ class PlayerTab(QWidget):
         scroll.setWidget(self._list_host)
         rv.addWidget(scroll, stretch=1)
 
+        # Built-in player surface for YouTube/Yandex/VK page links.
+        if QWebEngineView is not None:
+            self._web = QWebEngineView(self)
+            self._web.setObjectName("playerWebView")
+            self._web.setMinimumHeight(260)
+            self._web.loadFinished.connect(self._on_web_loaded)
+            rv.addWidget(self._web, stretch=1)
+
         root.addWidget(self._right_card, stretch=1)
 
         sh = QGraphicsDropShadowEffect(self._left_card)
@@ -315,6 +392,16 @@ class PlayerTab(QWidget):
         if not self._playlist:
             self._status.setText("Выберите трек в поиске.")
             return
+        current = self._playlist[self._index] if self._playlist else {}
+        ref = (current.get("playback_ref") or "").strip()
+        if ref and _is_page_playback_ref(ref):
+            if self._web is not None:
+                self._load_web_ref(ref)
+            else:
+                self._status.setText(
+                    "Нужен пакет PyQt6-WebEngine для встроенного web-плеера."
+                )
+            return
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
         else:
@@ -348,7 +435,25 @@ class PlayerTab(QWidget):
             self._status.setText("Нет ссылки на аудио (playback_ref).")
             self._player.stop()
             return
+        if _is_page_playback_ref(ref):
+            self._player.stop()
+            if self._web is not None:
+                self._load_web_ref(ref)
+            else:
+                self._status.setText(
+                    "Источник web-формата. Установите PyQt6-WebEngine для плеера в приложении."
+                )
+            self._load_artwork(item.get("artwork_url"))
+            title = item.get("title") or "—"
+            artist = item.get("artist") or ""
+            self._album_title.setText(_album_name(item))
+            self._now_title.setText(str(title))
+            self._now_artist.setText(str(artist))
+            self._art.setToolTip(f"{title}\n{artist}")
+            return
         url = QUrl.fromUserInput(ref)
+        if self._web is not None:
+            self._web.setHtml("")
         self._player.setSource(url)
         self._load_artwork(item.get("artwork_url"))
         title = item.get("title") or "—"
@@ -357,6 +462,41 @@ class PlayerTab(QWidget):
         self._now_title.setText(str(title))
         self._now_artist.setText(str(artist))
         self._art.setToolTip(f"{title}\n{artist}")
+
+    def _load_web_ref(self, ref: str) -> None:
+        if self._web is None:
+            return
+        vid = _youtube_embed_id(ref)
+        if vid:
+            html = f"""
+            <html>
+              <body style="margin:0;background:#000;">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src="https://www.youtube.com/embed/{vid}?autoplay=1&rel=0"
+                  title="YouTube player"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen>
+                </iframe>
+              </body>
+            </html>
+            """
+            self._web.setHtml(html, QUrl("https://www.youtube.com"))
+            self._status.setText("Загрузка встроенного YouTube-плеера...")
+            return
+        self._web.setUrl(QUrl.fromUserInput(_web_embed_url(ref)))
+        self._status.setText("Загрузка встроенного web-плеера...")
+
+    def _on_web_loaded(self, ok: bool) -> None:
+        if ok:
+            self._status.setText("Встроенный web-плеер загружен.")
+        else:
+            self._status.setText(
+                "Не удалось загрузить web-плеер внутри приложения. Проверьте playback_ref."
+            )
 
     def _load_artwork(self, url: Optional[str]) -> None:
         if self._art_reply:
@@ -419,7 +559,11 @@ class PlayerTab(QWidget):
         was_playing = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
         self._load_current()
         self._rebuild_list()
-        if was_playing or playback_settings.autoplay():
+        # Web-плейбек (YouTube/Яндекс/VK) нельзя проигрывать через QMediaPlayer,
+        # иначе снова появятся FFmpeg/TLS ошибки.
+        item = self._playlist[self._index] if self._playlist else {}
+        ref = (item.get("playback_ref") or "").strip()
+        if not _is_page_playback_ref(ref) and (was_playing or playback_settings.autoplay()):
             self._player.play()
 
     def set_track(self, music_item: dict) -> None:
@@ -431,6 +575,12 @@ class PlayerTab(QWidget):
         title = music_item.get("title") or "Название трека"
         artist = music_item.get("artist") or "Исполнитель"
         self._status.setText("")
+        ref = (music_item.get("playback_ref") or "").strip()
+        if _is_page_playback_ref(ref):
+            # Встроенный web-плеер уже загрузил ссылку в _load_current().
+            self._player.stop()
+            self._sync_play_button_icon()
+            return
         if playback_settings.autoplay():
             self._player.play()
         else:
