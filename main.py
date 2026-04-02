@@ -2,6 +2,7 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from ui.windows.main_window import MainWindow
+from backend.db import init_db
 
 _QSS_FILES = [
     "buttons",
@@ -28,10 +29,15 @@ def main():
     app.setApplicationName("CRATES")
     app.setStyleSheet(load_stylesheets())
 
+    # Initialize local SQLite DB (creates tables/migrations if needed).
+    db_conn = init_db()
+
     window = MainWindow()
     window.show()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    db_conn.close()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
