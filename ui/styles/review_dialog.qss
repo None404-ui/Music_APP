@@ -1,0 +1,70 @@
+/* Диалог полной рецензии (открывается с «Популярного») */
+
+QDialog#reviewDetailDialog {
+    background-color: #EDE6CC;
+    border: 3px solid #4A3428;
+    border-radius: 10px;
+}
+
+QLabel#reviewDetailAlbum {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #89A194;
+    letter-spacing: 2px;
+}
+
+QLabel#reviewDetailHeadline {
+    font-family: "Courier New";
+    font-size: 14px;
+    font-weight: bold;
+    color: #0A1E2C;
+    letter-spacing: 1px;
+}
+
+QLabel#reviewDetailMeta {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #312938;
+}
+
+QLabel#reviewDetailScore {
+    font-family: "Courier New";
+    font-size: 12px;
+    font-weight: bold;
+    color: #A14016;
+}
+
+QFrame#reviewDetailLine {
+    background-color: #89A194;
+    border: none;
+    max-height: 2px;
+}
+
+QScrollArea#reviewDetailScroll {
+    background: transparent;
+    border: none;
+}
+
+QLabel#reviewDetailBody {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #312938;
+    line-height: 1.4;
+}
+
+QPushButton#reviewDetailCloseBtn {
+    background-color: #A14016;
+    color: #F5E6C8;
+    border: 2px solid #312938;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+QPushButton#reviewDetailCloseBtn:hover {
+    background-color: #CB883A;
+    color: #312938;
+}

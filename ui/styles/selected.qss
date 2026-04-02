@@ -1,0 +1,71 @@
+/* Вкладка «Моё» — коллекция пользователя */
+
+QWidget#selectedPage {
+    background-color: transparent;
+}
+
+QLabel#selectedSectionLabel {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #A14016;
+    letter-spacing: 4px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+QFrame#selectedRow {
+    background-color: rgba(212, 207, 160, 0.75);
+    border: 1px solid #89A194;
+    border-radius: 8px;
+}
+QFrame#selectedRow:hover {
+    border: 1px solid #CB883A;
+    background-color: rgba(217, 211, 168, 0.9);
+}
+
+QLabel#selectedRowTitle {
+    font-family: "Courier New";
+    font-size: 13px;
+    font-weight: bold;
+    color: #312938;
+}
+
+QLabel#selectedRowSub {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #89A194;
+}
+
+QLabel#selectedEmpty {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #89A194;
+    font-style: italic;
+    padding: 8px 4px;
+}
+
+QScrollArea#selectedScroll {
+    background: transparent;
+    border: none;
+}
+QScrollArea#selectedScroll > QWidget > QWidget {
+    background: transparent;
+}
+QScrollBar:vertical {
+    background: rgba(189, 182, 133, 0.5);
+    width: 6px;
+    border-radius: 3px;
+}
+QScrollBar::handle:vertical {
+    background: #89A194;
+    border-radius: 3px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #CB883A;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
