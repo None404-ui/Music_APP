@@ -22,9 +22,9 @@ _QSS_FILES = [
     "search",
     "selected",
     "player",
-    "settings",
     "auth",
     "review_dialog",
+    "settings",  # последним — стили вкладки «Настройки» не перебиваются
 ]
 
 

@@ -37,6 +37,18 @@ User = get_user_model()
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data.pop("avatar_file", None)
+        request = self.context.get("request")
+        af = getattr(instance, "avatar_file", None)
+        if af and getattr(af, "name", ""):
+            rel = af.url
+            data["avatar_url"] = (
+                request.build_absolute_uri(rel) if request else rel
+            )
+        return data
+
     class Meta:
         model = Profile
         fields = [
@@ -44,6 +56,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "user",
             "nickname",
             "avatar_url",
+            "avatar_file",
             "bio",
             "is_premium",
             "premium_until",
@@ -56,6 +69,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "user", "created_at", "updated_at"]
+        extra_kwargs = {"avatar_file": {"required": False, "allow_null": True}}
 
 
 class MusicItemSerializer(serializers.ModelSerializer):
@@ -64,6 +78,23 @@ class MusicItemSerializer(serializers.ModelSerializer):
     listens_count = serializers.SerializerMethodField()
     listen_time_total_sec = serializers.SerializerMethodField()
     user_favorited = serializers.SerializerMethodField()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        audio = getattr(instance, "audio_file", None)
+        if audio and getattr(audio, "name", ""):
+            rel = audio.url
+            data["playback_ref"] = (
+                request.build_absolute_uri(rel) if request else rel
+            )
+        cover = getattr(instance, "artwork_file", None)
+        if cover and getattr(cover, "name", ""):
+            rel = cover.url
+            data["artwork_url"] = (
+                request.build_absolute_uri(rel) if request else rel
+            )
+        return data
 
     class Meta:
         model = MusicItem

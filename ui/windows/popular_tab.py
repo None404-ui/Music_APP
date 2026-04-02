@@ -5,6 +5,7 @@ from PyQt6.QtGui import QImage, QMouseEvent, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
+from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 
 _album_cover_nam: QNetworkAccessManager | None = None
@@ -471,17 +472,28 @@ class PopularTab(QWidget):
 
         self._status.hide()
 
+        api_base = self._session.client.base_url if self._session else ""
+
         albums = body.get("albums")
         if not isinstance(albums, list):
             albums = []
         album_widgets: list[QWidget] = []
         for it in albums:
-            if isinstance(it, dict):
-                c = AlbumCard()
-                c.set_item(it)
-                if self._on_open_album:
-                    c.set_on_open(self._on_album_card_clicked)
-                album_widgets.append(c)
+            if not isinstance(it, dict):
+                continue
+            if (it.get("kind") or "").strip().lower() != "album":
+                continue
+            row = dict(it)
+            au = resolve_backend_media_url(
+                api_base, (row.get("artwork_url") or "").strip()
+            )
+            if au:
+                row["artwork_url"] = au
+            c = AlbumCard()
+            c.set_item(row)
+            if self._on_open_album:
+                c.set_on_open(self._on_album_card_clicked)
+            album_widgets.append(c)
         self._album_carousel.set_items(album_widgets)
 
         artists = body.get("artists")

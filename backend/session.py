@@ -9,3 +9,4 @@ class UserSession:
     email: str
     role: str
     client: CratesApiClient
+    nickname: str = ""

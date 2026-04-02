@@ -24,6 +24,7 @@ class Profile(models.Model):
 
     nickname = models.CharField(max_length=64, unique=True)
     avatar_url = models.URLField(blank=True)
+    avatar_file = models.FileField(upload_to="avatars/", blank=True)
     bio = models.TextField(blank=True)
 
     is_premium = models.BooleanField(default=False)
@@ -55,9 +56,16 @@ class MusicItem(models.Model):
     title = models.CharField(max_length=256)
     artist = models.CharField(max_length=256, blank=True)
     artwork_url = models.URLField(blank=True)
+    # Локальная обложка (админка): в API подставляется в artwork_url как URL к /media/...
+    artwork_file = models.FileField(upload_to="music/covers/", blank=True)
     duration_sec = models.PositiveIntegerField(null=True, blank=True)
 
-    playback_ref = models.CharField(max_length=512, blank=True)
+    playback_ref = models.CharField(
+        max_length=512,
+        blank=True,
+        help_text="URL или путь на машине сервера (клиенту не подойдёт). Лучше загрузить «Аудиофайл».",
+    )
+    audio_file = models.FileField(upload_to="music/tracks/", blank=True)
     meta_json = models.TextField(blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)

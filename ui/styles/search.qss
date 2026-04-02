@@ -8,46 +8,42 @@ QWidget#searchPage {
     background-color: rgba(207, 200, 154, 0.88);
 }
 
-/* ---- Search bar frame: teal gradient ---- */
-QFrame#searchBarFrame {
-    background: qlineargradient(
-        x1:0, y1:0, x2:1, y2:0,
-        stop:0   #1A5A6A,
-        stop:0.5 #2A8A9A,
-        stop:1   #8DD0C8
-    );
-    border-radius: 10px;
+QScrollArea#searchPageScroll {
+    background-color: transparent;
     border: none;
 }
+QScrollArea#searchPageScroll > QWidget > QWidget {
+    background-color: transparent;
+}
 
-/* Input field inside the gradient frame */
+/* Компактная строка поиска (без широкой горизонтальной градиентной полосы) */
 QLineEdit#searchInput {
-    background: transparent;
-    border: none;
+    background-color: #D4CFA0;
+    border: 2px solid #2A7A8C;
+    border-radius: 10px;
     color: #0A1E2C;
     font-family: "Courier New";
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
-    letter-spacing: 2px;
-    padding: 0 14px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
     selection-background-color: #1A5A6A;
     selection-color: #8DD0C8;
 }
 QLineEdit#searchInput[placeholderText] {
-    color: rgba(10, 30, 44, 0.6);
+    color: rgba(10, 30, 44, 0.55);
 }
 
-/* Search icon button */
-QPushButton#btnSearch {
+QPushButton#btnSearchCompact {
     background-color: #0A1E2C;
     border: none;
-    border-radius: 0 10px 10px 0;
+    border-radius: 10px;
     padding: 0;
 }
-QPushButton#btnSearch:hover {
+QPushButton#btnSearchCompact:hover {
     background-color: #1A3A50;
 }
-QPushButton#btnSearch:pressed {
+QPushButton#btnSearchCompact:pressed {
     background-color: #2A7A8C;
 }
 

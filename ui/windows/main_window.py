@@ -95,7 +95,12 @@ class MainWindow(QMainWindow):
                     sid = source_card.get("id")
                     if sid is not None:
                         ctx_id = int(sid)
-            self._player.set_queue(tracks, 0, context_music_item_id=ctx_id)
+            self._player.set_queue(
+                tracks,
+                0,
+                context_music_item_id=ctx_id,
+                source_card=source_card,
+            )
             self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
             self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
 
@@ -118,6 +123,7 @@ class MainWindow(QMainWindow):
         self._selected_tab = SelectedTab(
             session,
             on_play_track=on_select_track,
+            on_open_album=on_open_album_queue,
             on_open_review=on_open_review_from_selected,
         )
 

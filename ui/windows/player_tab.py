@@ -68,6 +68,7 @@ except (ImportError, OSError):
     pass
 
 from ui import playback_settings
+from backend.api_client import resolve_backend_media_url
 
 if TYPE_CHECKING:
     from backend.session import UserSession
@@ -279,6 +280,8 @@ class PlayerTab(QWidget):
         )
 
         self._session = session
+        # Обложка карточки альбома, если у треков в очереди своей нет
+        self._queue_artwork_fallback: str = ""
         self._favorite_id: Optional[int] = None
 
         self._playlist: list[dict] = []
@@ -554,7 +557,16 @@ class PlayerTab(QWidget):
             self._web.setMinimumHeight(0)
             self._web.setMaximumHeight(0)
 
-    def _social_target_mid(self, item: dict) -> Optional[int]:
+    def _context_is_album_or_catalog_playlist(self) -> bool:
+        if not self._context_stats:
+            return False
+        k = (self._context_stats.get("kind") or "").strip().lower()
+        return k in ("album", "playlist")
+
+    def _favorite_target_mid(self, item: dict) -> Optional[int]:
+        """Избранное и рецензии: в очереди альбома/плейлиста — id карточки, иначе id трека."""
+        if self._context_music_item_id is not None and self._context_is_album_or_catalog_playlist():
+            return int(self._context_music_item_id)
         tid = item.get("id")
         if tid is not None:
             return int(tid)
@@ -563,7 +575,11 @@ class PlayerTab(QWidget):
         return None
 
     def _listen_target_music_item_id(self, item: dict) -> Optional[int]:
-        return self._social_target_mid(item)
+        """Засчёт прослушивания — только реальный трек, не запись альбома."""
+        tid = item.get("id")
+        if tid is not None:
+            return int(tid)
+        return None
 
     def flush_listen_for_close(self) -> None:
         """Перед закрытием окна — отправить накопленное прослушивание текущего трека."""
@@ -595,7 +611,7 @@ class PlayerTab(QWidget):
                 },
             )
             if st in (200, 201):
-                sm = self._social_target_mid(item)
+                sm = self._listen_target_music_item_id(item)
                 if sm is not None:
                     QTimer.singleShot(
                         80, lambda m=sm: self._refresh_stats_after_listen(m)
@@ -739,6 +755,19 @@ class PlayerTab(QWidget):
         self._now_artist.setText(str(artist))
         self._art.setToolTip(f"{title}\n{artist}")
 
+    def _artwork_url_for_current(self, item: dict) -> Optional[str]:
+        base = self._session.client.base_url if self._session else ""
+        for raw in (
+            (item.get("artwork_url") or "").strip(),
+            (self._queue_artwork_fallback or "").strip(),
+        ):
+            if not raw:
+                continue
+            u = resolve_backend_media_url(base, raw)
+            if u.startswith(("http://", "https://")):
+                return u
+        return None
+
     def _load_current(self) -> None:
         if not self._playlist:
             return
@@ -758,7 +787,7 @@ class PlayerTab(QWidget):
             self._set_web_panel_visible(True)
             if self._web is not None:
                 self._load_web_ref(ref)
-            self._load_artwork(item.get("artwork_url"))
+            self._load_artwork(self._artwork_url_for_current(item))
             self._refresh_track_sidebar()
             return
         self._set_web_panel_visible(False)
@@ -767,7 +796,7 @@ class PlayerTab(QWidget):
         QCoreApplication.processEvents()
         url = _media_url_from_playback_ref(ref)
         self._player.setSource(url)
-        self._load_artwork(item.get("artwork_url"))
+        self._load_artwork(self._artwork_url_for_current(item))
         self._refresh_track_sidebar()
 
     def _load_web_ref(self, ref: str) -> None:
@@ -859,19 +888,25 @@ class PlayerTab(QWidget):
             )
 
     def _apply_item_to_info_panel(self, item: dict) -> None:
+        ks = (
+            "listens_count",
+            "listen_time_total_sec",
+            "favorites_count",
+            "reviews_count",
+            "user_favorited",
+        )
         stats_src = item
         if (
+            self._context_music_item_id
+            and self._context_stats
+            and self._context_is_album_or_catalog_playlist()
+        ):
+            stats_src = {**item, **{k: self._context_stats.get(k) for k in ks}}
+        elif (
             item.get("id") is None
             and self._context_music_item_id
             and self._context_stats
         ):
-            ks = (
-                "listens_count",
-                "listen_time_total_sec",
-                "favorites_count",
-                "reviews_count",
-                "user_favorited",
-            )
             stats_src = {**item, **{k: self._context_stats.get(k) for k in ks}}
         title = item.get("title") or "—"
         artist = (item.get("artist") or "").strip()
@@ -899,7 +934,7 @@ class PlayerTab(QWidget):
         lt = int(stats_src.get("listen_time_total_sec") or 0)
         fc = int(stats_src.get("favorites_count") or 0)
         rc = int(stats_src.get("reviews_count") or 0)
-        mid = self._social_target_mid(item)
+        mid = self._favorite_target_mid(item)
         if mid is not None and self._session:
             self._info_stats.setText(
                 f"Слушателей: {lc}  ·  Наслушано всего: {_fmt_listen_total_sec(lt)}  ·  "
@@ -955,12 +990,14 @@ class PlayerTab(QWidget):
         if not self._session or not self._playlist:
             return
         item = self._playlist[self._index]
-        mid = self._social_target_mid(item)
+        mid = self._favorite_target_mid(item)
         if mid is None:
             return
         mid = int(mid)
         store: dict = item
-        if item.get("id") is None and self._context_stats:
+        if self._context_is_album_or_catalog_playlist() and self._context_stats:
+            store = self._context_stats
+        elif item.get("id") is None and self._context_stats:
             store = self._context_stats
         if checked:
             st, body = self._session.client.post_json("/api/favorites/", {"music_item": mid})
@@ -1005,12 +1042,14 @@ class PlayerTab(QWidget):
         if not self._session or not self._playlist:
             return
         item = self._playlist[self._index]
-        mid = self._social_target_mid(item)
+        mid = self._favorite_target_mid(item)
         if mid is None:
             return
         mid = int(mid)
         title = str(item.get("title") or "трек")
-        if item.get("id") is None and self._context_stats:
+        if self._context_is_album_or_catalog_playlist() and self._context_stats:
+            title = str(self._context_stats.get("title") or title)
+        elif item.get("id") is None and self._context_stats:
             title = str(self._context_stats.get("title") or title)
         dlg = WriteReviewDialog(
             self._session.client,
@@ -1068,10 +1107,15 @@ class PlayerTab(QWidget):
         tracks: list[dict],
         start_index: int = 0,
         context_music_item_id: Optional[int] = None,
+        source_card: Optional[dict] = None,
     ) -> None:
         """Очередь из нескольких треков (карточка альбома / подборка на «Популярное»)."""
         self._flush_listen_session()
         self._context_music_item_id = context_music_item_id
+        self._context_stats = {}
+        self._queue_artwork_fallback = ""
+        if isinstance(source_card, dict):
+            self._queue_artwork_fallback = (source_card.get("artwork_url") or "").strip()
         self._context_stats = {}
         clean: list[dict] = []
         for t in tracks:
@@ -1114,6 +1158,7 @@ class PlayerTab(QWidget):
     def set_track(self, music_item: dict) -> None:
         """Задаёт текущий трек (из поиска); очередь = один трек, пока нет альбома из API."""
         self._flush_listen_session()
+        self._queue_artwork_fallback = ""
         self._context_music_item_id = None
         self._context_stats = {}
         item = copy.deepcopy(dict(music_item))

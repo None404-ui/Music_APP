@@ -7,6 +7,9 @@ Enables CRUD inspection for development:
 - social graph, notifications, reports
 """
 
+import uuid
+
+from django import forms
 from django.contrib import admin
 
 from .models import (
@@ -37,11 +40,84 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = ("nickname", "user__username", "user__email")
 
 
+class MusicItemAdminForm(forms.ModelForm):
+    """Упрощение: provider / external_id можно не заполнять (будут upload + uuid)."""
+
+    provider = forms.CharField(
+        max_length=32,
+        required=False,
+        help_text="Оставьте пустым для значения «upload».",
+    )
+    external_id = forms.CharField(
+        max_length=128,
+        required=False,
+        help_text="Оставьте пустым — сгенерируется уникальный id.",
+    )
+
+    class Meta:
+        model = MusicItem
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        if not (cleaned.get("provider") or "").strip():
+            cleaned["provider"] = "upload"
+        if not (cleaned.get("external_id") or "").strip():
+            cleaned["external_id"] = str(uuid.uuid4())
+        return cleaned
+
+
 @admin.register(MusicItem)
 class MusicItemAdmin(admin.ModelAdmin):
+    form = MusicItemAdminForm
     list_display = ("id", "provider", "kind", "artist", "title", "updated_at")
     search_fields = ("title", "artist", "external_id")
     list_filter = ("provider", "kind")
+
+    class Media:
+        js = ("admin/js/musicitem_kind_fieldsets.js",)
+
+    fieldsets = (
+        (None, {"fields": ("provider", "external_id", "kind", "title", "artist", "duration_sec")}),
+        (
+            "Трек: один файл (вид = Track)",
+            {
+                "fields": ("audio_file",),
+                "classes": ("wide", "musicitem-fs-track"),
+                "description": (
+                    "Загрузите аудио — клиент получит ссылку на /media/.... "
+                    "Поле ниже «Папка на сервере» для трека не используйте."
+                ),
+            },
+        ),
+        (
+            "Альбом / плейлист: папка на сервере (вид = Album или Playlist)",
+            {
+                "fields": ("playback_ref",),
+                "classes": ("wide", "musicitem-fs-album"),
+                "description": (
+                    "Абсолютный путь к папке с аудио на машине Django "
+                    "(например C:\\\\Music\\\\MyAlbum или /var/music/album). "
+                    "В браузере нельзя нажать «обзор» и выбрать папку на сервере — только ввести текст пути. "
+                    "Важно: десктоп-клиент не воспроизведёт такие треки с диска сервера. "
+                    "Для приложения загружайте каждый трек отдельно (kind=Track + аудиофайл), "
+                    "в meta_json у треков укажите название альбома; запись kind=Album с тем же названием "
+                    "и исполнителем свяжет очередь воспроизведения."
+                ),
+            },
+        ),
+        (
+            "Обложка (любой вид)",
+            {
+                "fields": ("artwork_file", "artwork_url"),
+                "description": "Файл обложки предпочтительнее ссылки; для карусели «Популярное».",
+            },
+        ),
+        (
+            "Дополнительно",
+            {"fields": ("meta_json",), "classes": ("collapse",)},
+        ),
+    )
     # Во вкладке «Популярное» в карусели «Альбомы» попадают только записи с kind = album (не track / playlist).
 
 

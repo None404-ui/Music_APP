@@ -19,6 +19,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import mixins, permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -109,8 +110,8 @@ class MusicItemViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="popular-feed")
     def popular_feed(self, request):
         """
-        Сводка для вкладки «Популярное»: альбомы и треки по активности,
-        плюс агрегированный список исполнителей (по числу треков в каталоге).
+        Сводка для вкладки «Популярное»: в albums только kind=album; треки отдельно в tracks;
+        исполнители — по числу треков в каталоге.
         """
         base = _annotate_music_item_listening(
             MusicItem.objects.annotate(
@@ -139,13 +140,11 @@ class MusicItemViewSet(viewsets.ModelViewSet):
 
         # Строки kind в БД (TextChoices.value).
         album_kind = MusicItem.Kind.ALBUM.value
-        playlist_kind = MusicItem.Kind.PLAYLIST.value
         track_kind = MusicItem.Kind.TRACK.value
 
-        # Карусель «Альбомы»: album + playlist. Поиск показывает все kind; раньше здесь был только album,
-        # поэтому типичные записи (track) и плейлисты каталога не попадали в полосу.
+        # Карусель «Альбомы»: только kind=album. Треки — только в блоке tracks ниже.
         albums = _merge_popular_and_recent(
-            kind_values=[album_kind, playlist_kind],
+            kind_values=[album_kind],
             pop_n=16,
             recent_n=12,
             total=24,
@@ -166,53 +165,6 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         ]
         ctx = {"request": request}
         album_payload = MusicItemSerializer(albums, many=True, context=ctx).data
-
-        # Подборки (Collection) часто называют «альбомами»; показываем в той же карусели.
-        slots_left = max(0, 24 - len(album_payload))
-        if slots_left:
-            col_qs = Collection.objects.filter(deleted_at__isnull=True).select_related(
-                "owner"
-            )
-            if request.user.is_authenticated:
-                col_qs = col_qs.filter(
-                    Q(is_public=True) | Q(owner_id=request.user.id)
-                )
-            else:
-                col_qs = col_qs.filter(is_public=True)
-            col_qs = col_qs.order_by("-updated_at")[:slots_left]
-            for c in col_qs:
-                album_payload.append(
-                    {
-                        "id": None,
-                        "provider": "collection",
-                        "external_id": str(c.id),
-                        "kind": "playlist",
-                        "title": c.title,
-                        "artist": "Подборка",
-                        "artwork_url": c.cover_url or "",
-                        "duration_sec": None,
-                        "playback_ref": "",
-                        "meta_json": "",
-                        "updated_at": c.updated_at.isoformat()
-                        if c.updated_at
-                        else None,
-                        "reviews_count": 0,
-                        "favorites_count": 0,
-                        "listens_count": 0,
-                        "listen_time_total_sec": 0,
-                        "user_favorited": False,
-                    }
-                )
-
-        # Если в каталоге нет album/playlist и подборок — те же сущности, что в поиске (треки).
-        if len(album_payload) == 0:
-            tf = _merge_popular_and_recent(
-                kind_values=[track_kind],
-                pop_n=16,
-                recent_n=12,
-                total=24,
-            )
-            album_payload = MusicItemSerializer(tf, many=True, context=ctx).data
 
         return Response(
             {
@@ -251,6 +203,31 @@ class MusicItemViewSet(viewsets.ModelViewSet):
             if m is not None and m.kind == tk:
                 out.append(MusicItemSerializer(m, context=ctx).data)
         return out
+
+    @staticmethod
+    def _apply_root_artwork_to_tracks(
+        root: MusicItem,
+        tracks: list[dict],
+        ctx: dict,
+    ) -> list[dict]:
+        """Обложка записи альбома/плейлиста — у треков очереди, если у них пусто."""
+        if not tracks:
+            return tracks
+        if root.kind not in (
+            MusicItem.Kind.ALBUM.value,
+            MusicItem.Kind.PLAYLIST.value,
+        ):
+            return tracks
+        cover = (
+            MusicItemSerializer(root, context=ctx).data.get("artwork_url") or ""
+        ).strip()
+        if not cover:
+            return tracks
+        for row in tracks:
+            if (row.get("artwork_url") or "").strip():
+                continue
+            row["artwork_url"] = cover
+        return tracks
 
     @staticmethod
     def _meta_album_title(meta_json: str) -> str:
@@ -477,7 +454,13 @@ class MusicItemViewSet(viewsets.ModelViewSet):
                 album_title=_album_title_for_folder_scan(),
             )
             if syn:
-                return Response({"tracks": syn})
+                return Response(
+                    {
+                        "tracks": MusicItemViewSet._apply_root_artwork_to_tracks(
+                            root, syn, ctx
+                        )
+                    }
+                )
         elif len(serialized) == 1:
             ref0 = (serialized[0].get("playback_ref") or "").strip()
             p0 = os.path.normpath(os.path.expanduser(os.path.expandvars(ref0)))
@@ -491,8 +474,17 @@ class MusicItemViewSet(viewsets.ModelViewSet):
                     or _album_title_for_folder_scan(),
                 )
                 if syn:
-                    return Response({"tracks": syn})
+                    return Response(
+                        {
+                            "tracks": MusicItemViewSet._apply_root_artwork_to_tracks(
+                                root, syn, ctx
+                            )
+                        }
+                    )
 
+        serialized = MusicItemViewSet._apply_root_artwork_to_tracks(
+            root, serialized, ctx
+        )
         return Response({"tracks": serialized})
 
 
@@ -885,18 +877,26 @@ class ReportViewSet(viewsets.ModelViewSet):
 @method_decorator(csrf_exempt, name="dispatch")
 class MeProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get(self, request):
         profile, _ = Profile.objects.get_or_create(
             user=request.user, defaults={"nickname": request.user.username}
         )
-        return Response(ProfileSerializer(profile).data)
+        return Response(
+            ProfileSerializer(profile, context={"request": request}).data
+        )
 
     def patch(self, request):
         profile, _ = Profile.objects.get_or_create(
             user=request.user, defaults={"nickname": request.user.username}
         )
-        serializer = ProfileSerializer(profile, data=request.data, partial=True)
+        serializer = ProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)

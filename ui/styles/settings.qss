@@ -29,36 +29,43 @@ QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
-/* Profile card */
+/* Карточка профиля — как карточка альбома на «Популярном» (тёмный фон, читаемый текст) */
 QFrame#profileCard {
-    background-color: #D4CFA0;
+    background-color: #5c5748;
     border: 1px solid #89A194;
-    border-radius: 12px;
+    border-radius: 8px;
     margin-bottom: 12px;
 }
+QFrame#profileCard:hover {
+    border: 2px solid #CB883A;
+    background-color: #6d6756;
+}
 
-/* Profile avatar circle */
+/* Аватар — как обложка/круг исполнителя на «Популярном» */
 QLabel#profileAvatar {
     background-color: #BDB685;
     border-radius: 45px;
-    border: 3px solid #CB883A;
+    border: 2px solid #89A194;
     font-size: 28px;
     color: #A14016;
 }
 
+/* Имя — как albumTitle (#CFC89A); строка под ним (email) — как albumArtist (#89A194) */
 QLabel#profileName {
     font-family: "Courier New";
-    font-size: 18px;
+    font-size: 14px;
     font-weight: bold;
-    color: #312938;
-    letter-spacing: 2px;
+    color: #CFC89A !important;
+    letter-spacing: 1px;
+    background: transparent;
 }
 
 QLabel#profileHandle {
     font-family: "Courier New";
-    font-size: 13px;
-    color: #89A194;
+    font-size: 11px;
+    color: #89A194 !important;
     letter-spacing: 1px;
+    background: transparent;
 }
 
 /* Выход: пиксельная кнопка (шрифт подменяется на RetroShift в main) */
@@ -115,23 +122,26 @@ QFrame#settingsRow:hover {
     border: 1px solid #CB883A;
 }
 
+/* Слева подпись строки */
 QLabel#settingsRowLabel {
     font-family: "Courier New";
     font-size: 13px;
-    color: #312938;
+    color: #89A194 !important;
     letter-spacing: 1px;
 }
 
-QLabel#settingsRowValue {
+/* Справа значение */
+QWidget#settingsPage QLabel#settingsRowValue,
+QFrame#settingsRow QLabel#settingsRowValue {
     font-family: "Courier New";
     font-size: 13px;
-    color: #89A194;
+    color: #CFC89A !important;
 }
 
 /* Combo box for sound quality */
 QComboBox#settingsCombo {
     background-color: #D4CFA0;
-    color: #312938;
+    color: #CFC89A;
     border: 1px solid #89A194;
     border-radius: 6px;
     padding: 4px 12px;

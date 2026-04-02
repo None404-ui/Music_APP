@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStyle,
     QVBoxLayout,
@@ -58,17 +59,29 @@ class SearchTab(QWidget):
         )
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 24)
-        root.setSpacing(14)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # --- Search bar ---
-        search_frame = QFrame()
-        search_frame.setObjectName("searchBarFrame")
-        search_frame.setFixedHeight(54)
+        page_scroll = QScrollArea()
+        page_scroll.setObjectName("searchPageScroll")
+        page_scroll.setWidgetResizable(True)
+        page_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        page_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
 
-        bar_layout = QHBoxLayout(search_frame)
+        inner = QWidget()
+        inner.setStyleSheet("background: transparent;")
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(24, 20, 24, 24)
+        inner_layout.setSpacing(14)
+
+        # --- Поиск: компактная строка (без широкой градиентной полосы) ---
+        search_row = QWidget()
+        search_row.setObjectName("searchRowCompact")
+        bar_layout = QHBoxLayout(search_row)
         bar_layout.setContentsMargins(0, 0, 0, 0)
-        bar_layout.setSpacing(0)
+        bar_layout.setSpacing(10)
 
         self._search_input = QLineEdit()
         self._search_input.setObjectName("searchInput")
@@ -76,10 +89,11 @@ class SearchTab(QWidget):
         bar_layout.addWidget(self._search_input, stretch=1)
 
         btn_search = QPushButton()
-        btn_search.setObjectName("btnSearch")
-        btn_search.setFixedSize(60, 54)
+        btn_search.setObjectName("btnSearchCompact")
+        btn_search.setFixedSize(48, 44)
         btn_search.setIcon(QIcon(_ICON_SEARCH))
-        btn_search.setIconSize(QSize(28, 26))
+        btn_search.setIconSize(QSize(24, 22))
+        btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
 
         bar_layout.addWidget(btn_search)
         btn_search.clicked.connect(self._run_search_now)
@@ -91,7 +105,7 @@ class SearchTab(QWidget):
         self._debounce.timeout.connect(self._do_search)
         self._search_input.textChanged.connect(self._on_search_text_changed)
 
-        root.addWidget(search_frame)
+        inner_layout.addWidget(search_row)
 
         # --- Filter buttons ---
         filter_row = QWidget()
@@ -113,7 +127,7 @@ class SearchTab(QWidget):
             self._filter_btns[0].setChecked(True)
 
         filter_layout.addStretch()
-        root.addWidget(filter_row)
+        inner_layout.addWidget(filter_row)
 
         # --- Recent tracks (отдельный контейнер — предсказуемый порядок в layout) ---
         self._history_host = QWidget()
@@ -150,16 +164,16 @@ class SearchTab(QWidget):
         )
         self._history_list.itemClicked.connect(self._on_track_item_clicked)
         hl.addWidget(self._history_list)
-        root.addWidget(self._history_host)
+        inner_layout.addWidget(self._history_host)
 
         # --- Search results ---
-        root.addSpacing(10)
+        inner_layout.addSpacing(10)
         results_label = QLabel("результаты")
         results_label.setObjectName("searchSectionLabel")
         results_label.setMinimumHeight(
             max(22, results_label.sizeHint().height() + 4)
         )
-        root.addWidget(results_label)
+        inner_layout.addWidget(results_label)
 
         self._results_list = QListWidget()
         self._results_list.setObjectName("searchResults")
@@ -170,10 +184,19 @@ class SearchTab(QWidget):
         self._results_list.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel
         )
+        self._results_list.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._results_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self._results_list.itemClicked.connect(self._on_track_item_clicked)
-        root.addWidget(self._results_list)
+        inner_layout.addWidget(self._results_list)
 
-        root.addStretch()
+        inner_layout.addStretch()
+
+        page_scroll.setWidget(inner)
+        root.addWidget(page_scroll, stretch=1)
 
         self._refresh_recent_list()
 
@@ -187,10 +210,12 @@ class SearchTab(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._refresh_recent_list()
+        self._resize_results_list_height()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._refresh_recent_list()
+        self._resize_results_list_height()
 
     def _on_search_text_changed(self, _text: str) -> None:
         self._debounce.stop()
@@ -248,6 +273,27 @@ class SearchTab(QWidget):
         self._history_list.setFixedHeight(h)
         self._history_host.updateGeometry()
 
+    def _results_viewport_width(self) -> int:
+        w = self._results_list.viewport().width()
+        if w >= 40:
+            return w
+        pw = self.width() - 48
+        return max(200, pw)
+
+    def _resize_results_list_height(self) -> None:
+        cnt = self._results_list.count()
+        sp = self._results_list.spacing()
+        fw = self._results_list.style().pixelMetric(
+            QStyle.PixelMetric.PM_DefaultFrameWidth,
+            None,
+            self._results_list,
+        )
+        if cnt == 0:
+            self._results_list.setFixedHeight(_LIST_ROW_MIN + 16)
+            return
+        h = cnt * _RESULTS_ROW_PX + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
+        self._results_list.setFixedHeight(h)
+
     def _push_recent_track(self, music_item: dict) -> None:
         def _same(a: dict, b: dict) -> bool:
             if a.get("id") is not None and a.get("id") == b.get("id"):
@@ -280,7 +326,7 @@ class SearchTab(QWidget):
         except Exception:
             items = []
 
-        rw = max(200, self._results_list.viewport().width(), self.width() - 48)
+        rw = max(200, self._results_viewport_width(), self.width() - 48)
         for it in items:
             title = it.get("title") or "Без названия"
             artist = it.get("artist") or ""
@@ -289,6 +335,7 @@ class SearchTab(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, it)
             item.setSizeHint(QSize(rw, _RESULTS_ROW_PX))
             self._results_list.addItem(item)
+        self._resize_results_list_height()
 
     def _on_track_item_clicked(self, item: QListWidgetItem):
         if not self._on_select_track:

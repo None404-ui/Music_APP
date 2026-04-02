@@ -17,6 +17,7 @@ from PyQt6.QtGui import QColor
 from backend.session import UserSession
 
 OnPlayTrack = Callable[[dict], None]
+OnOpenAlbum = Callable[[list, dict], None]
 OnOpenReview = Callable[[dict], None]
 
 
@@ -77,6 +78,7 @@ class SelectedTab(QWidget):
         session: UserSession,
         *,
         on_play_track: Optional[OnPlayTrack] = None,
+        on_open_album: Optional[OnOpenAlbum] = None,
         on_open_review: Optional[OnOpenReview] = None,
         parent=None,
     ):
@@ -86,6 +88,7 @@ class SelectedTab(QWidget):
         self._session = session
         self._client = session.client
         self._on_play_track = on_play_track
+        self._on_open_album = on_open_album
         self._on_open_review = on_open_review
 
         self._outer = QVBoxLayout(self)
@@ -100,14 +103,6 @@ class SelectedTab(QWidget):
         sh.setColor(QColor(8, 28, 42, 150))
         title.setGraphicsEffect(sh)
         self._outer.addWidget(title)
-
-        subtitle = QLabel(
-            "Избранное, подборки и рецензии. Трек в избранном — открыть в плеере; "
-            "строка рецензии — прочитать текст."
-        )
-        subtitle.setObjectName("selectedRowSub")
-        subtitle.setWordWrap(True)
-        self._outer.addWidget(subtitle)
 
         self._scroll = QScrollArea()
         self._scroll.setObjectName("selectedScroll")
@@ -126,28 +121,64 @@ class SelectedTab(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
 
-        col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
         st_fav, fav_body = self._client.get_json("/api/favorites/")
         favs = _response_list(fav_body) if st_fav == 200 else []
-        if favs:
-            for row in favs:
-                mi = row.get("music_item") or {}
-                if isinstance(mi, dict):
+
+        fav_tracks: list[dict] = []
+        fav_albums: list[dict] = []
+        for row in favs:
+            mi = row.get("music_item")
+            if not isinstance(mi, dict) or mi.get("id") is None:
+                continue
+            k = (mi.get("kind") or "").strip().lower()
+            if k in ("album", "playlist"):
+                fav_albums.append(mi)
+            else:
+                fav_tracks.append(mi)
+
+        if st_fav != 200:
+            col.addWidget(self._section_label("ИЗБРАННОЕ"))
+            col.addWidget(self._empty("Не удалось загрузить избранное с сервера."))
+        else:
+            col.addWidget(self._section_label("ИЗБРАННЫЕ АЛЬБОМЫ И ПЛЕЙЛИСТЫ"))
+            if fav_albums:
+                for mi in fav_albums:
+                    title_t = mi.get("title") or "—"
+                    artist = (mi.get("artist") or "").strip() or "—"
+                    sub = (
+                        "Альбом"
+                        if (mi.get("kind") or "").strip().lower() == "album"
+                        else "Плейлист"
+                    )
+                    open_cb = None
+                    if self._on_open_album:
+                        open_cb = lambda m=mi: self._open_favorite_album(m)
+                    col.addWidget(
+                        _ClickableRow(str(title_t), f"{sub} · {artist}", open_cb)
+                    )
+            else:
+                col.addWidget(
+                    self._empty(
+                        "Пока нет. Во время воспроизведения альбома нажмите ♥ — "
+                        "в избранное сохранится альбом."
+                    )
+                )
+
+            col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
+            if fav_tracks:
+                for mi in fav_tracks:
                     title_t = mi.get("title") or "—"
                     artist = mi.get("artist") or ""
-                else:
-                    title_t, artist = "—", ""
-                play_cb = None
-                if self._on_play_track and isinstance(mi, dict) and mi.get("id") is not None:
-                    play_cb = lambda m=mi: self._on_play_track(m)
-                col.addWidget(_ClickableRow(str(title_t), str(artist), play_cb))
-        else:
-            msg = (
-                "Нет избранного или сервер недоступен."
-                if st_fav != 200
-                else "Пока нет треков в избранном. Нажмите ♥ в плеере."
-            )
-            col.addWidget(self._empty(msg))
+                    play_cb = None
+                    if self._on_play_track:
+                        play_cb = lambda m=mi: self._on_play_track(m)
+                    col.addWidget(_ClickableRow(str(title_t), str(artist), play_cb))
+            else:
+                col.addWidget(
+                    self._empty(
+                        "Пока нет. ♥ для одного трека (поиск / не из очереди альбома)."
+                    )
+                )
 
         col.addWidget(self._section_label("МОИ ПОДБОРКИ"))
         st_col, col_body = self._client.get_json("/api/collections/")
@@ -204,6 +235,24 @@ class SelectedTab(QWidget):
         col.addStretch()
         self._scroll.takeWidget()
         self._scroll.setWidget(container)
+
+    def _open_favorite_album(self, mi: dict) -> None:
+        if not self._on_open_album:
+            return
+        mid = mi.get("id")
+        if mid is None:
+            return
+        st, body = self._client.get_json(
+            f"/api/music-items/playback-queue/?music_item_id={int(mid)}"
+        )
+        if st != 200 or not isinstance(body, dict):
+            return
+        raw = body.get("tracks")
+        if not isinstance(raw, list):
+            return
+        tracks = [x for x in raw if isinstance(x, dict)]
+        if tracks:
+            self._on_open_album(tracks, mi)
 
     @staticmethod
     def _section_label(text: str) -> QLabel:

@@ -13,11 +13,18 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QComboBox,
     QPushButton,
+    QFileDialog,
 )
-from PyQt6.QtCore import Qt, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCore import Qt, QUrl, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QPainter, QColor, QImage, QPainterPath, QPixmap
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
+from backend.api_client import resolve_backend_media_url
 from ui import playback_settings
+
+# Слева подпись — #89A194; справа значение — тёплый беж #CFC89A (как в палитре CRATES).
+_SETTINGS_ROW_LABEL_COLOR = "#89A194"
+_SETTINGS_ROW_VALUE_COLOR = "#CFC89A"
 
 
 class ToggleSwitch(QWidget):
@@ -91,6 +98,19 @@ class ToggleSwitch(QWidget):
         p.end()
 
 
+class ClickableAvatarLabel(QLabel):
+    clicked = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
 class SettingsRow(QFrame):
     def __init__(self, label: str, row_data=None, row_type: str = "text", parent=None):
         super().__init__(parent)
@@ -104,6 +124,7 @@ class SettingsRow(QFrame):
 
         lbl = QLabel(label)
         lbl.setObjectName("settingsRowLabel")
+        lbl.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         layout.addWidget(lbl, stretch=1)
 
         if row_type == "toggle":
@@ -120,16 +141,12 @@ class SettingsRow(QFrame):
         elif row_type == "text" and row_data:
             val = QLabel(str(row_data) + "  ›")
             val.setObjectName("settingsRowValue")
+            val.setStyleSheet(f"color: {_SETTINGS_ROW_VALUE_COLOR};")
             val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             layout.addWidget(val)
 
 
 _SECTIONS_OTHER = {
-    "АККАУНТ": [
-        ("Имя пользователя", "crates_user", "text"),
-        ("Электронная почта", "user@mail.com", "text"),
-        ("Сменить пароль", "", "text"),
-    ],
     "ИНТЕРФЕЙС": [
         ("Тёмная тема", None, "toggle"),
         ("Язык", "Русский", "text"),
@@ -147,6 +164,7 @@ class SettingsTab(QWidget):
     ):
         super().__init__(parent)
         self.setObjectName("settingsPage")
+        self._session = session
         self._on_playback_changed = on_playback_changed
         self._on_logout = on_logout
 
@@ -160,29 +178,40 @@ class SettingsTab(QWidget):
         profile_layout.setContentsMargins(20, 16, 20, 16)
         profile_layout.setSpacing(20)
 
-        avatar = QLabel()
+        self._avatar_reply: QNetworkReply | None = None
+        self._avatar_nam = QNetworkAccessManager(self)
+
+        avatar = ClickableAvatarLabel()
         avatar.setObjectName("profileAvatar")
         avatar.setFixedSize(90, 90)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setText("♪")
-        avatar.setStyleSheet("font-size: 28px; color: #A14016;")
+        if session is not None:
+            avatar.setToolTip("Нажмите, чтобы выбрать фото профиля")
+            avatar.clicked.connect(self._pick_avatar)
+        else:
+            avatar.setToolTip("")
 
         name_col = QVBoxLayout()
         name_col.setSpacing(4)
         if session is not None:
             email = (session.email or "").strip()
-            local = email.split("@", 1)[0] if email else "Пользователь"
-            name_lbl = QLabel(local or "Пользователь")
+            nick = (session.nickname or "").strip()
+            display = nick or (email.split("@", 1)[0] if email else "") or "Пользователь"
+            name_lbl = QLabel(display)
             handle_lbl = QLabel(email or "—")
         else:
             name_lbl = QLabel("Пользователь")
             handle_lbl = QLabel("—")
         name_lbl.setObjectName("profileName")
         handle_lbl.setObjectName("profileHandle")
+        self._name_lbl = name_lbl
+        self._handle_lbl = handle_lbl
         name_col.addWidget(name_lbl)
         name_col.addWidget(handle_lbl)
         name_col.addStretch()
 
+        self._avatar = avatar
         profile_layout.addWidget(avatar)
         profile_layout.addLayout(name_col, stretch=1)
 
@@ -218,6 +247,20 @@ class SettingsTab(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
 
+        acc_lbl = QLabel("АККАУНТ")
+        acc_lbl.setObjectName("settingsSectionLabel")
+        col.addWidget(acc_lbl)
+        if session is not None:
+            email_acc = (session.email or "").strip()
+            nick_acc = (session.nickname or "").strip()
+            name_row = nick_acc or (email_acc.split("@", 1)[0] if email_acc else "") or "—"
+            mail_row = email_acc or "—"
+        else:
+            name_row, mail_row = "—", "—"
+        col.addWidget(SettingsRow("Имя пользователя", name_row, "text"))
+        col.addWidget(SettingsRow("Электронная почта", mail_row, "text"))
+        col.addWidget(SettingsRow("Сменить пароль", "", "text"))
+
         for section_name, rows in _SECTIONS_OTHER.items():
             section_lbl = QLabel(section_name)
             section_lbl.setObjectName("settingsSectionLabel")
@@ -240,6 +283,7 @@ class SettingsTab(QWidget):
         ql.setContentsMargins(16, 0, 16, 0)
         q_lab = QLabel("Качество звука")
         q_lab.setObjectName("settingsRowLabel")
+        q_lab.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         ql.addWidget(q_lab)
         ql.addStretch()
         ql.addWidget(self._quality_combo)
@@ -289,6 +333,118 @@ class SettingsTab(QWidget):
         col.addStretch()
         scroll.setWidget(container)
         outer.addWidget(scroll, stretch=1)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._session:
+            self._reload_profile_header()
+
+    def _round_avatar_pixmap(self, src: QPixmap) -> QPixmap:
+        size = 90
+        if src.isNull():
+            return src
+        scaled = src.scaled(
+            size,
+            size,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        out = QPixmap(size, size)
+        out.fill(Qt.GlobalColor.transparent)
+        p = QPainter(out)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addEllipse(0, 0, size, size)
+        p.setClipPath(path)
+        sw, sh = scaled.width(), scaled.height()
+        p.drawPixmap((size - sw) // 2, (size - sh) // 2, scaled)
+        p.end()
+        return out
+
+    def _abort_avatar_reply(self) -> None:
+        if self._avatar_reply is None:
+            return
+        r = self._avatar_reply
+        self._avatar_reply = None
+        r.abort()
+
+    def _on_avatar_downloaded(self) -> None:
+        reply = self.sender()
+        if not isinstance(reply, QNetworkReply):
+            return
+        if reply is not self._avatar_reply:
+            reply.deleteLater()
+            return
+        self._avatar_reply = None
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                return
+            data = reply.readAll()
+            img = QImage()
+            if not img.loadFromData(data):
+                return
+            pix = self._round_avatar_pixmap(QPixmap.fromImage(img))
+            self._avatar.setPixmap(pix)
+            self._avatar.setText("")
+        finally:
+            reply.deleteLater()
+
+    def _fetch_avatar_from_url(self, url: str) -> None:
+        if not url or not url.startswith(("http://", "https://")):
+            return
+        self._abort_avatar_reply()
+        self._avatar_reply = self._avatar_nam.get(QNetworkRequest(QUrl(url)))
+        self._avatar_reply.finished.connect(self._on_avatar_downloaded)
+
+    def _reload_profile_header(self) -> None:
+        if not self._session:
+            return
+        st, body = self._session.client.get_json("/api/profile/me/")
+        if st != 200 or not isinstance(body, dict):
+            return
+        nick = (body.get("nickname") or "").strip()
+        email = (self._session.email or "").strip()
+        display = nick or (email.split("@", 1)[0] if email else "") or "Пользователь"
+        self._name_lbl.setText(display)
+        self._handle_lbl.setText(email or "—")
+        url = resolve_backend_media_url(
+            self._session.client.base_url,
+            (body.get("avatar_url") or "").strip(),
+        )
+        if url.startswith(("http://", "https://")):
+            self._fetch_avatar_from_url(url)
+        else:
+            self._avatar.clear()
+            self._avatar.setPixmap(QPixmap())
+            self._avatar.setText("♪")
+
+    def _pick_avatar(self) -> None:
+        if not self._session:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Изображение для аватара",
+            "",
+            "Изображения (*.png *.jpg *.jpeg *.webp *.bmp);;Все файлы (*.*)",
+        )
+        if not path:
+            return
+        prev = QPixmap(path)
+        if not prev.isNull():
+            self._avatar.setPixmap(self._round_avatar_pixmap(prev))
+            self._avatar.setText("")
+        st, body = self._session.client.patch_multipart_file(
+            "/api/profile/me/", "avatar_file", path
+        )
+        if st == 200 and isinstance(body, dict):
+            au = resolve_backend_media_url(
+                self._session.client.base_url,
+                (body.get("avatar_url") or "").strip(),
+            )
+            if au.startswith(("http://", "https://")):
+                self._fetch_avatar_from_url(au)
+        else:
+            self._reload_profile_header()
 
     def _emit_playback(self) -> None:
         if self._on_playback_changed:
