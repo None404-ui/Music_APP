@@ -1,0 +1,132 @@
+/* Auth dialog — retro CRATES palette */
+
+QDialog#authDialog {
+    background-color: #5C4033;
+    border-radius: 12px;
+}
+
+QFrame#authChrome {
+    background-color: #F5E6C8;
+    border: 3px solid #4A3428;
+    border-radius: 10px;
+}
+
+QFrame#authHeaderBar {
+    background-color: #4A3428;
+    border: none;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    min-height: 28px;
+    max-height: 28px;
+}
+
+QLabel#authTitle {
+    color: #1E4D5C;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    font-family: "Segoe UI", "Courier New", monospace;
+}
+
+QLabel#authError {
+    color: #A14016;
+    font-size: 11px;
+    min-height: 18px;
+    font-family: "Courier New", monospace;
+}
+
+QLineEdit#authField {
+    background-color: #FFFCF5;
+    border: 1px solid #8A7A6A;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: "Courier New", monospace;
+    color: #312938;
+}
+
+QLineEdit#authField:focus {
+    border: 1px solid #CB883A;
+}
+
+QPushButton#authBtnPrimary {
+    background-color: #E8893A;
+    color: #FFFFFF;
+    border: 2px solid #C45F1A;
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-family: "Courier New", monospace;
+}
+
+QPushButton#authBtnPrimary:hover {
+    background-color: #F59A4A;
+}
+
+QPushButton#authBtnPrimary:pressed {
+    background-color: #CB883A;
+}
+
+QPushButton#authBtnSecondary {
+    background-color: #FFFCF5;
+    color: #E8893A;
+    border: 2px solid #B8A896;
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-family: "Courier New", monospace;
+}
+
+QPushButton#authBtnSecondary:hover {
+    background-color: #FFF8E8;
+    border-color: #CB883A;
+}
+
+QPushButton#authBtnLink {
+    background: transparent;
+    border: none;
+    color: #1E4D5C;
+    font-size: 11px;
+    text-decoration: underline;
+    font-family: "Courier New", monospace;
+}
+
+QPushButton#authBtnLink:hover {
+    color: #CB883A;
+}
+
+QStackedWidget#authStack {
+    background: transparent;
+}
+
+QWidget#authPage {
+    background: transparent;
+}
+
+/* «Запомнить меня» — квадрат с галочкой в стиле приложения */
+QCheckBox#authRememberCheck {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 1px;
+    spacing: 8px;
+}
+QCheckBox#authRememberCheck::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #8A7A6A;
+    border-radius: 3px;
+    background-color: #FFFCF5;
+}
+QCheckBox#authRememberCheck::indicator:hover {
+    border-color: #CB883A;
+}
+QCheckBox#authRememberCheck::indicator:checked {
+    background-color: #E8893A;
+    border: 2px solid #C45F1A;
+}
