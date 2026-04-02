@@ -4,6 +4,15 @@ QWidget#selectedPage {
     background-color: rgba(207, 200, 154, 0.88);
 }
 
+QWidget#selectedPage QLabel#sectionHeading {
+    font-family: "Courier New";
+    font-size: 28px;
+    font-weight: bold;
+    color: #2A7A8C;
+    letter-spacing: 5px;
+    margin-bottom: 4px;
+}
+
 QLabel#selectedSectionLabel {
     font-family: "Courier New";
     font-size: 11px;

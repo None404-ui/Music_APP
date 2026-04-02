@@ -17,12 +17,13 @@ QWidget#pageStack {
     background: transparent;
 }
 
-/* Полупрозрачные страницы — виден общий ambient-фон */
+/* Полупрозрачные страницы — виден общий ambient-фон (все вкладки) */
 QWidget#popularPage,
 QWidget#reviewsPage,
 QWidget#searchPage,
 QWidget#selectedPage,
-QWidget#settingsPage {
+QWidget#settingsPage,
+QWidget#playerPage {
     background-color: rgba(207, 200, 154, 0.88);
 }
 

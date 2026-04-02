@@ -1,7 +1,7 @@
 /* Плеер — макет: две карточки на общем ambient-фоне */
 
 QWidget#playerPage {
-    background: transparent;
+    background-color: rgba(207, 200, 154, 0.88);
 }
 
 QFrame#playerLeftCard,
@@ -73,6 +73,9 @@ QLabel#playerTimeRemain {
     font-family: "Courier New", monospace;
     font-size: 11px;
     color: #003366;
+    min-height: 20px;
+    padding-top: 4px;
+    padding-bottom: 2px;
 }
 
 QPushButton#playerBtnPrev,
@@ -122,12 +125,6 @@ QLabel#playerVolumeIcon {
     color: #003366;
 }
 
-QLabel#playerStatusHint {
-    font-family: "Courier New", monospace;
-    font-size: 10px;
-    color: #A14016;
-}
-
 QFrame#playerAlbumTab {
     background-color: #B8B88A;
     border-top-left-radius: 18px;
@@ -141,6 +138,55 @@ QLabel#playerAlbumTitle {
     font-weight: bold;
     color: #003366;
     letter-spacing: 2px;
+}
+
+QFrame#playerTrackInfoPanel {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 51, 102, 0.15);
+}
+
+QLabel#playerInfoTitleLine {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    color: #003366;
+}
+
+QLabel#playerInfoStats {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    color: #312938;
+}
+
+QPushButton#playerLikeBtn {
+    background-color: rgba(42, 122, 140, 0.25);
+    border: 2px solid #2A7A8C;
+    border-radius: 8px;
+    padding: 4px;
+}
+QPushButton#playerLikeBtn:hover {
+    background-color: rgba(203, 136, 58, 0.35);
+    border-color: #CB883A;
+}
+QPushButton#playerLikeBtn:checked {
+    background-color: rgba(224, 112, 32, 0.45);
+    border-color: #E07020;
+}
+
+QPushButton#playerReviewBtn {
+    background-color: rgba(10, 30, 44, 0.12);
+    border: 2px solid #0A1E2C;
+    border-radius: 8px;
+    padding: 4px;
+}
+QPushButton#playerReviewBtn:hover {
+    background-color: rgba(42, 122, 140, 0.3);
+    border-color: #2A7A8C;
+}
+
+QLabel#playerTrackMeta {
+    font-family: "Courier New", monospace;
+    font-size: 9px;
+    color: #5a6a78;
 }
 
 QScrollArea#playerAlbumScroll {

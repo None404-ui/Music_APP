@@ -21,6 +21,7 @@ from .models import (
     ReviewFavorite,
     ListeningEvent,
     MusicItem,
+    MusicItemQualifiedListen,
     Notification,
     Profile,
     Reaction,
@@ -41,6 +42,7 @@ class MusicItemAdmin(admin.ModelAdmin):
     list_display = ("id", "provider", "kind", "artist", "title", "updated_at")
     search_fields = ("title", "artist", "external_id")
     list_filter = ("provider", "kind")
+    # Во вкладке «Популярное» в карусели «Альбомы» попадают только записи с kind = album (не track / playlist).
 
 
 @admin.register(Collection)
@@ -89,7 +91,21 @@ class ReviewFavoriteAdmin(admin.ModelAdmin):
 
 @admin.register(ListeningEvent)
 class ListeningEventAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "music_item", "started_at", "ended_at", "source")
+    list_display = (
+        "id",
+        "user",
+        "music_item",
+        "started_at",
+        "ended_at",
+        "listen_seconds",
+        "source",
+    )
+    search_fields = ("user__username", "music_item__title", "music_item__artist")
+
+
+@admin.register(MusicItemQualifiedListen)
+class MusicItemQualifiedListenAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "music_item", "created_at")
     search_fields = ("user__username", "music_item__title", "music_item__artist")
 
 

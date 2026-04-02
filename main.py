@@ -1,5 +1,14 @@
-import sys
 import os
+import sys
+
+# До первого импорта Qt WebEngine (иначе флаги не применятся).
+# QUIC/TLS: на части сетей Windows handshake к YouTube падает (net_error -101).
+_extra = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").strip()
+_base_flags = "--disable-quic --disable-features=IsolateOrigins,site-per-process"
+if os.environ.get("CRATES_WEBENGINE_IGNORE_SSL", "").lower() in ("1", "true", "yes"):
+    _base_flags += " --ignore-certificate-errors"
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = f"{_base_flags} {_extra}".strip()
+
 from PyQt6.QtWidgets import QApplication, QDialog
 from ui.windows.main_window import MainWindow
 from ui.windows.auth_dialog import AuthDialog
@@ -35,17 +44,22 @@ def main():
     family = register_retro_font()
     app.setStyleSheet(inject_font_into_qss(load_stylesheets(), family))
 
-    session = try_session_from_saved()
-    if session is None:
-        auth = AuthDialog()
-        if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
-            sys.exit(0)
-        session = auth.session
+    while True:
+        session = try_session_from_saved()
+        if session is None:
+            auth = AuthDialog()
+            if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
+                sys.exit(0)
+            session = auth.session
 
-    window = MainWindow(session)
-    window.show()
+        window = MainWindow(session)
+        window.show()
+        app.exec()
 
-    sys.exit(app.exec())
+        if not window.consume_logout_restart():
+            break
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

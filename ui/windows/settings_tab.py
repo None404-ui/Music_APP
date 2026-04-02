@@ -1,6 +1,18 @@
+from typing import TYPE_CHECKING, Callable, Optional
+
+if TYPE_CHECKING:
+    from backend.session import UserSession
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QFrame, QSizePolicy, QComboBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
+    QComboBox,
+    QPushButton,
 )
 from PyQt6.QtCore import Qt, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPainter, QColor
@@ -126,10 +138,17 @@ _SECTIONS_OTHER = {
 
 
 class SettingsTab(QWidget):
-    def __init__(self, on_playback_changed=None, parent=None):
+    def __init__(
+        self,
+        session: Optional["UserSession"] = None,
+        on_playback_changed=None,
+        on_logout: Optional[Callable[[], None]] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setObjectName("settingsPage")
         self._on_playback_changed = on_playback_changed
+        self._on_logout = on_logout
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 24)
@@ -150,9 +169,15 @@ class SettingsTab(QWidget):
 
         name_col = QVBoxLayout()
         name_col.setSpacing(4)
-        name_lbl = QLabel("Пользователь")
+        if session is not None:
+            email = (session.email or "").strip()
+            local = email.split("@", 1)[0] if email else "Пользователь"
+            name_lbl = QLabel(local or "Пользователь")
+            handle_lbl = QLabel(email or "—")
+        else:
+            name_lbl = QLabel("Пользователь")
+            handle_lbl = QLabel("—")
         name_lbl.setObjectName("profileName")
-        handle_lbl = QLabel("@crates_user")
         handle_lbl.setObjectName("profileHandle")
         name_col.addWidget(name_lbl)
         name_col.addWidget(handle_lbl)
@@ -160,6 +185,25 @@ class SettingsTab(QWidget):
 
         profile_layout.addWidget(avatar)
         profile_layout.addLayout(name_col, stretch=1)
+
+        if on_logout is not None:
+            btn_out = QPushButton("Выйти из аккаунта")
+            btn_out.setObjectName("settingsLogoutBtn")
+            btn_out.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_out.setSizePolicy(
+                QSizePolicy.Policy.Maximum,
+                QSizePolicy.Policy.Fixed,
+            )
+            btn_out.clicked.connect(on_logout)
+            corner = QVBoxLayout()
+            corner.setContentsMargins(0, 0, 0, 0)
+            corner.setSpacing(0)
+            corner.addWidget(
+                btn_out,
+                alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+            )
+            corner.addStretch()
+            profile_layout.addLayout(corner)
         outer.addWidget(profile_card)
 
         scroll = QScrollArea()
@@ -200,9 +244,17 @@ class SettingsTab(QWidget):
         ql.addStretch()
         ql.addWidget(self._quality_combo)
         idx = self._quality_combo.findText(playback_settings.quality_label())
+        self._quality_combo.blockSignals(True)
         self._quality_combo.setCurrentIndex(max(0, idx))
-        self._quality_combo.currentTextChanged.connect(self._on_quality_changed)
+        self._quality_combo.blockSignals(False)
+        self._quality_combo.currentIndexChanged.connect(self._on_quality_index_changed)
         col.addWidget(qrow)
+        q_hint = QLabel(
+            "Меняет максимальную громкость: «Низкое» тише, «Высокое» — полный уровень ползунка."
+        )
+        q_hint.setObjectName("settingsHint")
+        q_hint.setWordWrap(True)
+        col.addWidget(q_hint)
 
         self._autoplay_toggle = ToggleSwitch()
         self._autoplay_toggle.setChecked(playback_settings.autoplay())
@@ -242,7 +294,8 @@ class SettingsTab(QWidget):
         if self._on_playback_changed:
             self._on_playback_changed()
 
-    def _on_quality_changed(self, text: str) -> None:
+    def _on_quality_index_changed(self, index: int) -> None:
+        text = self._quality_combo.itemText(index)
         playback_settings.set_quality_label(text)
         self._emit_playback()
 

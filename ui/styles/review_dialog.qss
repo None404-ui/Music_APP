@@ -68,3 +68,52 @@ QPushButton#reviewDetailCloseBtn:hover {
     background-color: #CB883A;
     color: #312938;
 }
+
+/* Диалог написания рецензии на трек (плеер) */
+QDialog#writeReviewDialog {
+    background-color: #EDE6CC;
+    border: 3px solid #4A3428;
+    border-radius: 10px;
+}
+QLabel#writeReviewHead {
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+    color: #0A1E2C;
+}
+QTextEdit#writeReviewBody {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #312938;
+    background-color: #F5F0DC;
+    border: 2px solid #89A194;
+    border-radius: 8px;
+    padding: 8px;
+}
+QFrame#writeReviewLine {
+    background-color: #89A194;
+    border: none;
+}
+QPushButton#writeReviewCancelBtn {
+    background-color: transparent;
+    color: #312938;
+    border: 2px solid #312938;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Courier New";
+    font-size: 10px;
+}
+QPushButton#writeReviewOkBtn {
+    background-color: #A14016;
+    color: #F5E6C8;
+    border: 2px solid #312938;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+}
+QPushButton#writeReviewOkBtn:hover {
+    background-color: #CB883A;
+    color: #312938;
+}

@@ -8,11 +8,15 @@ Exposes JSON endpoints used by the PyQt client:
 - Profile endpoint and session-based auth endpoints (see auth_views.py)
 """
 
-from django.db.models import Q
-from django.utils import timezone
-from django.db.models.functions import TruncDate
-from django.db.models import Count
+import json
+import os
 from datetime import timedelta
+
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce, TruncDate
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import mixins, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -32,7 +36,7 @@ from .models import (
     Report,
     Review,
 )
-from .models import AdUnit, ListeningEvent, Notification, Reaction
+from .models import AdUnit, ListeningEvent, MusicItemQualifiedListen, Notification, Reaction
 from .permissions import (
     IsAdminOrReadOnly,
     IsAuthorOrReadOnly,
@@ -61,6 +65,22 @@ from .serializers import (
 )
 
 
+def _annotate_music_item_listening(qs):
+    """Слушатели = уникальные пользователи после порога; время = сумма listen_seconds по сессиям."""
+    le_sum = (
+        ListeningEvent.objects.filter(music_item_id=OuterRef("pk"))
+        .values("music_item_id")
+        .annotate(total=Sum("listen_seconds"))
+        .values("total")[:1]
+    )
+    return qs.annotate(
+        listens_count=Count("qualified_listens"),
+        listen_time_total_sec=Coalesce(
+            Subquery(le_sum, output_field=IntegerField()), 0
+        ),
+    )
+
+
 class MusicItemViewSet(viewsets.ModelViewSet):
     queryset = MusicItem.objects.all().order_by("-updated_at")
     serializer_class = MusicItemSerializer
@@ -68,6 +88,13 @@ class MusicItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = qs.annotate(
+            reviews_count=Count(
+                "reviews", filter=Q(reviews__deleted_at__isnull=True), distinct=True
+            ),
+            favorites_count=Count("favorites", distinct=True),
+        )
+        qs = _annotate_music_item_listening(qs)
         q = self.request.query_params.get("q")
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(artist__icontains=q))
@@ -78,6 +105,395 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         if kind:
             qs = qs.filter(kind=kind)
         return qs
+
+    @action(detail=False, methods=["get"], url_path="popular-feed")
+    def popular_feed(self, request):
+        """
+        Сводка для вкладки «Популярное»: альбомы и треки по активности,
+        плюс агрегированный список исполнителей (по числу треков в каталоге).
+        """
+        base = _annotate_music_item_listening(
+            MusicItem.objects.annotate(
+                reviews_count=Count(
+                    "reviews", filter=Q(reviews__deleted_at__isnull=True), distinct=True
+                ),
+                favorites_count=Count("favorites", distinct=True),
+            )
+        )
+
+        def _merge_popular_and_recent(
+            *, kind_values: list[str], pop_n: int, recent_n: int, total: int
+        ):
+            q = base.filter(kind__in=kind_values)
+            popular = list(
+                q.order_by(
+                    "-listens_count", "-favorites_count", "-updated_at"
+                )[:pop_n]
+            )
+            seen = {x.pk for x in popular}
+            recent_qs = q.order_by("-updated_at")
+            if seen:
+                recent_qs = recent_qs.exclude(pk__in=seen)
+            recent = list(recent_qs[:recent_n])
+            return (popular + recent)[:total]
+
+        # Строки kind в БД (TextChoices.value).
+        album_kind = MusicItem.Kind.ALBUM.value
+        playlist_kind = MusicItem.Kind.PLAYLIST.value
+        track_kind = MusicItem.Kind.TRACK.value
+
+        # Карусель «Альбомы»: album + playlist. Поиск показывает все kind; раньше здесь был только album,
+        # поэтому типичные записи (track) и плейлисты каталога не попадали в полосу.
+        albums = _merge_popular_and_recent(
+            kind_values=[album_kind, playlist_kind],
+            pop_n=16,
+            recent_n=12,
+            total=24,
+        )
+        tracks = _merge_popular_and_recent(
+            kind_values=[track_kind], pop_n=28, recent_n=16, total=40
+        )
+        artist_rows = (
+            MusicItem.objects.filter(kind=track_kind)
+            .exclude(artist="")
+            .values("artist")
+            .annotate(track_count=Count("id"))
+            .order_by("-track_count")[:24]
+        )
+        artists = [
+            {"name": row["artist"], "track_count": row["track_count"]}
+            for row in artist_rows
+        ]
+        ctx = {"request": request}
+        album_payload = MusicItemSerializer(albums, many=True, context=ctx).data
+
+        # Подборки (Collection) часто называют «альбомами»; показываем в той же карусели.
+        slots_left = max(0, 24 - len(album_payload))
+        if slots_left:
+            col_qs = Collection.objects.filter(deleted_at__isnull=True).select_related(
+                "owner"
+            )
+            if request.user.is_authenticated:
+                col_qs = col_qs.filter(
+                    Q(is_public=True) | Q(owner_id=request.user.id)
+                )
+            else:
+                col_qs = col_qs.filter(is_public=True)
+            col_qs = col_qs.order_by("-updated_at")[:slots_left]
+            for c in col_qs:
+                album_payload.append(
+                    {
+                        "id": None,
+                        "provider": "collection",
+                        "external_id": str(c.id),
+                        "kind": "playlist",
+                        "title": c.title,
+                        "artist": "Подборка",
+                        "artwork_url": c.cover_url or "",
+                        "duration_sec": None,
+                        "playback_ref": "",
+                        "meta_json": "",
+                        "updated_at": c.updated_at.isoformat()
+                        if c.updated_at
+                        else None,
+                        "reviews_count": 0,
+                        "favorites_count": 0,
+                        "listens_count": 0,
+                        "listen_time_total_sec": 0,
+                        "user_favorited": False,
+                    }
+                )
+
+        # Если в каталоге нет album/playlist и подборок — те же сущности, что в поиске (треки).
+        if len(album_payload) == 0:
+            tf = _merge_popular_and_recent(
+                kind_values=[track_kind],
+                pop_n=16,
+                recent_n=12,
+                total=24,
+            )
+            album_payload = MusicItemSerializer(tf, many=True, context=ctx).data
+
+        return Response(
+            {
+                "albums": album_payload[:24],
+                "tracks": MusicItemSerializer(tracks, many=True, context=ctx).data,
+                "artists": artists,
+            }
+        )
+
+    @staticmethod
+    def _music_with_counts():
+        return _annotate_music_item_listening(
+            MusicItem.objects.annotate(
+                reviews_count=Count(
+                    "reviews", filter=Q(reviews__deleted_at__isnull=True), distinct=True
+                ),
+                favorites_count=Count("favorites", distinct=True),
+            )
+        )
+
+    @staticmethod
+    def _serialize_track_list(instances, ctx):
+        """В плеер — только записи kind=track (не строка альбома/плейлиста)."""
+        tk = MusicItem.Kind.TRACK.value
+        instances = [m for m in instances if getattr(m, "kind", None) == tk]
+        if not instances:
+            return []
+        ids = [m.pk for m in instances]
+        m_map = {
+            m.pk: m
+            for m in MusicItemViewSet._music_with_counts().filter(pk__in=ids)
+        }
+        out = []
+        for pk in ids:
+            m = m_map.get(pk)
+            if m is not None and m.kind == tk:
+                out.append(MusicItemSerializer(m, context=ctx).data)
+        return out
+
+    @staticmethod
+    def _meta_album_title(meta_json: str) -> str:
+        if not meta_json or not str(meta_json).strip():
+            return ""
+        try:
+            j = json.loads(meta_json)
+            if isinstance(j, dict) and j.get("album") is not None:
+                return str(j["album"]).strip()
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+        return ""
+
+    @staticmethod
+    def _synthetic_tracks_from_directory(
+        playback_ref: str,
+        *,
+        artist: str = "",
+        album_title: str = "",
+    ) -> list[dict]:
+        """
+        Если в каталоге одна запись «альбом» с playback_ref = папка на диске,
+        а отдельных MusicItem для каждого файла нет — собираем очередь из файлов.
+        """
+        if not playback_ref or not str(playback_ref).strip():
+            return []
+        base = os.path.normpath(
+            os.path.expanduser(os.path.expandvars(str(playback_ref).strip()))
+        )
+        if not os.path.isdir(base):
+            return []
+        audio_exts = {".mp3", ".flac", ".m4a", ".ogg", ".opus", ".wav", ".aac"}
+        files: list[str] = []
+        try:
+            for name in sorted(os.listdir(base), key=str.lower):
+                p = os.path.join(base, name)
+                if os.path.isfile(p) and os.path.splitext(name)[1].lower() in audio_exts:
+                    files.append(os.path.normpath(p))
+        except OSError:
+            return []
+        meta: dict = {}
+        if album_title:
+            meta["album"] = album_title
+        meta_json = json.dumps(meta, ensure_ascii=False) if meta else "{}"
+        tk = MusicItem.Kind.TRACK.value
+        out: list[dict] = []
+        for p in files:
+            stem = os.path.splitext(os.path.basename(p))[0]
+            out.append(
+                {
+                    "id": None,
+                    "provider": "local",
+                    "external_id": p,
+                    "kind": tk,
+                    "title": stem,
+                    "artist": artist or "",
+                    "artwork_url": "",
+                    "duration_sec": None,
+                    "playback_ref": p,
+                    "meta_json": meta_json,
+                    "updated_at": None,
+                    "reviews_count": 0,
+                    "favorites_count": 0,
+                    "listens_count": 0,
+                    "listen_time_total_sec": 0,
+                    "user_favorited": False,
+                }
+            )
+        return out
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="record-listen",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def record_listen(self, request, pk=None):
+        """
+        Засчитать прослушивание: порог min(30 с, половина длительности).
+        Уникальный «слушатель» — один раз на (user, music_item); время — сумма listen_seconds по сессиям.
+        """
+        mi = self.get_object()
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            listened_ms = int(body.get("listened_ms", 0))
+        except (TypeError, ValueError):
+            return Response({"detail": "listened_ms: целое число (мс)"}, status=400)
+        if listened_ms <= 0:
+            return Response({"recorded": False})
+        raw_dur = body.get("duration_ms")
+        try:
+            duration_ms = int(raw_dur) if raw_dur is not None else 0
+        except (TypeError, ValueError):
+            duration_ms = 0
+        if duration_ms <= 0 and mi.duration_sec:
+            duration_ms = int(mi.duration_sec) * 1000
+        threshold_ms = min(30_000, duration_ms // 2) if duration_ms > 0 else 30_000
+        if listened_ms < threshold_ms:
+            return Response(
+                {"recorded": False, "threshold_ms": threshold_ms},
+                status=200,
+            )
+        _, created_qualified = MusicItemQualifiedListen.objects.get_or_create(
+            user=request.user, music_item=mi
+        )
+        sec = max(0, min(listened_ms // 1000, 86400 * 7))
+        ListeningEvent.objects.create(
+            user=request.user,
+            music_item=mi,
+            started_at=timezone.now(),
+            ended_at=None,
+            source="player",
+            listen_seconds=sec,
+        )
+        return Response({"recorded": True, "new_listener": created_qualified})
+
+    @action(detail=False, methods=["get"], url_path="playback-queue")
+    def playback_queue(self, request):
+        """
+        Очередь воспроизведения для карточки «Популярное»: подборка по collection_id
+        или связанные треки для MusicItem (альбом / трек / плейлист каталога).
+        """
+        collection_id = request.query_params.get("collection_id")
+        music_item_id = request.query_params.get("music_item_id")
+        ctx = {"request": request}
+        tk = MusicItem.Kind.TRACK.value
+        ak = MusicItem.Kind.ALBUM.value
+        pk_ = MusicItem.Kind.PLAYLIST.value
+
+        if collection_id:
+            try:
+                cid = int(collection_id)
+            except (TypeError, ValueError):
+                return Response({"detail": "Некорректный collection_id"}, status=400)
+            col = Collection.objects.filter(pk=cid, deleted_at__isnull=True).first()
+            if col is None:
+                return Response({"tracks": []})
+            if not col.is_public:
+                user = request.user
+                if not user.is_authenticated or col.owner_id != user.id:
+                    return Response({"tracks": []})
+            ordered = []
+            for ci in (
+                CollectionItem.objects.filter(collection=col)
+                .select_related("music_item")
+                .order_by("position", "added_at", "id")
+            ):
+                mi = ci.music_item
+                if mi.kind == tk:
+                    ordered.append(mi)
+            return Response(
+                {"tracks": MusicItemViewSet._serialize_track_list(ordered, ctx)}
+            )
+
+        if not music_item_id:
+            return Response(
+                {"detail": "Нужен music_item_id или collection_id"}, status=400
+            )
+        try:
+            mid = int(music_item_id)
+        except (TypeError, ValueError):
+            return Response({"detail": "Некорректный music_item_id"}, status=400)
+
+        base = MusicItemViewSet._music_with_counts()
+        root = base.filter(pk=mid).first()
+        if root is None:
+            return Response({"tracks": []})
+
+        out_models: list[MusicItem] = []
+
+        if root.kind == tk:
+            art = (root.artist or "").strip()
+            alb = MusicItemViewSet._meta_album_title(root.meta_json or "")
+            if not art and not alb:
+                out_models = [root]
+            else:
+                qs = base.filter(kind=tk)
+                if art:
+                    qs = qs.filter(artist__iexact=art)
+                if alb:
+                    qs = qs.filter(meta_json__icontains=alb[:200])
+                siblings = list(qs.order_by("id")[:120])
+                out_models = siblings if siblings else [root]
+        elif root.kind == ak:
+            art = (root.artist or "").strip()
+            tit = (root.title or "").strip()
+            qs = base.filter(kind=tk)
+            if art:
+                qs = qs.filter(artist__iexact=art)
+            if tit:
+                qs = qs.filter(meta_json__icontains=tit[:200])
+            out_models = list(qs.order_by("id")[:120])
+            if not out_models and art:
+                out_models = list(
+                    base.filter(kind=tk, artist__iexact=art).order_by("id")[:120]
+                )
+        elif root.kind == pk_:
+            art = (root.artist or "").strip()
+            tit = (root.title or "").strip()
+            qs = base.filter(kind=tk)
+            if art:
+                qs = qs.filter(artist__iexact=art)
+            if tit:
+                qs = qs.filter(meta_json__icontains=tit[:200])
+            out_models = list(qs.order_by("id")[:120])
+            if not out_models and art:
+                out_models = list(
+                    base.filter(kind=tk, artist__iexact=art).order_by("id")[:120]
+                )
+        else:
+            out_models = [root] if root.kind == tk else []
+
+        serialized = MusicItemViewSet._serialize_track_list(out_models, ctx)
+
+        def _album_title_for_folder_scan() -> str:
+            if root.kind in (ak, pk_):
+                return (root.title or "").strip()
+            return MusicItemViewSet._meta_album_title(root.meta_json or "")
+
+        if not serialized:
+            syn = MusicItemViewSet._synthetic_tracks_from_directory(
+                (root.playback_ref or "").strip(),
+                artist=(root.artist or "").strip(),
+                album_title=_album_title_for_folder_scan(),
+            )
+            if syn:
+                return Response({"tracks": syn})
+        elif len(serialized) == 1:
+            ref0 = (serialized[0].get("playback_ref") or "").strip()
+            p0 = os.path.normpath(os.path.expanduser(os.path.expandvars(ref0)))
+            if os.path.isdir(p0):
+                syn = MusicItemViewSet._synthetic_tracks_from_directory(
+                    p0,
+                    artist=(serialized[0].get("artist") or "").strip(),
+                    album_title=MusicItemViewSet._meta_album_title(
+                        serialized[0].get("meta_json") or ""
+                    )
+                    or _album_title_for_folder_scan(),
+                )
+                if syn:
+                    return Response({"tracks": syn})
+
+        return Response({"tracks": serialized})
 
 
 class CollectionViewSet(viewsets.ModelViewSet):
@@ -91,6 +507,7 @@ class CollectionViewSet(viewsets.ModelViewSet):
         serializer.save(owner=self.request.user)
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class ReviewViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
@@ -110,6 +527,18 @@ class ReviewViewSet(viewsets.ModelViewSet):
         if collection_id:
             qs = qs.filter(collection_id=collection_id)
         return qs
+
+    @action(detail=False, methods=["get"], url_path="top")
+    def top(self, request):
+        qs = (
+            Review.objects.filter(deleted_at__isnull=True)
+            .select_related("music_item", "collection", "author", "author__profile")
+            .annotate(favorites_count=Count("favorites", distinct=True))
+            .order_by("-favorites_count", "-created_at")[:60]
+        )
+        return Response(
+            ReviewSerializer(qs, many=True, context={"request": request}).data
+        )
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -220,6 +649,7 @@ class ReactionViewSet(
                 )
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class FavoriteViewSet(
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
@@ -232,8 +662,13 @@ class FavoriteViewSet(
     def get_queryset(self):
         qs = Favorite.objects.all().order_by("-created_at")
         if self.request.user.is_authenticated:
-            return qs.filter(user=self.request.user)
-        return qs.none()
+            qs = qs.filter(user=self.request.user)
+        else:
+            return qs.none()
+        music_item_id = self.request.query_params.get("music_item")
+        if music_item_id:
+            qs = qs.filter(music_item_id=music_item_id)
+        return qs
 
     def perform_create(self, serializer):
         # Idempotent create.
@@ -244,6 +679,7 @@ class FavoriteViewSet(
         serializer.instance = favorite
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class ReviewFavoriteViewSet(
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
@@ -259,7 +695,11 @@ class ReviewFavoriteViewSet(
 
     def get_queryset(self):
         qs = ReviewFavorite.objects.all().order_by("-created_at")
-        return qs.filter(user=self.request.user)
+        qs = qs.filter(user=self.request.user)
+        review_id = self.request.query_params.get("review")
+        if review_id:
+            qs = qs.filter(review_id=review_id)
+        return qs
 
     def perform_create(self, serializer):
         # Idempotent create.
@@ -318,7 +758,9 @@ class FeedView(APIView):
             "followee_id", flat=True
         )
         qs = Review.objects.filter(author_id__in=list(followee_ids)).order_by("-created_at")
-        return Response(ReviewSerializer(qs, many=True).data)
+        return Response(
+            ReviewSerializer(qs, many=True, context={"request": request}).data
+        )
 
 
 class GenreRecommendationsView(APIView):
@@ -384,7 +826,9 @@ class GenreRecommendationsView(APIView):
             qs = qs.filter(cond)
 
         qs = qs.order_by("-created_at")[:limit]
-        return Response(ReviewSerializer(qs, many=True).data)
+        return Response(
+            ReviewSerializer(qs, many=True, context={"request": request}).data
+        )
 
 
 class NotificationViewSet(
@@ -438,6 +882,7 @@ class ReportViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class MeProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -457,6 +902,7 @@ class MeProfileView(APIView):
         return Response(serializer.data)
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class ListeningEventsView(APIView):
     """
     Дневник прослушиваний.

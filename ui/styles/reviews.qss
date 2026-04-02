@@ -42,15 +42,15 @@ QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
-/* Review card row */
+/* Review card row — тёмная карточка под акцентный текст */
 QFrame#reviewRow {
-    background-color: #D4CFA0;
+    background-color: #5c5748;
     border: 1px solid #89A194;
     border-radius: 10px;
 }
 QFrame#reviewRow:hover {
     border: 2px solid #CB883A;
-    background-color: #D9D3A8;
+    background-color: #6d6756;
 }
 
 /* Album thumbnail placeholder */
@@ -67,7 +67,14 @@ QLabel#reviewAlbum {
     font-family: "Courier New";
     font-size: 14px;
     font-weight: bold;
-    color: #312938;
+    color: #CFC89A;
+    letter-spacing: 1px;
+}
+
+QLabel#reviewMeta {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #89A194;
     letter-spacing: 1px;
 }
 
@@ -82,8 +89,42 @@ QLabel#reviewArtist {
 QLabel#reviewExcerpt {
     font-family: "Courier New";
     font-size: 11px;
-    color: #5a4d30;
+    color: rgba(207, 200, 154, 0.92);
     line-height: 1.4;
+}
+
+QLabel#reviewsEmptyHint {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #89A194;
+    font-style: italic;
+    padding: 4px 0;
+}
+
+QPushButton#btnReviewLike {
+    background-color: rgba(161, 64, 22, 0.55);
+    color: #CFC89A;
+    border: none;
+    border-radius: 18px;
+    font-size: 20px;
+    min-width: 40px;
+    min-height: 40px;
+    max-width: 40px;
+    max-height: 40px;
+    padding: 0px;
+}
+QPushButton#btnReviewLike:hover {
+    background-color: rgba(161, 64, 22, 0.85);
+}
+QPushButton#btnReviewLike:pressed {
+    background-color: #A14016;
+}
+
+QLabel#reviewLikeCount {
+    font-family: "Courier New";
+    font-size: 12px;
+    font-weight: bold;
+    color: #CFC89A;
 }
 
 /* Score badge */

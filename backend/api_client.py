@@ -50,7 +50,11 @@ class CratesApiClient:
                 raw = resp.read().decode("utf-8")
                 if not raw:
                     return resp.status, None
-                return resp.status, json.loads(raw)
+                try:
+                    return resp.status, json.loads(raw)
+                except json.JSONDecodeError:
+                    snippet = (raw[:240] + "…") if len(raw) > 240 else raw
+                    return resp.status, {"detail": f"Ответ не JSON: {snippet}"}
         except HTTPError as e:
             raw = e.read().decode("utf-8")
             try:
@@ -76,6 +80,11 @@ def api_login(client: CratesApiClient, email: str, password: str) -> tuple[bool,
         return True, None
     detail = (body or {}).get("detail", "Ошибка входа")
     return False, str(detail)
+
+
+def api_logout(client: CratesApiClient) -> None:
+    """Сбрасывает session cookie на сервере (игнорируем код ответа)."""
+    client.post_json("/api/auth/logout/", {})
 
 
 def api_register(client: CratesApiClient, email: str, password: str) -> tuple[bool, str | None]:

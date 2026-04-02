@@ -1,8 +1,13 @@
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabBar, QSizePolicy,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTabBar,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QCloseEvent
 
 from backend.session import UserSession
 from ui.ambient_background import ContentWithAmbient
@@ -11,6 +16,7 @@ from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
 from ui.windows.player_tab import PlayerTab
+from ui.windows.review_detail_dialog import ReviewDetailDialog
 from ui.windows.settings_tab import SettingsTab
 
 
@@ -47,8 +53,14 @@ class TopBar(QWidget):
 
 
 class MainWindow(QMainWindow):
+    _POPULAR_TAB_INDEX = 0
+    _REVIEWS_TAB_INDEX = 1
+    _SELECTED_TAB_INDEX = 3
+
     def __init__(self, session: UserSession):
         super().__init__()
+        self._session = session
+        self._logout_restart = False
         self.setWindowTitle("CRATES")
         self.setMinimumSize(900, 600)
 
@@ -68,25 +80,103 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._ambient_host, stretch=1)
 
         PLAYER_PAGE_INDEX = 4
-        self._player = PlayerTab()
+        self._player = PlayerTab(session=session)
 
         def on_select_track(music_item: dict) -> None:
             self._player.set_track(music_item)
             self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
             self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
 
-        self._settings = SettingsTab(on_playback_changed=self._player.refresh_playback_settings)
+        def on_open_album_queue(tracks: list, source_card: dict | None = None) -> None:
+            ctx_id = None
+            if isinstance(source_card, dict):
+                prov = (source_card.get("provider") or "").strip()
+                if prov != "collection":
+                    sid = source_card.get("id")
+                    if sid is not None:
+                        ctx_id = int(sid)
+            self._player.set_queue(tracks, 0, context_music_item_id=ctx_id)
+            self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
+            self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
+
+        def on_open_review_from_selected(review: dict) -> None:
+            body = review.get("text") or ""
+            mi = review.get("music_item")
+            if isinstance(mi, dict):
+                album = mi.get("title") or "Трек"
+            elif mi is not None:
+                album = f"Трек #{mi}"
+            else:
+                album = "Рецензия"
+            headline = body.split("\n")[0].strip() if body else "Рецензия"
+            if len(headline) > 100:
+                headline = headline[:97] + "…"
+            author = session.email or "Вы"
+            dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
+            dlg.exec()
+
+        self._selected_tab = SelectedTab(
+            session,
+            on_play_track=on_select_track,
+            on_open_review=on_open_review_from_selected,
+        )
+
+        self._player.library_changed.connect(self._selected_tab.reload_content)
+
+        self._settings = SettingsTab(
+            session=session,
+            on_playback_changed=self._player.refresh_playback_settings,
+            on_logout=self._do_logout,
+        )
+
+        self._popular_tab = PopularTab(
+            session,
+            on_play_track=on_select_track,
+            on_open_album=on_open_album_queue,
+        )
+        self._reviews_tab = ReviewsTab(session)
 
         self._pages: list[QWidget] = [
-            PopularTab(),
-            ReviewsTab(),
+            self._popular_tab,
+            self._reviews_tab,
             SearchTab(on_select_track=on_select_track),
-            SelectedTab(session),
+            self._selected_tab,
             self._player,
             self._settings,
         ]
         for page in self._pages:
+            page.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Expanding,
+            )
             self._stack.addWidget(page)
 
-        self._top_bar.tab_bar.currentChanged.connect(self._stack.setCurrentIndex)
+        self._top_bar.tab_bar.currentChanged.connect(self._on_main_tab_changed)
         self._top_bar.tab_bar.setCurrentIndex(0)
+
+    def consume_logout_restart(self) -> bool:
+        v = self._logout_restart
+        self._logout_restart = False
+        return v
+
+    def _do_logout(self) -> None:
+        from backend.api_client import api_logout
+        from backend.remember_login import clear_remembered
+
+        api_logout(self._session.client)
+        clear_remembered()
+        self._logout_restart = True
+        self.close()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._player.flush_listen_for_close()
+        super().closeEvent(event)
+
+    def _on_main_tab_changed(self, index: int) -> None:
+        self._stack.setCurrentIndex(index)
+        if index == self._POPULAR_TAB_INDEX:
+            self._popular_tab.reload_content()
+        elif index == self._REVIEWS_TAB_INDEX:
+            self._reviews_tab.reload_content()
+        elif index == self._SELECTED_TAB_INDEX:
+            self._selected_tab.reload_content()

@@ -1,24 +1,50 @@
-import os
 import json
+import os
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
+from PyQt6.QtCore import Qt, QSize, QSettings, QTimer
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QListWidget, QListWidgetItem,
+    QAbstractItemView,
     QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QSizePolicy,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon
 
 _FILTER_LABELS = ["альбомы", "рецензии", "исполнители"]
 
-_PLACEHOLDER_HISTORY = [
-    "предыдущий запрос.....",
-    "предыдущий запрос.....",
-]
-
 _ICON_SEARCH = os.path.join(os.path.dirname(__file__), "..", "icons", "search.svg")
+
+_ORG = "CRATES"
+_APP = "CRATES"
+_RECENT_KEY = "search/recent_tracks_json"
+_RECENT_MAX = 5
+_SEARCH_DEBOUNCE_MS = 1000
+_LIST_ROW_MIN = 48
+_LIST_SPACING = 6
+# Высота строки списка в пикселях (должна быть ≥ реальной отрисовки из search.qss).
+_HISTORY_ROW_PX = 80
+_RESULTS_ROW_PX = 80
+
+
+def _list_font() -> QFont:
+    f = QFont("Courier New", 13)
+    if not f.exactMatch():
+        f = QFont("Consolas", 13)
+    return f
+
+
+def _settings() -> QSettings:
+    return QSettings(QSettings.Scope.UserScope, _ORG, _APP)
 
 
 class SearchTab(QWidget):
@@ -56,7 +82,15 @@ class SearchTab(QWidget):
         btn_search.setIconSize(QSize(28, 26))
 
         bar_layout.addWidget(btn_search)
-        btn_search.clicked.connect(self._on_search_clicked)
+        btn_search.clicked.connect(self._run_search_now)
+        self._search_input.returnPressed.connect(self._run_search_now)
+
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(_SEARCH_DEBOUNCE_MS)
+        self._debounce.timeout.connect(self._do_search)
+        self._search_input.textChanged.connect(self._on_search_text_changed)
+
         root.addWidget(search_frame)
 
         # --- Filter buttons ---
@@ -81,33 +115,90 @@ class SearchTab(QWidget):
         filter_layout.addStretch()
         root.addWidget(filter_row)
 
-        # --- History label ---
-        history_label = QLabel("недавние запросы")
-        history_label.setObjectName("historyLabel")
-        root.addWidget(history_label)
+        # --- Recent tracks (отдельный контейнер — предсказуемый порядок в layout) ---
+        self._history_host = QWidget()
+        self._history_host.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
+        hl = QVBoxLayout(self._history_host)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(8)
 
-        # --- History list ---
+        history_label = QLabel("недавние треки")
+        history_label.setObjectName("searchSectionLabel")
+        hl.addWidget(history_label)
+
         self._history_list = QListWidget()
         self._history_list.setObjectName("searchHistory")
-        self._history_list.setSpacing(4)
-        for item_text in _PLACEHOLDER_HISTORY:
-            self._history_list.addItem(QListWidgetItem(item_text))
-        n = len(_PLACEHOLDER_HISTORY)
-        self._history_list.setFixedHeight(n * 44 + (n + 1) * 4)
-        root.addWidget(self._history_list)
+        self._history_list.setFont(_list_font())
+        self._history_list.setSpacing(_LIST_SPACING)
+        self._history_list.setUniformItemSizes(True)
+        self._history_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._history_list.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self._history_list.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._history_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._history_list.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        self._history_list.itemClicked.connect(self._on_track_item_clicked)
+        hl.addWidget(self._history_list)
+        root.addWidget(self._history_host)
 
         # --- Search results ---
+        root.addSpacing(10)
         results_label = QLabel("результаты")
-        results_label.setObjectName("searchResultsLabel")
+        results_label.setObjectName("searchSectionLabel")
+        results_label.setMinimumHeight(
+            max(22, results_label.sizeHint().height() + 4)
+        )
         root.addWidget(results_label)
 
         self._results_list = QListWidget()
         self._results_list.setObjectName("searchResults")
-        self._results_list.setSpacing(4)
-        self._results_list.itemClicked.connect(self._on_result_clicked)
+        self._results_list.setFont(_list_font())
+        self._results_list.setSpacing(_LIST_SPACING)
+        self._results_list.setUniformItemSizes(True)
+        self._results_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._results_list.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self._results_list.itemClicked.connect(self._on_track_item_clicked)
         root.addWidget(self._results_list)
 
         root.addStretch()
+
+        self._refresh_recent_list()
+
+    def _history_viewport_width(self) -> int:
+        w = self._history_list.viewport().width()
+        if w >= 40:
+            return w
+        pw = self.width() - 48
+        return max(200, pw)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_recent_list()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._refresh_recent_list()
+
+    def _on_search_text_changed(self, _text: str) -> None:
+        self._debounce.stop()
+        self._debounce.start()
+
+    def _run_search_now(self) -> None:
+        self._debounce.stop()
+        self._do_search()
 
     def _on_filter_clicked(self):
         sender = self.sender()
@@ -115,14 +206,69 @@ class SearchTab(QWidget):
             if btn is not sender:
                 btn.setChecked(False)
 
-    def _on_search_clicked(self):
+    def _load_recent_tracks(self) -> list[dict]:
+        raw = _settings().value(_RECENT_KEY, "[]", str)
+        if not isinstance(raw, str):
+            raw = "[]"
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    def _save_recent_tracks(self, items: list[dict]) -> None:
+        _settings().setValue(_RECENT_KEY, json.dumps(items, ensure_ascii=False))
+
+    def _refresh_recent_list(self) -> None:
+        self._history_list.clear()
+        vw = self._history_viewport_width()
+        for it in self._load_recent_tracks():
+            if not isinstance(it, dict):
+                continue
+            title = it.get("title") or "Без названия"
+            artist = it.get("artist") or ""
+            label = f"{title} — {artist}".strip(" —")
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, it)
+            # Без явного sizeHint Qt+QSS часто рисуют строку выше выделенной высоты виджета.
+            item.setSizeHint(QSize(vw, _HISTORY_ROW_PX))
+            self._history_list.addItem(item)
+        cnt = self._history_list.count()
+        sp = self._history_list.spacing()
+        fw = self._history_list.style().pixelMetric(
+            QStyle.PixelMetric.PM_DefaultFrameWidth,
+            None,
+            self._history_list,
+        )
+        if cnt == 0:
+            self._history_list.setFixedHeight(_LIST_ROW_MIN + 16)
+            self._history_host.updateGeometry()
+            return
+        h = cnt * _HISTORY_ROW_PX + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
+        self._history_list.setFixedHeight(h)
+        self._history_host.updateGeometry()
+
+    def _push_recent_track(self, music_item: dict) -> None:
+        def _same(a: dict, b: dict) -> bool:
+            if a.get("id") is not None and a.get("id") == b.get("id"):
+                return True
+            return (
+                (a.get("playback_ref") or "") == (b.get("playback_ref") or "")
+                and (a.get("title") or "") == (b.get("title") or "")
+            )
+
+        items = [x for x in self._load_recent_tracks() if isinstance(x, dict)]
+        items = [x for x in items if not _same(x, music_item)]
+        items.insert(0, dict(music_item))
+        self._save_recent_tracks(items[:_RECENT_MAX])
+        self._refresh_recent_list()
+
+    def _do_search(self) -> None:
         q = self._search_input.text().strip()
         if not q:
             return
         self._results_list.clear()
         try:
-            # Локальный запрос к backend обычно очень быстрый, а такой путь
-            # гарантированно обновляет QListWidget в UI-потоке.
             url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
             req = Request(url, headers={"Accept": "application/json"})
             with urlopen(req, timeout=10) as resp:
@@ -134,16 +280,21 @@ class SearchTab(QWidget):
         except Exception:
             items = []
 
+        rw = max(200, self._results_list.viewport().width(), self.width() - 48)
         for it in items:
             title = it.get("title") or "Без названия"
             artist = it.get("artist") or ""
             label = f"{title} — {artist}".strip(" —")
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, it)
+            item.setSizeHint(QSize(rw, _RESULTS_ROW_PX))
             self._results_list.addItem(item)
 
-    def _on_result_clicked(self, item: QListWidgetItem):
+    def _on_track_item_clicked(self, item: QListWidgetItem):
         if not self._on_select_track:
             return
         music_item = item.data(Qt.ItemDataRole.UserRole) or {}
+        if not isinstance(music_item, dict) or not music_item:
+            return
+        self._push_recent_track(music_item)
         self._on_select_track(music_item)

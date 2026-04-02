@@ -130,8 +130,8 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # Session cookies are used by the PyQt client (see auth_views.py).
-        "rest_framework.authentication.SessionAuthentication",
+        # PyQt: session cookie без CSRF-токена (см. authentication.py).
+        "apps.core.authentication.CsrfExemptSessionAuthentication",
         "rest_framework.authentication.BasicAuthentication",
     ],
 }

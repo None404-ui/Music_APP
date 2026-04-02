@@ -1,4 +1,7 @@
-# Общий venv: PyQt6 (клиент) + Django/DRF (API).
+# PyQt6 и PyQt6-WebEngine — ОДИНАКОВАЯ линия версий (одни DLL Qt).
+# У PyQt6-WebEngine нет релиза 6.10.2 на PyPI; для 6.10.x используйте 6.10.0 или поднимите оба до 6.11.
+PyQt6==6.11.0
+PyQt6-WebEngine==6.11.0
+
 Django>=4.2,<5.0
 djangorestframework>=3.15
-PyQt6>=6.6.0

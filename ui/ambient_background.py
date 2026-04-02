@@ -1,15 +1,14 @@
 """
-Абстрактный фон: тёмная база, мягкие «неоновые» пятна (оранжевый, бирюза, синий), лёгкий grain.
-Используется под всеми вкладками.
+Абстрактный статичный фон: тёмная база, мягкие пятна, линии, лёгкий grain.
+Под всеми вкладками (без анимации — один пересчёт при resize).
 """
 
 from __future__ import annotations
 
-import math
 import random
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPainter, QPen, QRadialGradient
-from PyQt6.QtWidgets import QStackedWidget, QWidget
+from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 
 
 class AmbientBackground(QWidget):
@@ -19,16 +18,8 @@ class AmbientBackground(QWidget):
         random.seed(42)
         self._grain: list[tuple[int, int, int]] = [
             (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            for _ in range(2800)
+            for _ in range(900)
         ]
-        self._phase = 0.0
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start(80)
-
-    def _tick(self) -> None:
-        self._phase += 0.04
-        self.update()
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
@@ -39,13 +30,11 @@ class AmbientBackground(QWidget):
             p.end()
             return
 
-        # База
         p.fillRect(self.rect(), QColor(18, 12, 28))
 
-        s = math.sin(self._phase) * 0.08
         blobs = [
-            (w * (0.22 + s), h * 0.35, max(w, h) * 0.55, QColor(255, 120, 40, 55)),
-            (w * 0.78, h * (0.28 - s), max(w, h) * 0.5, QColor(40, 200, 190, 45)),
+            (w * 0.22, h * 0.35, max(w, h) * 0.55, QColor(255, 120, 40, 55)),
+            (w * 0.78, h * 0.28, max(w, h) * 0.5, QColor(40, 200, 190, 45)),
             (w * 0.55, h * 0.72, max(w, h) * 0.6, QColor(60, 90, 220, 40)),
             (w * 0.1, h * 0.85, max(w, h) * 0.45, QColor(200, 80, 30, 35)),
             (w * 0.9, h * 0.65, max(w, h) * 0.4, QColor(30, 140, 180, 38)),
@@ -59,20 +48,18 @@ class AmbientBackground(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
 
-        # Линии-блики
         p.setPen(QPen(QColor(255, 160, 80, 25), 3))
         for i in range(5):
-            y = int(h * (0.15 + i * 0.18 + 0.03 * math.sin(self._phase + i)))
-            p.drawLine(0, y, w, y + int(30 * math.sin(self._phase * 0.7 + i)))
+            y = int(h * (0.15 + i * 0.18))
+            p.drawLine(0, y, w, y + int(12 + i * 4))
 
         p.setPen(QPen(QColor(50, 200, 200, 18), 2))
         for i in range(4):
             x = int(w * (0.1 + i * 0.22))
             p.drawLine(x, 0, x + 40, h)
 
-        # Grain
         p.setPen(Qt.PenStyle.NoPen)
-        step = 4
+        step = 6
         idx = 0
         for y in range(0, h, step):
             for x in range(0, w, step):
@@ -92,6 +79,10 @@ class ContentWithAmbient(QWidget):
         self._bg = AmbientBackground(self)
         self.page_stack = QStackedWidget(self)
         self.page_stack.setObjectName("pageStack")
+        self.page_stack.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

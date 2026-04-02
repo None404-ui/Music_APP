@@ -38,12 +38,12 @@ def quality_volume_cap() -> float:
     """Верхняя граница громкости (множитель) в зависимости от «качества»."""
     q = quality_label()
     if q == "Низкое":
-        return 0.72
+        return 0.48
     if q == "Среднее":
-        return 0.88
+        return 0.72
     if q == "Высокое":
         return 1.0
-    return 0.95
+    return 0.88
 
 
 def normalization_factor() -> float:

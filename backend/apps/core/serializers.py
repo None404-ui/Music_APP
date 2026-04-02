@@ -6,6 +6,8 @@ defined in `views.py`.
 """
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Sum
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -21,6 +23,7 @@ from .models import (
     ListeningEvent,
     Message,
     MusicItem,
+    MusicItemQualifiedListen,
     Notification,
     ReviewFavorite,
     Profile,
@@ -56,6 +59,12 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class MusicItemSerializer(serializers.ModelSerializer):
+    reviews_count = serializers.SerializerMethodField()
+    favorites_count = serializers.SerializerMethodField()
+    listens_count = serializers.SerializerMethodField()
+    listen_time_total_sec = serializers.SerializerMethodField()
+    user_favorited = serializers.SerializerMethodField()
+
     class Meta:
         model = MusicItem
         fields = [
@@ -70,8 +79,52 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "playback_ref",
             "meta_json",
             "updated_at",
+            "reviews_count",
+            "favorites_count",
+            "listens_count",
+            "listen_time_total_sec",
+            "user_favorited",
         ]
         read_only_fields = ["id", "updated_at"]
+
+    def _ann(self, obj, name: str):
+        v = getattr(obj, name, None)
+        return v if v is not None else None
+
+    def get_reviews_count(self, obj):
+        v = self._ann(obj, "reviews_count")
+        if v is not None:
+            return int(v)
+        return Review.objects.filter(
+            music_item_id=obj.pk, deleted_at__isnull=True
+        ).count()
+
+    def get_favorites_count(self, obj):
+        v = self._ann(obj, "favorites_count")
+        if v is not None:
+            return int(v)
+        return Favorite.objects.filter(music_item_id=obj.pk).count()
+
+    def get_listens_count(self, obj):
+        v = self._ann(obj, "listens_count")
+        if v is not None:
+            return int(v)
+        return MusicItemQualifiedListen.objects.filter(music_item_id=obj.pk).count()
+
+    def get_listen_time_total_sec(self, obj):
+        v = self._ann(obj, "listen_time_total_sec")
+        if v is not None:
+            return int(v)
+        r = ListeningEvent.objects.filter(music_item_id=obj.pk).aggregate(
+            s=Sum("listen_seconds")
+        )
+        return int(r["s"] or 0)
+
+    def get_user_favorited(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return Favorite.objects.filter(user=request.user, music_item_id=obj.pk).exists()
 
 
 class CollectionItemSerializer(serializers.ModelSerializer):
@@ -107,11 +160,16 @@ class CollectionSerializer(serializers.ModelSerializer):
 
 
 class ReviewSerializer(serializers.ModelSerializer):
+    favorites_count = serializers.SerializerMethodField()
+    user_favorited = serializers.SerializerMethodField()
+    author_label = serializers.SerializerMethodField()
+
     class Meta:
         model = Review
         fields = [
             "id",
             "author",
+            "author_label",
             "music_item",
             "collection",
             "text",
@@ -119,8 +177,75 @@ class ReviewSerializer(serializers.ModelSerializer):
             "deleted_at",
             "created_at",
             "updated_at",
+            "favorites_count",
+            "user_favorited",
         ]
-        read_only_fields = ["id", "author", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "author",
+            "author_label",
+            "created_at",
+            "updated_at",
+            "favorites_count",
+            "user_favorited",
+        ]
+        extra_kwargs = {
+            "music_item": {"required": False, "allow_null": True},
+            "collection": {"required": False, "allow_null": True},
+        }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.music_item_id:
+            data["music_item"] = MusicItemSerializer(
+                instance.music_item, context=self.context
+            ).data
+        else:
+            data["music_item"] = None
+        if instance.collection_id:
+            c = instance.collection
+            data["collection"] = {
+                "id": c.id,
+                "title": c.title,
+                "cover_url": c.cover_url or "",
+            }
+        else:
+            data["collection"] = None
+        return data
+
+    def get_author_label(self, obj):
+        u = obj.author
+        try:
+            prof = u.profile
+        except ObjectDoesNotExist:
+            prof = None
+        if prof is not None and (prof.nickname or "").strip():
+            return prof.nickname.strip()
+        return (getattr(u, "email", None) or u.get_username() or "").strip() or "—"
+
+    def get_favorites_count(self, obj):
+        v = getattr(obj, "favorites_count", None)
+        if v is not None:
+            return int(v)
+        return ReviewFavorite.objects.filter(review_id=obj.pk).count()
+
+    def get_user_favorited(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return ReviewFavorite.objects.filter(
+            user=request.user, review_id=obj.pk
+        ).exists()
+
+    def validate(self, attrs):
+        if self.instance is None:
+            mi = attrs.get("music_item")
+            col = attrs.get("collection")
+            if (mi is None and col is None) or (mi is not None and col is not None):
+                raise serializers.ValidationError(
+                    "Укажите ровно одно поле: music_item или collection."
+                )
+        return attrs
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -164,7 +289,15 @@ class ListeningEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ListeningEvent
-        fields = ["id", "user", "music_item", "started_at", "ended_at", "source"]
+        fields = [
+            "id",
+            "user",
+            "music_item",
+            "started_at",
+            "ended_at",
+            "source",
+            "listen_seconds",
+        ]
         read_only_fields = ["id", "user"]
 
     def create(self, validated_data):

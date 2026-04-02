@@ -260,10 +260,40 @@ class ListeningEvent(models.Model):
     started_at = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
     source = models.CharField(max_length=64, blank=True)
+    # Секунды за эту сессию (для суммарного «наслушано» по треку/альбому).
+    listen_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
         indexes = [
             models.Index(fields=["user", "started_at"], name="idx_listening_user_started"),
+        ]
+
+
+class MusicItemQualifiedListen(models.Model):
+    """
+    Пользователь засчитан как «слушатель» трека/альбома после порога (30 с или половина длины).
+    Одна строка на пару (user, music_item) — для счётчика «сколько людей слушали».
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="qualified_music_listens",
+    )
+    music_item = models.ForeignKey(
+        MusicItem, on_delete=models.CASCADE, related_name="qualified_listens"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "music_item"],
+                name="uniq_qualified_listen_user_music_item",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["music_item"], name="idx_qualifiedlisten_music_item"),
         ]
 
 

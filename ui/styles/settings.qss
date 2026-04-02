@@ -61,6 +61,31 @@ QLabel#profileHandle {
     letter-spacing: 1px;
 }
 
+/* Выход: пиксельная кнопка (шрифт подменяется на RetroShift в main) */
+QPushButton#settingsLogoutBtn {
+    font-family: "Courier New";
+    font-size: 8px;
+    font-weight: bold;
+    color: #CFC89A;
+    background-color: #312938;
+    border: 3px solid #0A1E2C;
+    border-radius: 0px;
+    padding: 8px 10px;
+    margin-top: 0px;
+    letter-spacing: 0px;
+    text-transform: none;
+}
+QPushButton#settingsLogoutBtn:hover {
+    background-color: #A14016;
+    color: #CFC89A;
+    border: 3px solid #312938;
+}
+QPushButton#settingsLogoutBtn:pressed {
+    background-color: #0A1E2C;
+    color: #89A194;
+    border: 3px solid #A14016;
+}
+
 /* Section label (АККАУНТ, ИНТЕРФЕЙС, …) */
 QLabel#settingsSectionLabel {
     font-family: "Courier New";
@@ -70,6 +95,13 @@ QLabel#settingsSectionLabel {
     letter-spacing: 4px;
     margin-top: 10px;
     margin-bottom: 2px;
+}
+
+QLabel#settingsHint {
+    font-family: "Courier New";
+    font-size: 10px;
+    color: #5a6a78;
+    padding: 0 4px 8px 4px;
 }
 
 /* Settings row */

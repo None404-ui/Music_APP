@@ -3,20 +3,67 @@
    ============================================================ */
 
 QWidget#popularPage {
-    background-color: rgba(207, 200, 154, 0.88);
+    background-color: transparent;
 }
 
-/* Section heading (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) */
-QLabel#sectionHeading {
+QScrollArea#popularPageScroll {
+    background: transparent;
+    border: none;
+}
+QWidget#popularPageInner {
+    background: transparent;
+}
+
+/* Заголовки секций (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) — бирюзовый, без плашек */
+QWidget#popularPage QLabel#sectionHeading {
     font-family: "Courier New";
     font-size: 28px;
     font-weight: bold;
     color: #2A7A8C;
     letter-spacing: 5px;
     margin-bottom: 4px;
+    background: transparent;
 }
 
-/* Sub-section heading inside a carousel panel */
+QLabel#popularLoadStatus {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #89A194;
+    padding: 6px 4px;
+}
+
+QLabel#popularEmptyHint {
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #89A194;
+    font-style: italic;
+    padding: 8px 4px;
+}
+
+/* Стрелки карусели — без отдельной заливки заголовка */
+QPushButton#btnCarouselArrow {
+    background-color: rgba(161, 64, 22, 0.55);
+    color: #CFC89A;
+    border: none;
+    border-radius: 16px;
+    font-size: 16px;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
+    max-height: 32px;
+    padding: 0px;
+}
+QPushButton#btnCarouselArrow:hover {
+    background-color: rgba(161, 64, 22, 0.85);
+}
+QPushButton#btnCarouselArrow:pressed {
+    background-color: #A14016;
+}
+QPushButton#btnCarouselArrow:disabled {
+    background-color: rgba(100, 90, 80, 0.5);
+    color: rgba(207, 200, 154, 0.45);
+}
+
 QLabel#carouselHeading {
     font-family: "Courier New";
     font-size: 14px;
@@ -25,14 +72,12 @@ QLabel#carouselHeading {
     letter-spacing: 3px;
 }
 
-/* Carousel scroll panel */
+/* Карусель: без сплошной «простыни» под заголовком */
 QWidget#carouselPanel {
-    background-color: #BDB685;
-    border: 1px solid #89A194;
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
 }
 
-/* Scroll area inside carousel */
 QScrollArea#carouselScroll {
     background: transparent;
     border: none;
@@ -58,18 +103,17 @@ QScrollBar::sub-line:horizontal {
     width: 0px;
 }
 
-/* Album card */
+/* Карточка альбома: тёмный фон, чтобы акцентный #CFC89A в названии читался */
 QFrame#albumCard {
-    background-color: #CFC89A;
+    background-color: #5c5748;
     border: 1px solid #89A194;
     border-radius: 8px;
 }
 QFrame#albumCard:hover {
     border: 2px solid #CB883A;
-    background-color: #D9D3A8;
+    background-color: #6d6756;
 }
 
-/* Album cover placeholder */
 QLabel#albumCover {
     background-color: #BDB685;
     border-radius: 6px;
@@ -78,23 +122,20 @@ QLabel#albumCover {
     color: #A14016;
 }
 
-/* Album name label */
 QLabel#albumTitle {
     font-family: "Courier New";
     font-size: 12px;
     font-weight: bold;
-    color: #312938;
+    color: #CFC89A;
     letter-spacing: 1px;
 }
 
-/* Album artist label */
 QLabel#albumArtist {
     font-family: "Courier New";
     font-size: 11px;
     color: #89A194;
 }
 
-/* Artist card / circle avatar */
 QLabel#artistAvatar {
     background-color: #BDB685;
     border-radius: 50px;
@@ -110,25 +151,25 @@ QLabel#artistName {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
-    color: #312938;
+    color: #CFC89A;
     letter-spacing: 1px;
 }
 
-/* Track list rows */
+/* Строка трека: акцент на названии, длительности и статистике */
 QFrame#trackRow {
-    background-color: #CFC89A;
+    background-color: #5c5748;
     border: 1px solid #89A194;
     border-radius: 6px;
 }
 QFrame#trackRow:hover {
-    background-color: #D9D3A8;
+    background-color: #6d6756;
     border: 1px solid #CB883A;
 }
 
 QLabel#trackNumber {
     font-family: "Courier New";
     font-size: 12px;
-    color: #89A194;
+    color: rgba(207, 200, 154, 0.75);
     min-width: 28px;
 }
 
@@ -136,18 +177,26 @@ QLabel#trackTitle {
     font-family: "Courier New";
     font-size: 13px;
     font-weight: bold;
-    color: #312938;
+    color: #CFC89A;
 }
 
 QLabel#trackArtist {
     font-family: "Courier New";
     font-size: 11px;
-    color: #89A194;
+    color: rgba(207, 200, 154, 0.88);
+}
+
+QLabel#trackStats {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #CFC89A;
+    min-width: 120px;
 }
 
 QLabel#trackDuration {
     font-family: "Courier New";
     font-size: 12px;
-    color: #A14016;
-    min-width: 42px;
+    font-weight: bold;
+    color: #CFC89A;
+    min-width: 52px;
 }

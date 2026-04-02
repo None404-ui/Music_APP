@@ -71,8 +71,8 @@ QPushButton#btnFilter:checked {
     color: #CFC89A;
 }
 
-/* ---- History label ---- */
-QLabel#historyLabel {
+/* ---- Подзаголовки секций: недавние треки / результаты (одинаковые) ---- */
+QLabel#searchSectionLabel {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
@@ -80,56 +80,38 @@ QLabel#historyLabel {
     letter-spacing: 4px;
 }
 
-/* ---- History list ---- */
-QListWidget#searchHistory {
-    background: transparent;
-    border: none;
-    outline: none;
-}
-QListWidget#searchHistory::item {
-    background-color: #D4CFA0;
-    color: #312938;
-    border: 1px solid #89A194;
-    border-left: 4px solid #2A7A8C;
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-family: "Courier New";
-    font-size: 13px;
-}
-QListWidget#searchHistory::item:hover {
-    background-color: #D9D3A8;
-    border-left: 4px solid #CB883A;
-}
-QListWidget#searchHistory::item:selected {
-    background-color: #2A7A8C;
-    color: #CFC89A;
-    border-left: 4px solid #0A1E2C;
-}
-
-/* ---- Search results list (shown after query) ---- */
+/* ---- Списки: недавние и результаты — одинаковые ячейки (без налезания) ---- */
+QListWidget#searchHistory,
 QListWidget#searchResults {
     background: transparent;
     border: none;
     outline: none;
 }
+QListWidget#searchHistory::item,
 QListWidget#searchResults::item {
     background-color: #D4CFA0;
     color: #312938;
     border: 1px solid #89A194;
-    border-radius: 8px;
+    border-left: 4px solid #2A7A8C;
+    border-radius: 6px;
     padding: 10px 14px;
-    margin-bottom: 5px;
-    font-family: "Courier New";
+    margin: 2px 0;
+    min-height: 44px;
+    font-family: "Courier New", monospace;
     font-size: 13px;
+    font-weight: normal;
 }
+QListWidget#searchHistory::item:hover,
 QListWidget#searchResults::item:hover {
     background-color: #D9D3A8;
-    border: 1px solid #2A7A8C;
+    border-left: 4px solid #CB883A;
 }
+QListWidget#searchHistory::item:selected,
 QListWidget#searchResults::item:selected {
     background-color: #2A7A8C;
     color: #CFC89A;
     border: 1px solid #0A1E2C;
+    border-left: 4px solid #0A1E2C;
 }
 
 /* ---- Empty state label ---- */
