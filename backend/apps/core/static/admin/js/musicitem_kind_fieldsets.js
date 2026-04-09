@@ -17,8 +17,8 @@
 
   function sync() {
     var k = kindValue();
+    // Локальный файл — в основном для kind=track; для URL достаточно поля playback_ref выше.
     setVisible(".musicitem-fs-track", k === "track");
-    setVisible(".musicitem-fs-album", k === "album" || k === "playlist");
   }
 
   document.addEventListener("DOMContentLoaded", function () {

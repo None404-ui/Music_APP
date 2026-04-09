@@ -79,15 +79,26 @@ class MusicItemSerializer(serializers.ModelSerializer):
     listen_time_total_sec = serializers.SerializerMethodField()
     user_favorited = serializers.SerializerMethodField()
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        request = self.context.get("request")
+    @staticmethod
+    def effective_playback_ref(instance, request):
+        """
+        Приоритет для клиента: внешняя HTTP(S)-ссылка в playback_ref (без хранения аудио на сервере).
+        URL загруженного audio_file подставляется только если нет такой ссылки.
+        """
+        pref = (getattr(instance, "playback_ref", None) or "").strip()
+        low = pref.lower()
+        if low.startswith(("http://", "https://")):
+            return pref
         audio = getattr(instance, "audio_file", None)
         if audio and getattr(audio, "name", ""):
             rel = audio.url
-            data["playback_ref"] = (
-                request.build_absolute_uri(rel) if request else rel
-            )
+            return request.build_absolute_uri(rel) if request else rel
+        return pref
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        data["playback_ref"] = self.effective_playback_ref(instance, request)
         cover = getattr(instance, "artwork_file", None)
         if cover and getattr(cover, "name", ""):
             rel = cover.url
