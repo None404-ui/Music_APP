@@ -46,6 +46,7 @@ from .permissions import (
     IsStaff,
     IsOwnerOrReadOnly,
 )
+from .audio_duration import probe_audio_duration_sec
 from .serializers import (
     CollectionSerializer,
     CollectionItemSerializer,
@@ -276,6 +277,7 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         out: list[dict] = []
         for p in files:
             stem = os.path.splitext(os.path.basename(p))[0]
+            dur_sec = probe_audio_duration_sec(p)
             out.append(
                 {
                     "id": None,
@@ -285,7 +287,7 @@ class MusicItemViewSet(viewsets.ModelViewSet):
                     "title": stem,
                     "artist": artist or "",
                     "artwork_url": "",
-                    "duration_sec": None,
+                    "duration_sec": dur_sec,
                     "playback_ref": p,
                     "meta_json": meta_json,
                     "updated_at": None,

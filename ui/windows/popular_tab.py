@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButt
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
+from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 
 _album_cover_nam: QNetworkAccessManager | None = None
 
@@ -17,13 +18,6 @@ def _album_cover_network() -> QNetworkAccessManager:
         app = QApplication.instance()
         _album_cover_nam = QNetworkAccessManager(app)
     return _album_cover_nam
-
-
-def _fmt_duration(sec: int | None) -> str:
-    if sec is None or sec <= 0:
-        return "—"
-    m, s = divmod(int(sec), 60)
-    return f"{m}:{s:02d}"
 
 
 class AlbumCard(QFrame):
@@ -285,6 +279,8 @@ class CarouselSection(QWidget):
 
 
 class TrackRow(QFrame):
+    _THUMB_SIZE = 44
+
     def __init__(
         self,
         index: int,
@@ -297,14 +293,26 @@ class TrackRow(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._item = item
         self._on_play = on_play
+        self._thumb_reply: QNetworkReply | None = None
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
-        lay.setSpacing(0)
+        lay.setSpacing(10)
 
         num = QLabel(str(index))
         num.setObjectName("trackNumber")
         num.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._thumb = QLabel()
+        self._thumb.setObjectName("trackRowThumb")
+        self._thumb.setFixedSize(self._THUMB_SIZE, self._THUMB_SIZE)
+        self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._thumb.setScaledContents(False)
+        self._apply_thumb_placeholder()
+        url = (item.get("artwork_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            self._thumb_reply = _album_cover_network().get(QNetworkRequest(QUrl(url)))
+            self._thumb_reply.finished.connect(self._on_thumb_finished)
 
         title = QLabel((item.get("title") or "Без названия").strip())
         title.setObjectName("trackTitle")
@@ -326,12 +334,12 @@ class TrackRow(QFrame):
         stats.setObjectName("trackStats")
         stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        dur = QLabel(_fmt_duration(item.get("duration_sec")))
+        dur = QLabel(format_duration_mm_ss(effective_duration_sec(item)))
         dur.setObjectName("trackDuration")
         dur.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         lay.addWidget(num, 0, Qt.AlignmentFlag.AlignVCenter)
-        lay.addStretch(1)
+        lay.addWidget(self._thumb, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(title, 2, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
         lay.addWidget(artist, 2, Qt.AlignmentFlag.AlignVCenter)
@@ -339,6 +347,46 @@ class TrackRow(QFrame):
         lay.addWidget(stats, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
         lay.addWidget(dur, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def _apply_thumb_placeholder(self) -> None:
+        self._thumb.clear()
+        self._thumb.setPixmap(QPixmap())
+        self._thumb.setText("♪")
+        self._thumb.setToolTip("Обложка не указана")
+        self._thumb.setStyleSheet(
+            "font-size: 18px; color: #A14016; font-family: 'Courier New';"
+        )
+
+    def _on_thumb_finished(self) -> None:
+        reply = self.sender()
+        if not isinstance(reply, QNetworkReply):
+            return
+        if self._thumb_reply is not reply:
+            reply.deleteLater()
+            return
+        self._thumb_reply = None
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self._apply_thumb_placeholder()
+                return
+            data = reply.readAll()
+            img = QImage()
+            if not img.loadFromData(data):
+                self._apply_thumb_placeholder()
+                return
+            s = self._THUMB_SIZE
+            pix = QPixmap.fromImage(img).scaled(
+                s,
+                s,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._thumb.setPixmap(pix)
+            self._thumb.setText("")
+            self._thumb.setToolTip("")
+            self._thumb.setStyleSheet("")
+        finally:
+            reply.deleteLater()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._on_play:
@@ -511,7 +559,18 @@ class PopularTab(QWidget):
         tracks = body.get("tracks")
         if not isinstance(tracks, list):
             tracks = []
-        self._fill_tracks(tracks)
+        norm_tracks: list[dict] = []
+        for it in tracks:
+            if not isinstance(it, dict):
+                continue
+            row = dict(it)
+            au = resolve_backend_media_url(
+                api_base, (row.get("artwork_url") or "").strip()
+            )
+            if au:
+                row["artwork_url"] = au
+            norm_tracks.append(row)
+        self._fill_tracks(norm_tracks)
 
     def _clear_tracks(self) -> None:
         while self._tracks_layout.count():

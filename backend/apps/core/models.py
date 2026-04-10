@@ -62,7 +62,11 @@ class MusicItem(models.Model):
     artwork_url = models.URLField(blank=True)
     # Локальная обложка (админка): в API подставляется в artwork_url как URL к /media/...
     artwork_file = models.FileField(upload_to="music/covers/", blank=True)
-    duration_sec = models.PositiveIntegerField(null=True, blank=True)
+    duration_sec = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Заполняется автоматически при сохранении трека с файлом audio_file (mutagen).",
+    )
 
     playback_ref = models.CharField(
         max_length=512,
@@ -102,6 +106,19 @@ class MusicItem(models.Model):
         if self.artist:
             return f"{self.artist} — {self.title}"
         return self.title
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.kind != self.Kind.TRACK.value:
+            return
+        from .audio_duration import duration_from_filefield
+
+        sec = duration_from_filefield(self.audio_file)
+        if sec is None or sec <= 0:
+            return
+        if self.duration_sec != sec:
+            type(self).objects.filter(pk=self.pk).update(duration_sec=sec)
+            self.duration_sec = sec
 
 
 class Collection(models.Model):

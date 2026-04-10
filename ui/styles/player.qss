@@ -11,15 +11,11 @@ QFrame#playerRightCard {
     border: 2px solid rgba(0, 51, 102, 0.25);
 }
 
-QLabel#playerArtPanel {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #D8E4EC, stop:1 #B8C8D4);
-    border: none;
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
-    min-height: 220px;
-    color: #003366;
-    font-size: 56px;
+/* Обложка: скругление и рамка рисуются в PlayerArtworkWidget (paintEvent) */
+QWidget#playerArtPanel {
+    background: transparent;
+    min-height: 160px;
+    max-height: 280px;
 }
 
 QFrame#playerTrackBand {
@@ -49,23 +45,35 @@ QLabel#playerNowArtist {
     color: #003366;
 }
 
+/* Прогресс: пиксельный ретро-ползунок */
 QSlider#playerProgressMock::groove:horizontal {
-    background-color: #E8E4D4;
-    height: 5px;
-    border-radius: 2px;
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    height: 8px;
+    border-radius: 0px;
 }
 QSlider#playerProgressMock::sub-page:horizontal {
-    background-color: #E07020;
-    height: 5px;
-    border-radius: 2px;
+    background-color: #A14016;
+    border: 2px solid #312938;
+    height: 8px;
+    border-radius: 0px;
+}
+QSlider#playerProgressMock::add-page:horizontal {
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    border-radius: 0px;
 }
 QSlider#playerProgressMock::handle:horizontal {
-    background-color: #1a1a1a;
-    border: 1px solid #333;
-    width: 8px;
-    height: 16px;
-    border-radius: 3px;
-    margin: -6px 0;
+    background-color: #312938;
+    border: 2px solid #CB883A;
+    width: 10px;
+    height: 18px;
+    border-radius: 0px;
+    margin: -7px 0;
+}
+QSlider#playerProgressMock::handle:horizontal:hover {
+    background-color: #A14016;
+    border-color: #312938;
 }
 
 QLabel#playerTimeElapsed,
@@ -79,50 +87,71 @@ QLabel#playerTimeRemain {
 }
 
 QPushButton#playerBtnPrev,
-QPushButton#playerBtnNext {
-    background-color: transparent;
+QPushButton#playerBtnNext,
+QPushButton#playerBtnPlayCircle {
+    background: transparent;
     border: none;
-    color: #0d0d0d;
-    font-size: 22px;
+    outline: none;
+    padding: 0px;
+    color: #312938;
+}
+QPushButton#playerBtnPrev:focus,
+QPushButton#playerBtnNext:focus,
+QPushButton#playerBtnPlayCircle:focus {
+    border: none;
+    outline: none;
 }
 QPushButton#playerBtnPrev:hover,
-QPushButton#playerBtnNext:hover {
-    color: #E07020;
-}
-
-QPushButton#playerBtnPlayCircle {
-    background-color: #1a1a1a;
-    color: #f5f5f5;
-    border-radius: 26px;
-    font-size: 20px;
-    border: 2px solid #0d0d0d;
-}
+QPushButton#playerBtnNext:hover,
 QPushButton#playerBtnPlayCircle:hover {
-    background-color: #E07020;
-    color: #1a1a1a;
+    color: #A14016;
+}
+QPushButton#playerBtnPrev:pressed,
+QPushButton#playerBtnNext:pressed,
+QPushButton#playerBtnPlayCircle:pressed {
+    color: #CB883A;
 }
 
 QSlider#playerVolume::groove:horizontal {
-    background-color: #E8E4D4;
-    height: 4px;
-    border-radius: 2px;
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    height: 6px;
+    border-radius: 0px;
 }
 QSlider#playerVolume::sub-page:horizontal {
-    background-color: #E07020;
-    height: 4px;
-    border-radius: 2px;
+    background-color: #89A194;
+    border: 2px solid #312938;
+    height: 6px;
+    border-radius: 0px;
+}
+QSlider#playerVolume::add-page:horizontal {
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    border-radius: 0px;
 }
 QSlider#playerVolume::handle:horizontal {
-    background-color: #1a1a1a;
-    width: 10px;
-    height: 10px;
-    border-radius: 5px;
-    margin: -4px 0;
+    background-color: #312938;
+    border: 2px solid #CB883A;
+    width: 12px;
+    height: 14px;
+    border-radius: 0px;
+    margin: -6px 0;
+}
+QSlider#playerVolume::handle:horizontal:hover {
+    background-color: #004766;
+    border-color: #A14016;
 }
 
-QLabel#playerVolumeIcon {
-    font-size: 14px;
-    color: #003366;
+QPushButton#playerVolumeIcon {
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0px;
+    color: #312938;
+}
+QPushButton#playerVolumeIcon:focus {
+    border: none;
+    outline: none;
 }
 
 QFrame#playerAlbumTab {
@@ -158,29 +187,26 @@ QLabel#playerInfoStats {
 }
 
 QPushButton#playerLikeBtn {
-    background-color: rgba(42, 122, 140, 0.25);
-    border: 2px solid #2A7A8C;
-    border-radius: 8px;
+    background: transparent;
+    border: none;
     padding: 4px;
+    color: #312938;
 }
 QPushButton#playerLikeBtn:hover {
-    background-color: rgba(203, 136, 58, 0.35);
-    border-color: #CB883A;
+    color: #A14016;
 }
 QPushButton#playerLikeBtn:checked {
-    background-color: rgba(224, 112, 32, 0.45);
-    border-color: #E07020;
+    color: #CB883A;
 }
 
 QPushButton#playerReviewBtn {
-    background-color: rgba(10, 30, 44, 0.12);
-    border: 2px solid #0A1E2C;
-    border-radius: 8px;
+    background: transparent;
+    border: none;
     padding: 4px;
+    color: #312938;
 }
 QPushButton#playerReviewBtn:hover {
-    background-color: rgba(42, 122, 140, 0.3);
-    border-color: #2A7A8C;
+    color: #004766;
 }
 
 QLabel#playerTrackMeta {

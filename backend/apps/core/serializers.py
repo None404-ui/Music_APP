@@ -5,6 +5,8 @@ Responsible for the JSON shape returned/accepted by API endpoints
 defined in `views.py`.
 """
 
+import json
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Sum
@@ -95,6 +97,38 @@ class MusicItemSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(rel) if request else rel
         return pref
 
+    @staticmethod
+    def _duration_sec_from_meta(meta_json) -> int | None:
+        if meta_json is None:
+            return None
+        s = meta_json if isinstance(meta_json, str) else str(meta_json)
+        if not str(s).strip():
+            return None
+        try:
+            j = json.loads(s)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
+        if not isinstance(j, dict):
+            return None
+        for key in ("duration_sec", "length_seconds", "duration"):
+            if key not in j or j[key] is None or j[key] == "":
+                continue
+            try:
+                v = int(float(j[key]))
+                if v > 0:
+                    return v
+            except (TypeError, ValueError):
+                pass
+        dm = j.get("duration_ms")
+        if dm is not None and dm != "":
+            try:
+                v = int(float(dm) // 1000)
+                if v > 0:
+                    return v
+            except (TypeError, ValueError):
+                pass
+        return None
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get("request")
@@ -105,6 +139,11 @@ class MusicItemSerializer(serializers.ModelSerializer):
             data["artwork_url"] = (
                 request.build_absolute_uri(rel) if request else rel
             )
+        ds = data.get("duration_sec")
+        if ds is None or (isinstance(ds, (int, float)) and int(ds) <= 0):
+            alt = self._duration_sec_from_meta(data.get("meta_json"))
+            if alt is not None:
+                data["duration_sec"] = alt
         return data
 
     class Meta:
@@ -127,7 +166,7 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "listen_time_total_sec",
             "user_favorited",
         ]
-        read_only_fields = ["id", "updated_at"]
+        read_only_fields = ["id", "updated_at", "duration_sec"]
 
     def _ann(self, obj, name: str):
         v = getattr(obj, name, None)

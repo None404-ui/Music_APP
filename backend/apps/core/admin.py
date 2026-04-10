@@ -102,6 +102,8 @@ class MusicItemAdmin(admin.ModelAdmin):
     class Media:
         js = ("admin/js/musicitem_kind_fieldsets.js",)
 
+    readonly_fields = ("duration_sec",)
+
     fieldsets = (
         (
             "Основное",
@@ -112,7 +114,6 @@ class MusicItemAdmin(admin.ModelAdmin):
                     "kind",
                     "title",
                     "artist",
-                    "duration_sec",
                 )
             },
         ),
@@ -132,11 +133,12 @@ class MusicItemAdmin(admin.ModelAdmin):
         (
             "Локальный аудиофайл на сервере (если нет HTTP-ссылки)",
             {
-                "fields": ("audio_file",),
+                "fields": ("audio_file", "duration_sec"),
                 "classes": ("wide", "musicitem-fs-track"),
                 "description": (
                     "Используется только когда поле выше пустое или не содержит http(s)-ссылки: "
-                    "тогда API отдаст URL вида /media/.... Для продакшена предпочтительна внешняя ссылка."
+                    "тогда API отдаст URL вида /media/.... Для продакшена предпочтительна внешняя ссылка. "
+                    "Длительность трека заполняется автоматически при сохранении файла (не вводить вручную)."
                 ),
             },
         ),
