@@ -1,63 +1,96 @@
+from pathlib import Path
+
+from PyQt6.QtCore import QSize, pyqtSignal
+from PyQt6.QtGui import QCloseEvent, QIcon
 from PyQt6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
+    QButtonGroup,
     QHBoxLayout,
-    QTabBar,
+    QMainWindow,
+    QPushButton,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCloseEvent
 
 from backend.session import UserSession
 from ui.ambient_background import ContentWithAmbient
+from ui.windows.home_hub import HomeHubWidget
+from ui.windows.player_tab import PlayerTab
 from ui.windows.popular_tab import PopularTab
+from ui.windows.review_detail_dialog import ReviewDetailDialog
 from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
-from ui.windows.player_tab import PlayerTab
-from ui.windows.review_detail_dialog import ReviewDetailDialog
 from ui.windows.settings_tab import SettingsTab
-from ui.windows.artist_tab import ArtistTab
+
+_ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
+_SIDENAV_ICON_SIZE = QSize(40, 40)
 
 
-_TAB_NAMES = [
-    "популярное",
-    "рецензии",
-    "поиск",
-    "моё",
-    "плеер",
-    "настройки",
-]
+class SideNavBar(QWidget):
+    page_selected = pyqtSignal(int)
 
-
-class TopBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("topBar")
-        self.setFixedHeight(52)
+        self.setObjectName("sideNavBar")
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 6, 16, 0)
-        layout.setSpacing(0)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 20, 10, 20)
+        layout.setSpacing(32)
 
-        self.tab_bar = QTabBar()
-        self.tab_bar.setObjectName("mainTabBar")
-        self.tab_bar.setExpanding(False)
-        self.tab_bar.setDrawBase(False)
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
 
-        for name in _TAB_NAMES:
-            self.tab_bar.addTab(name)
+        icon_paths = [
+            _ICONS_DIR / "home_icon.svg",
+            _ICONS_DIR / "search.svg",
+            _ICONS_DIR / "player_like.svg",
+            _ICONS_DIR / "music_icon.svg",
+            _ICONS_DIR / "settings_icon.svg",
+        ]
+        self._buttons: list[QPushButton] = []
+        for i, path in enumerate(icon_paths):
+            btn = QPushButton()
+            btn.setObjectName("sideNavButton")
+            btn.setCheckable(True)
+            btn.setIcon(QIcon(str(path)))
+            btn.setIconSize(_SIDENAV_ICON_SIZE)
+            btn.setFixedSize(40, 40)
+            btn.setFlat(True)
+            btn.toggled.connect(
+                lambda c, b=btn: self._ensure_one_checked(c, b),
+            )
+            self._group.addButton(btn, i)
+            layout.addWidget(btn)
+            self._buttons.append(btn)
 
-        layout.addWidget(self.tab_bar)
         layout.addStretch()
+        self._group.idClicked.connect(self.page_selected.emit)
+
+    def _ensure_one_checked(self, checked: bool, btn: QPushButton) -> None:
+        if checked or self._group.checkedButton() is not None:
+            return
+        self._group.blockSignals(True)
+        btn.blockSignals(True)
+        btn.setChecked(True)
+        btn.blockSignals(False)
+        self._group.blockSignals(False)
+
+    def set_current_index(self, index: int) -> None:
+        self._group.blockSignals(True)
+        try:
+            if 0 <= index < len(self._buttons):
+                self._buttons[index].setChecked(True)
+        finally:
+            self._group.blockSignals(False)
 
 
 class MainWindow(QMainWindow):
-    _POPULAR_TAB_INDEX = 0
-    _REVIEWS_TAB_INDEX = 1
-    _SELECTED_TAB_INDEX = 3
-    _ARTIST_PAGE_INDEX = 6
+    _HOME_PAGE_INDEX = 0
+    _SEARCH_PAGE_INDEX = 1
+    _SELECTED_PAGE_INDEX = 2
+    _PLAYER_PAGE_INDEX = 3
+    _SETTINGS_PAGE_INDEX = 4
 
     def __init__(self, session: UserSession):
         super().__init__()
@@ -70,26 +103,23 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralWidget")
         self.setCentralWidget(central)
 
-        root_layout = QVBoxLayout(central)
+        root_layout = QHBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        self._top_bar = TopBar()
-        root_layout.addWidget(self._top_bar)
+        self._side_nav = SideNavBar()
+        root_layout.addWidget(self._side_nav, stretch=0)
 
         self._ambient_host = ContentWithAmbient()
         self._stack = self._ambient_host.page_stack
         root_layout.addWidget(self._ambient_host, stretch=1)
 
-        self._saved_stack_index = 0
-        self._saved_tab_index = 0
-
-        PLAYER_PAGE_INDEX = 4
+        self._player = PlayerTab(session=session)
 
         def on_select_track(music_item: dict) -> None:
             self._player.set_track(music_item)
-            self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
-            self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
+            self._stack.setCurrentIndex(self._PLAYER_PAGE_INDEX)
+            self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
 
         def on_open_album_queue(tracks: list, source_card: dict | None = None) -> None:
             ctx_id = None
@@ -105,8 +135,8 @@ class MainWindow(QMainWindow):
                 context_music_item_id=ctx_id,
                 source_card=source_card,
             )
-            self._stack.setCurrentIndex(PLAYER_PAGE_INDEX)
-            self._top_bar.tab_bar.setCurrentIndex(PLAYER_PAGE_INDEX)
+            self._stack.setCurrentIndex(self._PLAYER_PAGE_INDEX)
+            self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
 
         def on_open_review_from_selected(review: dict) -> None:
             body = review.get("text") or ""
@@ -124,17 +154,11 @@ class MainWindow(QMainWindow):
             dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
             dlg.exec()
 
-        self._player = PlayerTab(
-            session=session,
-            on_open_artist=self._open_artist_page,
-        )
-
         self._selected_tab = SelectedTab(
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
             on_open_review=on_open_review_from_selected,
-            on_open_artist=self._open_artist_page,
         )
 
         self._player.library_changed.connect(self._selected_tab.reload_content)
@@ -149,32 +173,17 @@ class MainWindow(QMainWindow):
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
-            on_open_artist=self._open_artist_page,
         )
-        self._reviews_tab = ReviewsTab(
-            session,
-            on_open_artist=self._open_artist_page,
-        )
+        self._reviews_tab = ReviewsTab(session)
 
-        self._search_tab = SearchTab(
-            on_select_track=on_select_track,
-            on_open_artist=self._open_artist_page,
-        )
-
-        self._artist_tab = ArtistTab(
-            session,
-            on_back=self._close_artist_page,
-            on_play_track=on_select_track,
-        )
+        self._home_hub = HomeHubWidget(self._popular_tab, self._reviews_tab)
 
         self._pages: list[QWidget] = [
-            self._popular_tab,
-            self._reviews_tab,
-            self._search_tab,
+            self._home_hub,
+            SearchTab(on_select_track=on_select_track),
             self._selected_tab,
             self._player,
             self._settings,
-            self._artist_tab,
         ]
         for page in self._pages:
             page.setSizePolicy(
@@ -183,8 +192,13 @@ class MainWindow(QMainWindow):
             )
             self._stack.addWidget(page)
 
-        self._top_bar.tab_bar.currentChanged.connect(self._on_main_tab_changed)
-        self._top_bar.tab_bar.setCurrentIndex(0)
+        self._side_nav.page_selected.connect(self._on_side_nav_clicked)
+        self._home_hub.sub_page_changed.connect(self._on_home_sub_changed)
+
+        self._side_nav.set_current_index(self._HOME_PAGE_INDEX)
+        self._stack.setCurrentIndex(self._HOME_PAGE_INDEX)
+        self._home_hub.reset_to_popular()
+        self._popular_tab.reload_content()
 
     def consume_logout_restart(self) -> bool:
         v = self._logout_restart
@@ -204,23 +218,18 @@ class MainWindow(QMainWindow):
         self._player.flush_listen_for_close()
         super().closeEvent(event)
 
-    def _open_artist_page(self, user_id: int) -> None:
-        self._saved_stack_index = self._stack.currentIndex()
-        self._saved_tab_index = self._top_bar.tab_bar.currentIndex()
-        self._artist_tab.load_artist(int(user_id))
-        self._stack.setCurrentIndex(self._ARTIST_PAGE_INDEX)
-
-    def _close_artist_page(self) -> None:
-        self._stack.setCurrentIndex(self._saved_stack_index)
-        self._top_bar.tab_bar.blockSignals(True)
-        self._top_bar.tab_bar.setCurrentIndex(self._saved_tab_index)
-        self._top_bar.tab_bar.blockSignals(False)
-
-    def _on_main_tab_changed(self, index: int) -> None:
+    def _on_side_nav_clicked(self, index: int) -> None:
         self._stack.setCurrentIndex(index)
-        if index == self._POPULAR_TAB_INDEX:
+        if index == self._HOME_PAGE_INDEX:
+            self._home_hub.reset_to_popular()
             self._popular_tab.reload_content()
-        elif index == self._REVIEWS_TAB_INDEX:
-            self._reviews_tab.reload_content()
-        elif index == self._SELECTED_TAB_INDEX:
+        elif index == self._SELECTED_PAGE_INDEX:
             self._selected_tab.reload_content()
+
+    def _on_home_sub_changed(self, sub: int) -> None:
+        if self._stack.currentIndex() != self._HOME_PAGE_INDEX:
+            return
+        if sub == 0:
+            self._popular_tab.reload_content()
+        else:
+            self._reviews_tab.reload_content()

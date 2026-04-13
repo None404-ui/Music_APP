@@ -20,6 +20,7 @@ QWidget#pageStack {
 /* Полупрозрачные страницы — виден общий ambient-фон (все вкладки) */
 QWidget#popularPage,
 QWidget#reviewsPage,
+QWidget#homeHubPage,
 QWidget#searchPage,
 QWidget#selectedPage,
 QWidget#settingsPage,
@@ -27,40 +28,35 @@ QWidget#playerPage {
     background-color: rgba(207, 200, 154, 0.88);
 }
 
-/* --- Top bar --- */
-QWidget#topBar {
-    background-color: rgba(49, 41, 56, 0.92);
-    border-bottom: 2px solid #A14016;
+/* --- Боковая навигация (иконки) --- */
+QWidget#sideNavBar {
+    background-color: rgba(24, 18, 32, 0.95);
+    border-right: 2px solid #A14016;
 }
 
-/* --- Main horizontal tab bar --- */
-QTabBar#mainTabBar {
+QPushButton#sideNavButton {
     background: transparent;
     border: none;
+    outline: none;
+    padding: 0px;
+    color: #004766;
 }
-QTabBar#mainTabBar::tab {
-    background-color: #3d3347;
-    color: #89A194;
-    font-family: "Courier New";
-    font-size: 13px;
-    letter-spacing: 2px;
-    padding: 8px 22px;
-    border-radius: 10px 10px 0px 0px;
-    margin-right: 3px;
-    border: 1px solid #4a3a54;
-    border-bottom: none;
-    min-width: 100px;
+QPushButton#sideNavButton:hover:!checked {
+    background: transparent;
+    color: #5a9eb8;
 }
-QTabBar#mainTabBar::tab:selected {
-    background-color: #CB883A;
-    color: #312938;
-    border: 1px solid #A14016;
-    border-bottom: none;
-    font-weight: bold;
+QPushButton#sideNavButton:checked {
+    background: transparent;
+    border: none;
+    color: #E35F31;
 }
-QTabBar#mainTabBar::tab:hover:!selected {
-    background-color: #A14016;
-    color: #CFC89A;
+QPushButton#sideNavButton:pressed {
+    background: transparent;
+    color: #c14e28;
+}
+QPushButton#sideNavButton:focus {
+    border: none;
+    outline: none;
 }
 
 /* ============================================================ */

@@ -6,8 +6,19 @@ import os
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import parse_qs, urlparse
 
-from PyQt6.QtCore import Qt, QUrl, QUrlQuery, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor, QIcon
+from PyQt6.QtCore import Qt, QUrl, QUrlQuery, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
+from PyQt6.QtGui import (
+    QPixmap,
+    QImage,
+    QPainter,
+    QColor,
+    QIcon,
+    QPainterPath,
+    QPen,
+    QFont,
+    QBrush,
+    QLinearGradient,
+)
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtWidgets import (
@@ -68,6 +79,7 @@ except (ImportError, OSError):
     pass
 
 from ui import playback_settings
+from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 from backend.api_client import resolve_backend_media_url
 from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
 
@@ -110,12 +122,6 @@ def _album_display(item: dict) -> str:
         except json.JSONDecodeError:
             pass
     return "—"
-
-
-def _fmt_duration_sec(sec: Optional[int]) -> str:
-    if sec is None or sec < 0:
-        return "—"
-    return _fmt_ms(int(sec) * 1000)
 
 
 def _fmt_listen_total_sec(sec: int) -> str:
@@ -274,6 +280,77 @@ class _TrackRow(QFrame):
         super().mousePressEvent(event)
 
 
+class PlayerArtworkWidget(QWidget):
+    """Обложка трека: скруглённые углы, рамка, картинка по центру без вылезания за границы."""
+
+    _RADIUS = 14
+    _BORDER = 3
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("playerArtPanel")
+        self._pm: Optional[QPixmap] = None
+        self.setMinimumHeight(160)
+        self.setMaximumHeight(280)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
+
+    def set_cover_pixmap(self, pm: Optional[QPixmap]) -> None:
+        self._pm = None if pm is None or pm.isNull() else pm
+        self.update()
+
+    def clear_cover(self) -> None:
+        self._pm = None
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        w, h = self.width(), self.height()
+        if w < 8 or h < 8:
+            painter.end()
+            return
+        bw = self._BORDER
+        r = float(self._RADIUS)
+        fr = QRectF(bw / 2, bw / 2, w - bw, h - bw)
+        clip = QPainterPath()
+        clip.addRoundedRect(fr, r, r)
+        painter.setClipPath(clip)
+        if self._pm is not None:
+            tw, th = max(1, int(fr.width())), max(1, int(fr.height()))
+            scaled = self._pm.scaled(
+                tw,
+                th,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            painter.fillRect(fr.toRect(), QColor(216, 228, 236))
+            x = int(fr.x() + (fr.width() - scaled.width()) / 2)
+            y = int(fr.y() + (fr.height() - scaled.height()) / 2)
+            painter.drawPixmap(x, y, scaled)
+        else:
+            grad = QLinearGradient(fr.topLeft(), fr.bottomRight())
+            grad.setColorAt(0, QColor(216, 228, 236))
+            grad.setColorAt(1, QColor(184, 200, 212))
+            painter.fillRect(fr.toRect(), QBrush(grad))
+            painter.setPen(QColor(0, 51, 102))
+            font = QFont("Courier New")
+            font.setPixelSize(max(28, min(56, int(fr.height() * 0.22))))
+            painter.setFont(font)
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "♪")
+        painter.setClipping(False)
+        pen = QPen(QColor(49, 41, 56))
+        pen.setWidth(bw)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(fr, r, r)
+        painter.end()
+
+
 class PlayerTab(QWidget):
     """Изменения избранного / рецензий — для обновления вкладки «Моё»."""
 
@@ -340,16 +417,7 @@ class PlayerTab(QWidget):
         lv.setContentsMargins(0, 0, 0, 0)
         lv.setSpacing(0)
 
-        self._art = QLabel()
-        self._art.setObjectName("playerArtPanel")
-        self._art.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._art.setScaledContents(True)
-        self._art.setMinimumHeight(180)
-        self._art.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
-        self._art.setText("♪")
+        self._art = PlayerArtworkWidget()
         lv.addWidget(self._art, stretch=1)
 
         band = QFrame()
@@ -384,6 +452,7 @@ class PlayerTab(QWidget):
         self._progress.setValue(0)
         self._progress.sliderPressed.connect(lambda: setattr(self, "_user_seeking", True))
         self._progress.sliderReleased.connect(self._on_seek_released)
+        self._progress.valueChanged.connect(self._on_progress_slider_moved)
 
         times = QHBoxLayout()
         self._t_elapsed = QLabel("0:00")
@@ -399,20 +468,35 @@ class PlayerTab(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(18)
         btn_row.addStretch()
-        self._btn_prev = QPushButton("⏮")
+        self._ico_player_prev = QIcon(os.path.join(_ICONS_DIR, "player_prev.svg"))
+        self._ico_player_next = QIcon(os.path.join(_ICONS_DIR, "player_next.svg"))
+        self._ico_player_play = QIcon(os.path.join(_ICONS_DIR, "player_play.svg"))
+        self._ico_player_pause = QIcon(os.path.join(_ICONS_DIR, "player_pause.svg"))
+        self._ico_player_volume = QIcon(os.path.join(_ICONS_DIR, "player_volume.svg"))
+
+        self._btn_prev = QPushButton()
         self._btn_prev.setObjectName("playerBtnPrev")
+        self._btn_prev.setIcon(self._ico_player_prev)
+        self._btn_prev.setIconSize(QSize(28, 28))
+        self._btn_prev.setFlat(True)
         self._btn_prev.setFixedSize(44, 44)
         self._btn_prev.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_prev.clicked.connect(self._prev_track)
 
-        self._btn_play = QPushButton("▶")
+        self._btn_play = QPushButton()
         self._btn_play.setObjectName("playerBtnPlayCircle")
+        self._btn_play.setIcon(self._ico_player_play)
+        self._btn_play.setIconSize(QSize(32, 32))
+        self._btn_play.setFlat(True)
         self._btn_play.setFixedSize(52, 52)
         self._btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_play.clicked.connect(self._toggle_play)
 
-        self._btn_next = QPushButton("⏭")
+        self._btn_next = QPushButton()
         self._btn_next.setObjectName("playerBtnNext")
+        self._btn_next.setIcon(self._ico_player_next)
+        self._btn_next.setIconSize(QSize(28, 28))
+        self._btn_next.setFlat(True)
         self._btn_next.setFixedSize(44, 44)
         self._btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_next.clicked.connect(self._next_track)
@@ -423,8 +507,14 @@ class PlayerTab(QWidget):
         cvl.addLayout(btn_row)
 
         vol_row = QHBoxLayout()
-        vol_ic = QLabel("🔈")
+        vol_ic = QPushButton()
         vol_ic.setObjectName("playerVolumeIcon")
+        vol_ic.setIcon(self._ico_player_volume)
+        vol_ic.setIconSize(QSize(22, 22))
+        vol_ic.setFlat(True)
+        vol_ic.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        vol_ic.setFixedSize(28, 28)
+        vol_ic.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._volume = QSlider(Qt.Orientation.Horizontal)
         self._volume.setObjectName("playerVolume")
         self._volume.setRange(0, 100)
@@ -618,8 +708,9 @@ class PlayerTab(QWidget):
             self._listen_last_pos_ms = None
             return
         dur = self._player.duration()
+        ed = effective_duration_sec(item)
         duration_ms = (
-            int(dur) if dur and dur > 0 else int((item.get("duration_sec") or 0) * 1000)
+            int(dur) if dur and dur > 0 else int((ed or 0) * 1000)
         )
         threshold_ms = min(30_000, duration_ms // 2) if duration_ms > 0 else 30_000
         if self._listen_accum_ms >= threshold_ms:
@@ -679,9 +770,9 @@ class PlayerTab(QWidget):
     def _sync_play_button_icon(self) -> None:
         st = self._player.playbackState()
         if st == QMediaPlayer.PlaybackState.PlayingState:
-            self._btn_play.setText("❚❚")
+            self._btn_play.setIcon(self._ico_player_pause)
         else:
-            self._btn_play.setText("▶")
+            self._btn_play.setIcon(self._ico_player_play)
 
     def _on_state_changed(self, state) -> None:
         self._sync_play_button_icon()
@@ -711,21 +802,19 @@ class PlayerTab(QWidget):
     def _on_position_changed(self, pos: int) -> None:
         if self._user_seeking:
             self._listen_last_pos_ms = pos
+            self._tick_listen_accum(pos)
+            self._refresh_progress_time_labels()
             return
-        dur = self._player.duration()
-        if dur > 0:
-            self._progress.blockSignals(True)
-            self._progress.setRange(0, int(dur))
-            self._progress.setValue(int(pos))
-            self._progress.blockSignals(False)
-        self._t_elapsed.setText(_fmt_ms(pos))
-        td = self._player.duration()
-        self._t_total.setText(_fmt_ms(td) if td > 0 else "—")
         self._tick_listen_accum(pos)
+        self._refresh_progress_time_labels(int(pos))
 
     def _on_duration_changed(self, dur: int) -> None:
         if dur > 0:
-            self._progress.setRange(0, int(dur))
+            self._refresh_progress_time_labels()
+
+    def _on_progress_slider_moved(self, v: int) -> None:
+        if self._user_seeking:
+            self._refresh_progress_time_labels(int(v))
 
     def _on_seek_released(self) -> None:
         self._user_seeking = False
@@ -776,6 +865,46 @@ class PlayerTab(QWidget):
         self._now_artist.set_artist(str(artist), uid)
         self._art.setToolTip(f"{title}\n{artist}")
 
+    def _duration_ms_for_ui(self, item: dict) -> int:
+        """Длительность для шкалы: из плеера, иначе из данных трека (как на главной)."""
+        ref = (item.get("playback_ref") or "").strip()
+        pdur = int(self._player.duration())
+        si = effective_duration_sec(item)
+        item_ms = int(si * 1000) if si else 0
+        if _is_page_playback_ref(ref):
+            return item_ms
+        if pdur > 0:
+            return pdur
+        return item_ms
+
+    def _refresh_progress_time_labels(self, pos_ms: Optional[int] = None) -> None:
+        if not self._playlist:
+            self._t_elapsed.setText("0:00")
+            self._t_total.setText("—")
+            self._progress.blockSignals(True)
+            self._progress.setRange(0, 1000)
+            self._progress.setValue(0)
+            self._progress.blockSignals(False)
+            return
+        item = self._playlist[self._index]
+        dur_ms = self._duration_ms_for_ui(item)
+        if self._user_seeking and pos_ms is None:
+            pos_ms = int(self._progress.value())
+        elif pos_ms is None:
+            pos_ms = int(self._player.position())
+        self._progress.blockSignals(True)
+        if dur_ms > 0:
+            self._progress.setRange(0, dur_ms)
+            if not self._user_seeking:
+                self._progress.setValue(min(int(pos_ms), dur_ms))
+        else:
+            self._progress.setRange(0, 1000)
+            if not self._user_seeking:
+                self._progress.setValue(0)
+        self._progress.blockSignals(False)
+        self._t_elapsed.setText(_fmt_ms(int(pos_ms)))
+        self._t_total.setText(_fmt_ms(dur_ms) if dur_ms > 0 else "—")
+
     def _artwork_url_for_current(self, item: dict) -> Optional[str]:
         base = self._session.client.base_url if self._session else ""
         for raw in (
@@ -802,6 +931,7 @@ class PlayerTab(QWidget):
             self._player.stop()
             self._load_artwork(None)
             self._refresh_track_sidebar()
+            self._refresh_progress_time_labels(0)
             return
         if _is_page_playback_ref(ref):
             self._player.stop()
@@ -810,6 +940,7 @@ class PlayerTab(QWidget):
                 self._load_web_ref(ref)
             self._load_artwork(self._artwork_url_for_current(item))
             self._refresh_track_sidebar()
+            self._refresh_progress_time_labels(0)
             return
         self._set_web_panel_visible(False)
         self._player.stop()
@@ -819,6 +950,7 @@ class PlayerTab(QWidget):
         self._player.setSource(url)
         self._load_artwork(self._artwork_url_for_current(item))
         self._refresh_track_sidebar()
+        self._refresh_progress_time_labels(0)
 
     def _load_web_ref(self, ref: str) -> None:
         if self._web is None:
@@ -862,8 +994,7 @@ class PlayerTab(QWidget):
             # abort() сразу шлёт finished → _on_art_finished снимет prev с deleteLater
             prev.abort()
         if not url:
-            self._art.clear()
-            self._art.setText("♪")
+            self._art.clear_cover()
             return
         req = QNetworkRequest(QUrl(url))
         self._art_reply = self._nam.get(req)
@@ -885,11 +1016,9 @@ class PlayerTab(QWidget):
         reply.deleteLater()
         img = QImage()
         if img.loadFromData(QByteArray(data)):
-            self._art.setPixmap(QPixmap.fromImage(img))
-            self._art.setText("")
+            self._art.set_cover_pixmap(QPixmap.fromImage(img))
         else:
-            self._art.clear()
-            self._art.setText("♪")
+            self._art.clear_cover()
 
     def _refresh_track_sidebar(self) -> None:
         if not self._playlist:
@@ -933,7 +1062,7 @@ class PlayerTab(QWidget):
         artist = (item.get("artist") or "").strip()
         line1 = f"{title} · {artist}" if artist else title
         alb = _album_display(item)
-        dur = _fmt_duration_sec(item.get("duration_sec"))
+        dur = format_duration_mm_ss(effective_duration_sec(item))
         kind_raw = (item.get("kind") or "").strip()
         kind_ru = {
             "track": "трек",
@@ -1095,7 +1224,7 @@ class PlayerTab(QWidget):
             title = item.get("title") or "название песни"
             artist = item.get("artist") or "исполнитель"
             alb = _album_display(item)
-            dur = _fmt_duration_sec(item.get("duration_sec"))
+            dur = format_duration_mm_ss(effective_duration_sec(item))
             sub = " · ".join(x for x in (alb, dur) if x and x != "—")
             auid = artist_user_id_from_item(item)
             row = _TrackRow(

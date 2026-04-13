@@ -23,11 +23,12 @@ Project root URLConf for CRATES.
 
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib import admin
 from django.urls import include, path
 
+from crates.admin_site import crates_admin_site
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", crates_admin_site.urls),
     path("api/", include("apps.core.urls")),
 ]
 if settings.DEBUG:

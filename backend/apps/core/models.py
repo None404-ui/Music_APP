@@ -40,15 +40,19 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Профиль"
+        verbose_name_plural = "Профили"
+
     def __str__(self) -> str:
         return self.nickname
 
 
 class MusicItem(models.Model):
     class Kind(models.TextChoices):
-        TRACK = "track", "Track"
-        ALBUM = "album", "Album"
-        PLAYLIST = "playlist", "Playlist"
+        TRACK = "track", "Трек"
+        ALBUM = "album", "Альбом"
+        PLAYLIST = "playlist", "Плейлист"
 
     provider = models.CharField(max_length=32)
     external_id = models.CharField(max_length=128)
@@ -59,14 +63,28 @@ class MusicItem(models.Model):
     artwork_url = models.URLField(blank=True)
     # Локальная обложка (админка): в API подставляется в artwork_url как URL к /media/...
     artwork_file = models.FileField(upload_to="music/covers/", blank=True)
-    duration_sec = models.PositiveIntegerField(null=True, blank=True)
+    duration_sec = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Заполняется автоматически при сохранении трека с файлом audio_file (mutagen).",
+    )
 
     playback_ref = models.CharField(
         max_length=512,
         blank=True,
-        help_text="URL или путь на машине сервера (клиенту не подойдёт). Лучше загрузить «Аудиофайл».",
+        help_text=(
+            "Ссылка на воспроизведение (рекомендуется): полный URL https://… "
+            "(YouTube, стриминг, прямой MP3/AAC). Имеет приоритет над файлом на сервере."
+        ),
     )
-    audio_file = models.FileField(upload_to="music/tracks/", blank=True)
+    audio_file = models.FileField(
+        upload_to="music/tracks/",
+        blank=True,
+        help_text=(
+            "Локальная загрузка на сервер — используется в API только если в «Ссылке на воспроизведение» "
+            "нет HTTP(S)-URL."
+        ),
+    )
     meta_json = models.TextField(blank=True)
 
     artist_user = models.ForeignKey(
@@ -80,6 +98,8 @@ class MusicItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Запись каталога"
+        verbose_name_plural = "Каталог музыки"
         constraints = [
             models.UniqueConstraint(
                 fields=["provider", "external_id", "kind"],
@@ -108,6 +128,19 @@ class MusicItem(models.Model):
             return f"{self.artist} — {self.title}"
         return self.title
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.kind != self.Kind.TRACK.value:
+            return
+        from .audio_duration import duration_from_filefield
+
+        sec = duration_from_filefield(self.audio_file)
+        if sec is None or sec <= 0:
+            return
+        if self.duration_sec != sec:
+            type(self).objects.filter(pk=self.pk).update(duration_sec=sec)
+            self.duration_sec = sec
+
 
 class Collection(models.Model):
     owner = models.ForeignKey(
@@ -121,6 +154,10 @@ class Collection(models.Model):
     deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Подборка"
+        verbose_name_plural = "Подборки"
 
     def __str__(self) -> str:
         return self.title
@@ -137,6 +174,8 @@ class CollectionItem(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Элемент подборки"
+        verbose_name_plural = "Элементы подборок"
         constraints = [
             models.UniqueConstraint(
                 fields=["collection", "music_item"],
@@ -169,6 +208,8 @@ class Review(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Рецензия"
+        verbose_name_plural = "Рецензии"
         constraints = [
             models.CheckConstraint(
                 check=(
@@ -198,6 +239,8 @@ class Comment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Комментарий"
+        verbose_name_plural = "Комментарии"
         indexes = [
             models.Index(fields=["review", "created_at"], name="idx_comment_review_created"),
         ]
@@ -205,9 +248,9 @@ class Comment(models.Model):
 
 class Reaction(models.Model):
     class TargetType(models.TextChoices):
-        REVIEW = "review", "Review"
-        COMMENT = "comment", "Comment"
-        MUSIC_ITEM = "music_item", "MusicItem"
+        REVIEW = "review", "Рецензия"
+        COMMENT = "comment", "Комментарий"
+        MUSIC_ITEM = "music_item", "Трек каталога"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reactions"
@@ -219,6 +262,8 @@ class Reaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Реакция"
+        verbose_name_plural = "Реакции"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "target_type", "target_id"],
@@ -245,6 +290,8 @@ class Favorite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Избранный трек"
+        verbose_name_plural = "Избранное (треки)"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "music_item"],
@@ -271,6 +318,8 @@ class ReviewFavorite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Избранная рецензия"
+        verbose_name_plural = "Избранное (рецензии)"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "review"],
@@ -293,6 +342,8 @@ class ListeningEvent(models.Model):
     listen_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
+        verbose_name = "Событие прослушивания"
+        verbose_name_plural = "Дневник прослушиваний"
         indexes = [
             models.Index(fields=["user", "started_at"], name="idx_listening_user_started"),
         ]
@@ -315,6 +366,8 @@ class MusicItemQualifiedListen(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Квалифицированное прослушивание"
+        verbose_name_plural = "Квалифицированные прослушивания"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "music_item"],
@@ -328,16 +381,16 @@ class MusicItemQualifiedListen(models.Model):
 
 class Report(models.Model):
     class TargetType(models.TextChoices):
-        REVIEW = "review", "Review"
-        COMMENT = "comment", "Comment"
-        USER = "user", "User"
-        COLLECTION = "collection", "Collection"
+        REVIEW = "review", "Рецензия"
+        COMMENT = "comment", "Комментарий"
+        USER = "user", "Пользователь"
+        COLLECTION = "collection", "Подборка"
 
     class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        REVIEWING = "reviewing", "Reviewing"
-        RESOLVED = "resolved", "Resolved"
-        REJECTED = "rejected", "Rejected"
+        OPEN = "open", "Открыта"
+        REVIEWING = "reviewing", "На рассмотрении"
+        RESOLVED = "resolved", "Решена"
+        REJECTED = "rejected", "Отклонена"
 
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports"
@@ -351,6 +404,8 @@ class Report(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "Жалоба"
+        verbose_name_plural = "Жалобы"
         indexes = [
             models.Index(fields=["status", "created_at"], name="idx_report_status_created"),
         ]
@@ -365,6 +420,8 @@ class AdUnit(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Рекламный блок"
+        verbose_name_plural = "Реклама"
         indexes = [
             models.Index(fields=["placement", "is_active"], name="idx_adunit_place_active"),
         ]
@@ -376,6 +433,10 @@ class Conversation(models.Model):
     """
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Диалог"
+        verbose_name_plural = "Диалоги"
 
 
 class ConversationMember(models.Model):
@@ -393,6 +454,8 @@ class ConversationMember(models.Model):
     )
 
     class Meta:
+        verbose_name = "Участник диалога"
+        verbose_name_plural = "Участники диалогов"
         constraints = [
             models.UniqueConstraint(
                 fields=["conversation", "user"],
@@ -416,6 +479,8 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Сообщение"
+        verbose_name_plural = "Сообщения"
         indexes = [
             models.Index(fields=["conversation", "created_at"], name="idx_msg_conv_created"),
         ]
@@ -431,6 +496,8 @@ class Follow(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Подписка"
+        verbose_name_plural = "Подписки"
         constraints = [
             models.UniqueConstraint(
                 fields=["follower", "followee"], name="uniq_follow_follower_followee"
@@ -447,10 +514,10 @@ class Follow(models.Model):
 
 class Notification(models.Model):
     class Type(models.TextChoices):
-        REACTION = "reaction", "Reaction"
-        COMMENT = "comment", "Comment"
-        FOLLOW = "follow", "Follow"
-        SYSTEM = "system", "System"
+        REACTION = "reaction", "Реакция"
+        COMMENT = "comment", "Комментарий"
+        FOLLOW = "follow", "Подписка"
+        SYSTEM = "system", "Системное"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
@@ -470,6 +537,8 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Уведомление"
+        verbose_name_plural = "Уведомления"
         indexes = [
             models.Index(fields=["user", "is_read", "created_at"], name="idx_notif_user_read"),
         ]

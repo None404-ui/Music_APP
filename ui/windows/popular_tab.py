@@ -7,10 +7,9 @@ from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButt
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
-from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
+from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 
 _album_cover_nam: QNetworkAccessManager | None = None
-_artist_avatar_nam: QNetworkAccessManager | None = None
 
 
 def _album_cover_network() -> QNetworkAccessManager:
@@ -21,21 +20,6 @@ def _album_cover_network() -> QNetworkAccessManager:
     return _album_cover_nam
 
 
-def _artist_avatar_network() -> QNetworkAccessManager:
-    global _artist_avatar_nam
-    if _artist_avatar_nam is None:
-        app = QApplication.instance()
-        _artist_avatar_nam = QNetworkAccessManager(app)
-    return _artist_avatar_nam
-
-
-def _fmt_duration(sec: int | None) -> str:
-    if sec is None or sec <= 0:
-        return "—"
-    m, s = divmod(int(sec), 60)
-    return f"{m}:{s:02d}"
-
-
 class AlbumCard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,7 +28,6 @@ class AlbumCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cover_reply: QNetworkReply | None = None
         self._on_open = None
-        self._open_artist_cb = None
         self._payload: dict = {}
 
         layout = QVBoxLayout(self)
@@ -58,15 +41,14 @@ class AlbumCard(QFrame):
         self._cover.setScaledContents(False)
         self._apply_cover_placeholder()
 
+        self._artist = QLabel("—")
+        self._artist.setObjectName("albumArtist")
+        self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self._name = QLabel("—")
         self._name.setObjectName("albumTitle")
         self._name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._name.setWordWrap(True)
-
-        self._artist = ClickableArtistLabel(
-            "—", None, None, object_name="albumArtist"
-        )
-        self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(self._cover)
         layout.addWidget(self._artist)
@@ -117,18 +99,13 @@ class AlbumCard(QFrame):
         finally:
             reply.deleteLater()
 
-    def set_open_artist(self, cb) -> None:
-        self._open_artist_cb = cb
-        self._artist.set_on_open(cb)
-
     def set_item(self, item: dict) -> None:
         self._abort_cover_load()
         self._payload = dict(item) if isinstance(item, dict) else {}
         title = (item.get("title") or "").strip() or "Без названия"
         self._name.setText(title)
         artist = (item.get("artist") or "").strip()
-        uid = artist_user_id_from_item(item)
-        self._artist.set_artist(artist if artist else "—", uid)
+        self._artist.setText(artist if artist else "—")
         self._artist.setToolTip(artist if artist else "")
         url = (item.get("artwork_url") or "").strip()
         self._apply_cover_placeholder()
@@ -148,11 +125,6 @@ class AlbumCard(QFrame):
 class ArtistWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._user_id: int | None = None
-        self._on_open_artist = None
-        self._avatar_reply: QNetworkReply | None = None
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(6)
@@ -174,77 +146,8 @@ class ArtistWidget(QWidget):
         layout.addWidget(self._avatar, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self._label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-    def _abort_avatar(self) -> None:
-        if self._avatar_reply is None:
-            return
-        r = self._avatar_reply
-        self._avatar_reply = None
-        r.abort()
-
-    def _on_avatar_finished(self) -> None:
-        reply = self.sender()
-        if not isinstance(reply, QNetworkReply):
-            return
-        if self._avatar_reply is not reply:
-            reply.deleteLater()
-            return
-        self._avatar_reply = None
-        try:
-            if reply.error() != QNetworkReply.NetworkError.NoError:
-                self._avatar.clear()
-                self._avatar.setText("♫")
-                return
-            data = reply.readAll()
-            img = QImage()
-            if not img.loadFromData(data):
-                return
-            pix = QPixmap.fromImage(img).scaled(
-                80,
-                80,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._avatar.setPixmap(pix)
-            self._avatar.setText("")
-        finally:
-            reply.deleteLater()
-
-    def set_feed_row(
-        self,
-        row: dict,
-        *,
-        api_base: str,
-        on_open_artist,
-    ) -> None:
-        self._abort_avatar()
-        self._on_open_artist = on_open_artist
-        uid = row.get("user_id")
-        try:
-            self._user_id = int(uid) if uid is not None else None
-        except (TypeError, ValueError):
-            self._user_id = None
-        nick = (row.get("nickname") or "").strip() or "—"
-        self._label.setText(nick)
-        self._avatar.clear()
-        self._avatar.setPixmap(QPixmap())
-        self._avatar.setText("♫")
-        url = resolve_backend_media_url(
-            api_base, (row.get("avatar_url") or "").strip()
-        )
-        if url.startswith(("http://", "https://")):
-            self._avatar_reply = _artist_avatar_network().get(
-                QNetworkRequest(QUrl(url))
-            )
-            self._avatar_reply.finished.connect(self._on_avatar_finished)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and self._user_id is not None
-            and self._on_open_artist is not None
-        ):
-            self._on_open_artist(self._user_id)
-        super().mouseReleaseEvent(event)
+    def set_name(self, name: str) -> None:
+        self._label.setText(name.strip() or "—")
 
 
 class CarouselSection(QWidget):
@@ -376,12 +279,13 @@ class CarouselSection(QWidget):
 
 
 class TrackRow(QFrame):
+    _THUMB_SIZE = 44
+
     def __init__(
         self,
         index: int,
         item: dict,
         on_play,
-        on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -389,14 +293,26 @@ class TrackRow(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._item = item
         self._on_play = on_play
+        self._thumb_reply: QNetworkReply | None = None
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
-        lay.setSpacing(0)
+        lay.setSpacing(10)
 
         num = QLabel(str(index))
         num.setObjectName("trackNumber")
         num.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._thumb = QLabel()
+        self._thumb.setObjectName("trackRowThumb")
+        self._thumb.setFixedSize(self._THUMB_SIZE, self._THUMB_SIZE)
+        self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._thumb.setScaledContents(False)
+        self._apply_thumb_placeholder()
+        url = (item.get("artwork_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            self._thumb_reply = _album_cover_network().get(QNetworkRequest(QUrl(url)))
+            self._thumb_reply.finished.connect(self._on_thumb_finished)
 
         title = QLabel((item.get("title") or "Без названия").strip())
         title.setObjectName("trackTitle")
@@ -405,13 +321,8 @@ class TrackRow(QFrame):
             QSizePolicy.Policy.Preferred,
         )
 
-        auid = artist_user_id_from_item(item)
-        artist = ClickableArtistLabel(
-            (item.get("artist") or "").strip() or "—",
-            auid,
-            on_open_artist,
-            object_name="trackArtist",
-        )
+        artist = QLabel((item.get("artist") or "").strip() or "—")
+        artist.setObjectName("trackArtist")
         artist.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
@@ -423,12 +334,12 @@ class TrackRow(QFrame):
         stats.setObjectName("trackStats")
         stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        dur = QLabel(_fmt_duration(item.get("duration_sec")))
+        dur = QLabel(format_duration_mm_ss(effective_duration_sec(item)))
         dur.setObjectName("trackDuration")
         dur.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         lay.addWidget(num, 0, Qt.AlignmentFlag.AlignVCenter)
-        lay.addStretch(1)
+        lay.addWidget(self._thumb, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(title, 2, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
         lay.addWidget(artist, 2, Qt.AlignmentFlag.AlignVCenter)
@@ -436,6 +347,46 @@ class TrackRow(QFrame):
         lay.addWidget(stats, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
         lay.addWidget(dur, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def _apply_thumb_placeholder(self) -> None:
+        self._thumb.clear()
+        self._thumb.setPixmap(QPixmap())
+        self._thumb.setText("♪")
+        self._thumb.setToolTip("Обложка не указана")
+        self._thumb.setStyleSheet(
+            "font-size: 18px; color: #A14016; font-family: 'Courier New';"
+        )
+
+    def _on_thumb_finished(self) -> None:
+        reply = self.sender()
+        if not isinstance(reply, QNetworkReply):
+            return
+        if self._thumb_reply is not reply:
+            reply.deleteLater()
+            return
+        self._thumb_reply = None
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self._apply_thumb_placeholder()
+                return
+            data = reply.readAll()
+            img = QImage()
+            if not img.loadFromData(data):
+                self._apply_thumb_placeholder()
+                return
+            s = self._THUMB_SIZE
+            pix = QPixmap.fromImage(img).scaled(
+                s,
+                s,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._thumb.setPixmap(pix)
+            self._thumb.setText("")
+            self._thumb.setToolTip("")
+            self._thumb.setStyleSheet("")
+        finally:
+            reply.deleteLater()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._on_play:
@@ -449,7 +400,6 @@ class PopularTab(QWidget):
         session: UserSession,
         on_play_track=None,
         on_open_album=None,
-        on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -457,7 +407,6 @@ class PopularTab(QWidget):
         self._session = session
         self._on_play_track = on_play_track
         self._on_open_album = on_open_album
-        self._on_open_artist = on_open_artist
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -589,8 +538,6 @@ class PopularTab(QWidget):
             if au:
                 row["artwork_url"] = au
             c = AlbumCard()
-            if self._on_open_artist:
-                c.set_open_artist(self._on_open_artist)
             c.set_item(row)
             if self._on_open_album:
                 c.set_on_open(self._on_album_card_clicked)
@@ -603,19 +550,27 @@ class PopularTab(QWidget):
         artist_widgets: list[QWidget] = []
         for row in artists:
             if isinstance(row, dict):
+                name = row.get("name") or ""
                 w = ArtistWidget()
-                w.set_feed_row(
-                    row,
-                    api_base=api_base,
-                    on_open_artist=self._on_open_artist,
-                )
+                w.set_name(name)
                 artist_widgets.append(w)
         self._artist_carousel.set_items(artist_widgets)
 
         tracks = body.get("tracks")
         if not isinstance(tracks, list):
             tracks = []
-        self._fill_tracks(tracks)
+        norm_tracks: list[dict] = []
+        for it in tracks:
+            if not isinstance(it, dict):
+                continue
+            row = dict(it)
+            au = resolve_backend_media_url(
+                api_base, (row.get("artwork_url") or "").strip()
+            )
+            if au:
+                row["artwork_url"] = au
+            norm_tracks.append(row)
+        self._fill_tracks(norm_tracks)
 
     def _clear_tracks(self) -> None:
         while self._tracks_layout.count():
@@ -629,9 +584,7 @@ class PopularTab(QWidget):
         for i, it in enumerate(tracks, start=1):
             if not isinstance(it, dict):
                 continue
-            row = TrackRow(
-                i, it, self._on_play_track, self._on_open_artist
-            )
+            row = TrackRow(i, it, self._on_play_track)
             self._tracks_layout.addWidget(row)
         if not tracks:
             empty = QLabel("Пока нет треков в каталоге.")

@@ -173,6 +173,12 @@ QLabel#trackNumber {
     min-width: 28px;
 }
 
+QLabel#trackRowThumb {
+    background-color: rgba(49, 41, 56, 0.35);
+    border: 1px solid #89A194;
+    border-radius: 4px;
+}
+
 QLabel#trackTitle {
     font-family: "Courier New";
     font-size: 13px;
