@@ -18,6 +18,7 @@ from ui.windows.selected_tab import SelectedTab
 from ui.windows.player_tab import PlayerTab
 from ui.windows.review_detail_dialog import ReviewDetailDialog
 from ui.windows.settings_tab import SettingsTab
+from ui.windows.artist_tab import ArtistTab
 
 
 _TAB_NAMES = [
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
     _POPULAR_TAB_INDEX = 0
     _REVIEWS_TAB_INDEX = 1
     _SELECTED_TAB_INDEX = 3
+    _ARTIST_PAGE_INDEX = 6
 
     def __init__(self, session: UserSession):
         super().__init__()
@@ -79,8 +81,10 @@ class MainWindow(QMainWindow):
         self._stack = self._ambient_host.page_stack
         root_layout.addWidget(self._ambient_host, stretch=1)
 
+        self._saved_stack_index = 0
+        self._saved_tab_index = 0
+
         PLAYER_PAGE_INDEX = 4
-        self._player = PlayerTab(session=session)
 
         def on_select_track(music_item: dict) -> None:
             self._player.set_track(music_item)
@@ -120,11 +124,17 @@ class MainWindow(QMainWindow):
             dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
             dlg.exec()
 
+        self._player = PlayerTab(
+            session=session,
+            on_open_artist=self._open_artist_page,
+        )
+
         self._selected_tab = SelectedTab(
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
             on_open_review=on_open_review_from_selected,
+            on_open_artist=self._open_artist_page,
         )
 
         self._player.library_changed.connect(self._selected_tab.reload_content)
@@ -139,16 +149,32 @@ class MainWindow(QMainWindow):
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
+            on_open_artist=self._open_artist_page,
         )
-        self._reviews_tab = ReviewsTab(session)
+        self._reviews_tab = ReviewsTab(
+            session,
+            on_open_artist=self._open_artist_page,
+        )
+
+        self._search_tab = SearchTab(
+            on_select_track=on_select_track,
+            on_open_artist=self._open_artist_page,
+        )
+
+        self._artist_tab = ArtistTab(
+            session,
+            on_back=self._close_artist_page,
+            on_play_track=on_select_track,
+        )
 
         self._pages: list[QWidget] = [
             self._popular_tab,
             self._reviews_tab,
-            SearchTab(on_select_track=on_select_track),
+            self._search_tab,
             self._selected_tab,
             self._player,
             self._settings,
+            self._artist_tab,
         ]
         for page in self._pages:
             page.setSizePolicy(
@@ -177,6 +203,18 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self._player.flush_listen_for_close()
         super().closeEvent(event)
+
+    def _open_artist_page(self, user_id: int) -> None:
+        self._saved_stack_index = self._stack.currentIndex()
+        self._saved_tab_index = self._top_bar.tab_bar.currentIndex()
+        self._artist_tab.load_artist(int(user_id))
+        self._stack.setCurrentIndex(self._ARTIST_PAGE_INDEX)
+
+    def _close_artist_page(self) -> None:
+        self._stack.setCurrentIndex(self._saved_stack_index)
+        self._top_bar.tab_bar.blockSignals(True)
+        self._top_bar.tab_bar.setCurrentIndex(self._saved_tab_index)
+        self._top_bar.tab_bar.blockSignals(False)
 
     def _on_main_tab_changed(self, index: int) -> None:
         self._stack.setCurrentIndex(index)

@@ -12,9 +12,11 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
+from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
 
 OnPlayTrack = Callable[[dict], None]
 OnOpenAlbum = Callable[[list, dict], None]
@@ -70,6 +72,55 @@ class _ClickableRow(QFrame):
         super().mousePressEvent(event)
 
 
+class _TitlePlayLabel(QLabel):
+    def __init__(self, text: str, on_play: Optional[Callable[[], None]], parent=None):
+        super().__init__(text, parent)
+        self._on_play = on_play
+        self.setObjectName("selectedRowTitle")
+        if on_play:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if (
+            self._on_play
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            self._on_play()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
+class _FavoriteTrackRow(QFrame):
+    """Строка избранного трека: клик по названию — play, по исполнителю — страница артиста."""
+
+    def __init__(
+        self,
+        title: str,
+        mi: dict,
+        on_play: Optional[Callable[[], None]],
+        on_open_artist=None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.setObjectName("selectedRow")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(2)
+        t = _TitlePlayLabel(str(title), on_play)
+        uid = artist_user_id_from_item(mi)
+        a = ClickableArtistLabel(
+            (mi.get("artist") or "").strip() or "—",
+            uid,
+            on_open_artist,
+            object_name="selectedRowSub",
+        )
+        a.setWordWrap(True)
+        lay.addWidget(t)
+        lay.addWidget(a)
+
+
 class SelectedTab(QWidget):
     """Избранное, подборки и рецензии — данные подгружаются с сервера при открытии вкладки."""
 
@@ -80,6 +131,7 @@ class SelectedTab(QWidget):
         on_play_track: Optional[OnPlayTrack] = None,
         on_open_album: Optional[OnOpenAlbum] = None,
         on_open_review: Optional[OnOpenReview] = None,
+        on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -90,6 +142,7 @@ class SelectedTab(QWidget):
         self._on_play_track = on_play_track
         self._on_open_album = on_open_album
         self._on_open_review = on_open_review
+        self._on_open_artist = on_open_artist
 
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(24, 16, 24, 24)
@@ -168,11 +221,17 @@ class SelectedTab(QWidget):
             if fav_tracks:
                 for mi in fav_tracks:
                     title_t = mi.get("title") or "—"
-                    artist = mi.get("artist") or ""
                     play_cb = None
                     if self._on_play_track:
                         play_cb = lambda m=mi: self._on_play_track(m)
-                    col.addWidget(_ClickableRow(str(title_t), str(artist), play_cb))
+                    col.addWidget(
+                        _FavoriteTrackRow(
+                            str(title_t),
+                            mi,
+                            play_cb,
+                            self._on_open_artist,
+                        )
+                    )
             else:
                 col.addWidget(
                     self._empty(

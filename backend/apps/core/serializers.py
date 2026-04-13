@@ -36,6 +36,30 @@ from .models import (
 User = get_user_model()
 
 
+def public_artist_user_payload(user_id: int, request) -> dict | None:
+    """Публичные поля исполнителя для вложения в MusicItem и фиды."""
+    if not user_id:
+        return None
+    prof = Profile.objects.filter(user_id=user_id).first()
+    nickname = ""
+    avatar_url = ""
+    if prof:
+        nickname = prof.nickname
+        avatar_url = (prof.avatar_url or "").strip()
+        af = getattr(prof, "avatar_file", None)
+        if af and getattr(af, "name", ""):
+            rel = af.url
+            avatar_url = (
+                request.build_absolute_uri(rel) if request else rel
+            )
+    if not nickname:
+        u = User.objects.filter(pk=user_id).first()
+        if not u:
+            return None
+        nickname = u.get_username()
+    return {"id": user_id, "nickname": nickname, "avatar_url": avatar_url}
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -73,6 +97,8 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class MusicItemSerializer(serializers.ModelSerializer):
+    artist_user_id = serializers.IntegerField(read_only=True, allow_null=True)
+    artist_user = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
     favorites_count = serializers.SerializerMethodField()
     listens_count = serializers.SerializerMethodField()
@@ -96,6 +122,12 @@ class MusicItemSerializer(serializers.ModelSerializer):
             )
         return data
 
+    def get_artist_user(self, obj):
+        uid = getattr(obj, "artist_user_id", None)
+        if not uid:
+            return None
+        return public_artist_user_payload(uid, self.context.get("request"))
+
     class Meta:
         model = MusicItem
         fields = [
@@ -105,6 +137,8 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "kind",
             "title",
             "artist",
+            "artist_user_id",
+            "artist_user",
             "artwork_url",
             "duration_sec",
             "playback_ref",

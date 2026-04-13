@@ -64,13 +64,24 @@ class MusicItemAdminForm(forms.ModelForm):
             cleaned["provider"] = "upload"
         if not (cleaned.get("external_id") or "").strip():
             cleaned["external_id"] = str(uuid.uuid4())
+        kind = (cleaned.get("kind") or "").strip().lower()
+        prov = (cleaned.get("provider") or "").strip().lower()
+        if kind == MusicItem.Kind.TRACK.value and prov == "upload":
+            if cleaned.get("artist_user") is None:
+                raise forms.ValidationError(
+                    {
+                        "artist_user": "Для загружаемого трека (provider=upload) укажите "
+                        "пользователя-исполнителя."
+                    }
+                )
         return cleaned
 
 
 @admin.register(MusicItem)
 class MusicItemAdmin(admin.ModelAdmin):
     form = MusicItemAdminForm
-    list_display = ("id", "provider", "kind", "artist", "title", "updated_at")
+    raw_id_fields = ("artist_user",)
+    list_display = ("id", "provider", "kind", "artist_user", "artist", "title", "updated_at")
     search_fields = ("title", "artist", "external_id")
     list_filter = ("provider", "kind")
 
@@ -78,7 +89,19 @@ class MusicItemAdmin(admin.ModelAdmin):
         js = ("admin/js/musicitem_kind_fieldsets.js",)
 
     fieldsets = (
-        (None, {"fields": ("provider", "external_id", "kind", "title", "artist", "duration_sec")}),
+        (
+            None,
+            {
+                "fields": (
+                    "provider",
+                    "external_id",
+                    "kind",
+                    "title",
+                    "artist_user",
+                    "duration_sec",
+                )
+            },
+        ),
         (
             "Трек: один файл (вид = Track)",
             {
@@ -115,7 +138,15 @@ class MusicItemAdmin(admin.ModelAdmin):
         ),
         (
             "Дополнительно",
-            {"fields": ("meta_json",), "classes": ("collapse",)},
+            {
+                "fields": ("artist", "meta_json"),
+                "classes": ("collapse",),
+                "description": (
+                    "Поле «Исполнитель (строка)» для старых записей без пользователя; "
+                    "если задан пользователь-исполнитель, при сохранении строка "
+                    "подставляется из его профиля."
+                ),
+            },
         ),
     )
     # Во вкладке «Популярное» в карусели «Альбомы» попадают только записи с kind = album (не track / playlist).

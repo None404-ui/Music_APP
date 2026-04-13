@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.session import UserSession
+from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
 
 
 def _response_list(body) -> list:
@@ -49,6 +50,7 @@ class ReviewRow(QFrame):
         review: dict,
         session: UserSession,
         on_changed,
+        on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -87,8 +89,18 @@ class ReviewRow(QFrame):
         sub = _subtitle(self._review)
         text_col.addWidget(self._title_lbl)
         if sub:
-            artist_lbl = QLabel(sub)
-            artist_lbl.setObjectName("reviewArtist")
+            mi = self._review.get("music_item")
+            auid = (
+                artist_user_id_from_item(mi)
+                if isinstance(mi, dict)
+                else None
+            )
+            artist_lbl = ClickableArtistLabel(
+                sub,
+                auid,
+                on_open_artist,
+                object_name="reviewArtist",
+            )
             text_col.addWidget(artist_lbl)
         text_col.addWidget(self._meta_lbl)
         text_col.addWidget(self._body_lbl)
@@ -147,10 +159,11 @@ class ReviewRow(QFrame):
 
 
 class ReviewsTab(QWidget):
-    def __init__(self, session: UserSession, parent=None):
+    def __init__(self, session: UserSession, on_open_artist=None, parent=None):
         super().__init__(parent)
         self.setObjectName("reviewsPage")
         self._session = session
+        self._on_open_artist = on_open_artist
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 16, 24, 24)
@@ -209,6 +222,12 @@ class ReviewsTab(QWidget):
         for r in reviews:
             if isinstance(r, dict):
                 self._col.addWidget(
-                    ReviewRow(r, self._session, self._load_top, parent=self)
+                    ReviewRow(
+                        r,
+                        self._session,
+                        self._load_top,
+                        on_open_artist=self._on_open_artist,
+                        parent=self,
+                    )
                 )
         self._col.addStretch()

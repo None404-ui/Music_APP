@@ -13,6 +13,7 @@ This app stores:
 """
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import Q
 
@@ -68,6 +69,14 @@ class MusicItem(models.Model):
     audio_file = models.FileField(upload_to="music/tracks/", blank=True)
     meta_json = models.TextField(blank=True)
 
+    artist_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="music_as_artist",
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -80,7 +89,19 @@ class MusicItem(models.Model):
         indexes = [
             models.Index(fields=["title"], name="idx_musicitem_title"),
             models.Index(fields=["artist"], name="idx_musicitem_artist"),
+            models.Index(fields=["artist_user"], name="idx_musicitem_artist_user"),
         ]
+
+    def save(self, *args, **kwargs):
+        uid = getattr(self, "artist_user_id", None)
+        if uid:
+            prof = Profile.objects.filter(user_id=uid).first()
+            if prof:
+                self.artist = prof.nickname
+            else:
+                u = get_user_model().objects.filter(pk=uid).first()
+                self.artist = (u.get_username() if u else "") or ""
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         if self.artist:

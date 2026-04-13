@@ -12,6 +12,7 @@ import json
 import os
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
@@ -47,6 +48,7 @@ from .permissions import (
     IsOwnerOrReadOnly,
 )
 from .serializers import (
+    public_artist_user_payload,
     CollectionSerializer,
     CollectionItemSerializer,
     CommentSerializer,
@@ -98,7 +100,12 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         qs = _annotate_music_item_listening(qs)
         q = self.request.query_params.get("q")
         if q:
-            qs = qs.filter(Q(title__icontains=q) | Q(artist__icontains=q))
+            qs = qs.filter(
+                Q(title__icontains=q)
+                | Q(artist__icontains=q)
+                | Q(artist_user__username__icontains=q)
+                | Q(artist_user__profile__nickname__icontains=q)
+            )
         provider = self.request.query_params.get("provider")
         if provider:
             qs = qs.filter(provider=provider)
@@ -153,16 +160,25 @@ class MusicItemViewSet(viewsets.ModelViewSet):
             kind_values=[track_kind], pop_n=28, recent_n=16, total=40
         )
         artist_rows = (
-            MusicItem.objects.filter(kind=track_kind)
-            .exclude(artist="")
-            .values("artist")
+            MusicItem.objects.filter(kind=track_kind, artist_user__isnull=False)
+            .values("artist_user_id")
             .annotate(track_count=Count("id"))
             .order_by("-track_count")[:24]
         )
-        artists = [
-            {"name": row["artist"], "track_count": row["track_count"]}
-            for row in artist_rows
-        ]
+        artists = []
+        for row in artist_rows:
+            uid = row["artist_user_id"]
+            base = public_artist_user_payload(uid, request)
+            if not base:
+                continue
+            artists.append(
+                {
+                    "user_id": uid,
+                    "nickname": base["nickname"],
+                    "avatar_url": base["avatar_url"],
+                    "track_count": row["track_count"],
+                }
+            )
         ctx = {"request": request}
         album_payload = MusicItemSerializer(albums, many=True, context=ctx).data
 
@@ -872,6 +888,38 @@ class ReportViewSet(viewsets.ModelViewSet):
         if not request.user.is_staff:
             return Response({"detail": "Forbidden"}, status=403)
         return super().partial_update(request, *args, **kwargs)
+
+
+class UserArtistView(APIView):
+    """
+    Публичная страница артиста: ник, аватар, био, треки с привязкой artist_user.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk: int):
+        User = get_user_model()
+        if not User.objects.filter(pk=pk).exists():
+            return Response({"detail": "Not found."}, status=404)
+        prof = Profile.objects.filter(user_id=pk).first()
+        pub = public_artist_user_payload(pk, request) or {
+            "id": pk,
+            "nickname": "",
+            "avatar_url": "",
+        }
+        tracks_qs = MusicItemViewSet._music_with_counts().filter(
+            artist_user_id=pk, kind=MusicItem.Kind.TRACK.value
+        ).order_by("-updated_at")
+        ctx = {"request": request}
+        return Response(
+            {
+                "user_id": pk,
+                "nickname": pub.get("nickname") or "",
+                "avatar_url": pub.get("avatar_url") or "",
+                "bio": (prof.bio if prof else "") or "",
+                "tracks": MusicItemSerializer(tracks_qs, many=True, context=ctx).data,
+            }
+        )
 
 
 @method_decorator(csrf_exempt, name="dispatch")

@@ -29,6 +29,11 @@ router.register("ad-units", views.AdUnitViewSet, basename="ad-unit")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path(
+        "users/<int:pk>/artist/",
+        views.UserArtistView.as_view(),
+        name="user-artist",
+    ),
     path("auth/login/", auth_views.LoginView.as_view(), name="auth-login"),
     path("auth/logout/", auth_views.LogoutView.as_view(), name="auth-logout"),
     path("auth/register/", auth_views.RegisterView.as_view(), name="auth-register"),

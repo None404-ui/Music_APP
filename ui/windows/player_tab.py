@@ -69,6 +69,7 @@ except (ImportError, OSError):
 
 from ui import playback_settings
 from backend.api_client import resolve_backend_media_url
+from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
 
 if TYPE_CHECKING:
     from backend.session import UserSession
@@ -230,6 +231,9 @@ class _TrackRow(QFrame):
         on_click=None,
         parent=None,
         subtitle: str = "",
+        *,
+        artist_user_id: int | None = None,
+        on_open_artist=None,
     ):
         super().__init__(parent)
         self.setObjectName("playerTrackRowActive" if active else "playerTrackRow")
@@ -250,8 +254,12 @@ class _TrackRow(QFrame):
         col.setSpacing(2)
         t = QLabel(title)
         t.setObjectName("playerTrackTitle")
-        a = QLabel(artist)
-        a.setObjectName("playerTrackArtist")
+        a = ClickableArtistLabel(
+            artist,
+            artist_user_id,
+            on_open_artist,
+            object_name="playerTrackArtist",
+        )
         col.addWidget(t)
         col.addWidget(a)
         if subtitle:
@@ -271,7 +279,13 @@ class PlayerTab(QWidget):
 
     library_changed = pyqtSignal()
 
-    def __init__(self, session: Optional["UserSession"] = None, parent=None):
+    def __init__(
+        self,
+        session: Optional["UserSession"] = None,
+        *,
+        on_open_artist=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setObjectName("playerPage")
         self.setSizePolicy(
@@ -280,6 +294,7 @@ class PlayerTab(QWidget):
         )
 
         self._session = session
+        self._on_open_artist = on_open_artist
         # Обложка карточки альбома, если у треков в очереди своей нет
         self._queue_artwork_fallback: str = ""
         self._favorite_id: Optional[int] = None
@@ -348,8 +363,13 @@ class PlayerTab(QWidget):
         self._now_title.setObjectName("playerNowTitle")
         self._now_title.setWordWrap(True)
         bl.addWidget(self._now_title)
-        self._now_artist = QLabel("")
-        self._now_artist.setObjectName("playerNowArtist")
+        self._now_artist = ClickableArtistLabel(
+            "",
+            None,
+            on_open_artist,
+            object_name="playerNowArtist",
+        )
+        self._now_artist.setWordWrap(True)
         bl.addWidget(self._now_artist)
         lv.addWidget(band)
 
@@ -752,7 +772,8 @@ class PlayerTab(QWidget):
         artist = item.get("artist") or ""
         self._album_title.setText(_album_name(item))
         self._now_title.setText(str(title))
-        self._now_artist.setText(str(artist))
+        uid = artist_user_id_from_item(item)
+        self._now_artist.set_artist(str(artist), uid)
         self._art.setToolTip(f"{title}\n{artist}")
 
     def _artwork_url_for_current(self, item: dict) -> Optional[str]:
@@ -1076,12 +1097,15 @@ class PlayerTab(QWidget):
             alb = _album_display(item)
             dur = _fmt_duration_sec(item.get("duration_sec"))
             sub = " · ".join(x for x in (alb, dur) if x and x != "—")
+            auid = artist_user_id_from_item(item)
             row = _TrackRow(
                 str(title).lower(),
                 str(artist).lower(),
                 i == self._index,
                 on_click=lambda idx=i: self._select_track(idx),
                 subtitle=sub,
+                artist_user_id=auid,
+                on_open_artist=self._on_open_artist,
             )
             self._list_layout.addWidget(row)
         self._list_layout.addStretch()
