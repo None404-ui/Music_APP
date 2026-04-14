@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.session import UserSession
-from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
+from ui.artist_link_label import ArtistLinkLabel
+from ui.interactive_fx import InteractiveRowFrame
 
 
 def _response_list(body) -> list:
@@ -44,7 +45,7 @@ def _subtitle(review: dict) -> str:
     return ""
 
 
-class ReviewRow(QFrame):
+class ReviewRow(InteractiveRowFrame):
     def __init__(
         self,
         review: dict,
@@ -53,7 +54,7 @@ class ReviewRow(QFrame):
         on_open_artist=None,
         parent=None,
     ):
-        super().__init__(parent)
+        super().__init__(radius=10, hover_alpha=30, press_alpha=48, active_alpha=18, parent=parent)
         self.setObjectName("reviewRow")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._review = dict(review)
@@ -89,18 +90,14 @@ class ReviewRow(QFrame):
         sub = _subtitle(self._review)
         text_col.addWidget(self._title_lbl)
         if sub:
-            mi = self._review.get("music_item")
-            auid = (
-                artist_user_id_from_item(mi)
-                if isinstance(mi, dict)
-                else None
-            )
-            artist_lbl = ClickableArtistLabel(
-                sub,
-                auid,
-                on_open_artist,
-                object_name="reviewArtist",
-            )
+            if on_open_artist:
+                artist_lbl = ArtistLinkLabel()
+                artist_lbl.setObjectName("reviewArtist")
+                artist_lbl.set_artist(sub)
+                artist_lbl.artist_clicked.connect(on_open_artist)
+            else:
+                artist_lbl = QLabel(sub)
+                artist_lbl.setObjectName("reviewArtist")
             text_col.addWidget(artist_lbl)
         text_col.addWidget(self._meta_lbl)
         text_col.addWidget(self._body_lbl)
@@ -128,6 +125,7 @@ class ReviewRow(QFrame):
         layout.addWidget(thumb)
         layout.addLayout(text_col, stretch=1)
         layout.addLayout(like_col)
+        self.install_interaction_filters()
 
     def _toggle_like(self) -> None:
         rid = self._review.get("id")

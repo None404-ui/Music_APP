@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt, QUrl, QUrlQuery, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
@@ -79,9 +79,10 @@ except (ImportError, OSError):
     pass
 
 from ui import playback_settings
+from ui.artist_link_label import ArtistLinkLabel
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
+from ui.interactive_fx import InteractiveRowFrame, StatefulIconButton
 from backend.api_client import resolve_backend_media_url
-from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
 
 if TYPE_CHECKING:
     from backend.session import UserSession
@@ -228,22 +229,22 @@ def _youtube_embed_id(ref: str) -> Optional[str]:
     return None
 
 
-class _TrackRow(QFrame):
+class _TrackRow(InteractiveRowFrame):
     def __init__(
         self,
         title: str,
-        artist: str,
+        artist_display: str,
         active: bool,
         on_click=None,
         parent=None,
         subtitle: str = "",
-        *,
-        artist_user_id: int | None = None,
-        on_open_artist=None,
+        on_open_artist: Optional[Callable[[str], None]] = None,
+        artist_catalog: str = "",
     ):
-        super().__init__(parent)
+        super().__init__(radius=8, active_alpha=24, hover_alpha=28, press_alpha=46, parent=parent)
         self.setObjectName("playerTrackRowActive" if active else "playerTrackRow")
         self._on_click = on_click
+        self.set_active(active)
         if on_click:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -254,25 +255,32 @@ class _TrackRow(QFrame):
         thumb = QLabel()
         thumb.setFixedSize(36, 36)
         thumb.setObjectName("playerTrackThumb")
+        thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         row.addWidget(thumb)
 
         col = QVBoxLayout()
         col.setSpacing(2)
         t = QLabel(title)
         t.setObjectName("playerTrackTitle")
-        a = ClickableArtistLabel(
-            artist,
-            artist_user_id,
-            on_open_artist,
-            object_name="playerTrackArtist",
-        )
+        t.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        cat = (artist_catalog or "").strip()
+        if cat and on_open_artist:
+            a = ArtistLinkLabel()
+            a.setObjectName("playerTrackArtist")
+            a.set_artist(cat)
+            a.artist_clicked.connect(on_open_artist)
+        else:
+            a = QLabel(artist_display)
+            a.setObjectName("playerTrackArtist")
         col.addWidget(t)
         col.addWidget(a)
         if subtitle:
             s = QLabel(subtitle)
             s.setObjectName("playerTrackMeta")
+            s.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             col.addWidget(s)
         row.addLayout(col, stretch=1)
+        self.install_interaction_filters()
 
     def mousePressEvent(self, event) -> None:
         if self._on_click:
@@ -355,12 +363,15 @@ class PlayerTab(QWidget):
     """Изменения избранного / рецензий — для обновления вкладки «Моё»."""
 
     library_changed = pyqtSignal()
+    current_item_changed = pyqtSignal(dict)
+    playback_state_changed = pyqtSignal(bool)
+    transport_state_changed = pyqtSignal(bool, bool)
+    progress_changed = pyqtSignal(int, int)
 
     def __init__(
         self,
         session: Optional["UserSession"] = None,
-        *,
-        on_open_artist=None,
+        on_open_artist: Optional[Callable[[str], None]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -431,13 +442,10 @@ class PlayerTab(QWidget):
         self._now_title.setObjectName("playerNowTitle")
         self._now_title.setWordWrap(True)
         bl.addWidget(self._now_title)
-        self._now_artist = ClickableArtistLabel(
-            "",
-            None,
-            on_open_artist,
-            object_name="playerNowArtist",
-        )
-        self._now_artist.setWordWrap(True)
+        self._now_artist = ArtistLinkLabel()
+        self._now_artist.setObjectName("playerNowArtist")
+        if on_open_artist:
+            self._now_artist.artist_clicked.connect(on_open_artist)
         bl.addWidget(self._now_artist)
         lv.addWidget(band)
 
@@ -553,10 +561,22 @@ class PlayerTab(QWidget):
         info_lay.setContentsMargins(16, 10, 16, 12)
         info_lay.setSpacing(8)
 
-        self._info_main = QLabel("")
-        self._info_main.setObjectName("playerInfoTitleLine")
-        self._info_main.setWordWrap(True)
-        info_lay.addWidget(self._info_main)
+        self._info_line_title = QLabel("")
+        self._info_line_title.setObjectName("playerInfoTitleLine")
+        self._info_line_title.setWordWrap(True)
+        info_lay.addWidget(self._info_line_title)
+
+        self._info_line_artist = ArtistLinkLabel()
+        self._info_line_artist.setObjectName("playerInfoArtistLine")
+        self._info_line_artist.setWordWrap(True)
+        if on_open_artist:
+            self._info_line_artist.artist_clicked.connect(on_open_artist)
+        info_lay.addWidget(self._info_line_artist)
+
+        self._info_line_extra = QLabel("")
+        self._info_line_extra.setObjectName("playerInfoTitleLine")
+        self._info_line_extra.setWordWrap(True)
+        info_lay.addWidget(self._info_line_extra)
 
         self._info_stats = QLabel("")
         self._info_stats.setObjectName("playerInfoStats")
@@ -566,22 +586,37 @@ class PlayerTab(QWidget):
         tools = QHBoxLayout()
         tools.setSpacing(10)
         like_ic = os.path.join(_ICONS_DIR, "player_like.svg")
-        rev_ic = os.path.join(_ICONS_DIR, "player_review.svg")
-        self._btn_like = QPushButton()
+        like_ic_checked = os.path.join(_ICONS_DIR, "player_like_filled.svg")
+        rev_ic = os.path.join(_ICONS_DIR, "player_review_mono.svg")
+        self._btn_like = StatefulIconButton(
+            like_ic,
+            checked_icon_path=like_ic_checked,
+            base_color="#312938",
+            hover_color="#A14016",
+            pressed_color="#CB883A",
+            checked_color="#CB883A",
+            parent=self,
+        )
         self._btn_like.setObjectName("playerLikeBtn")
         self._btn_like.setCheckable(True)
         self._btn_like.setFixedSize(40, 36)
         self._btn_like.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_like.setIcon(QIcon(like_ic))
         self._btn_like.setIconSize(QSize(22, 22))
         self._btn_like.setToolTip("В избранное")
         self._btn_like.toggled.connect(self._on_like_toggled)
 
-        self._btn_review = QPushButton()
+        self._btn_review = StatefulIconButton(
+            rev_ic,
+            base_color="#312938",
+            hover_color="#004766",
+            pressed_color="#2A7A8C",
+            checked_color="#2A7A8C",
+            pulse_on_toggle=False,
+            parent=self,
+        )
         self._btn_review.setObjectName("playerReviewBtn")
         self._btn_review.setFixedSize(40, 36)
         self._btn_review.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_review.setIcon(QIcon(rev_ic))
         self._btn_review.setIconSize(QSize(22, 22))
         self._btn_review.setToolTip("Написать рецензию")
         self._btn_review.clicked.connect(self._on_review_clicked)
@@ -691,6 +726,104 @@ class PlayerTab(QWidget):
             return int(tid)
         return None
 
+    def has_active_track(self) -> bool:
+        return bool(self._playlist)
+
+    def is_playing(self) -> bool:
+        return self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+
+    def can_play_previous(self) -> bool:
+        return bool(self._playlist) and self._index > 0
+
+    def can_play_next(self) -> bool:
+        return bool(self._playlist) and self._index + 1 < len(self._playlist)
+
+    def current_progress(self) -> tuple[int, int]:
+        if not self._playlist:
+            return 0, 0
+        item = self._playlist[self._index]
+        pos = int(self._player.position())
+        dur = int(self._duration_ms_for_ui(item))
+        return pos, dur
+
+    def _stats_source_for_item(self, item: dict) -> dict:
+        if (
+            self._context_music_item_id
+            and self._context_stats
+            and self._context_is_album_or_catalog_playlist()
+        ):
+            merged = dict(item)
+            for key in (
+                "listens_count",
+                "listen_time_total_sec",
+                "favorites_count",
+                "reviews_count",
+                "user_favorited",
+            ):
+                merged[key] = self._context_stats.get(key)
+            return merged
+        if item.get("id") is None and self._context_music_item_id and self._context_stats:
+            merged = dict(item)
+            for key in (
+                "listens_count",
+                "listen_time_total_sec",
+                "favorites_count",
+                "reviews_count",
+                "user_favorited",
+            ):
+                merged[key] = self._context_stats.get(key)
+            return merged
+        return dict(item)
+
+    def current_item_snapshot(self) -> dict:
+        if not self._playlist or self._index >= len(self._playlist):
+            return {}
+        item = dict(self._playlist[self._index])
+        stats_src = self._stats_source_for_item(item)
+        item.update(stats_src)
+        item["artwork_url_resolved"] = self._artwork_url_for_current(item) or ""
+        item["album_display"] = _album_display(item)
+        item["duration_ms"] = self._duration_ms_for_ui(item)
+        item["position_ms"] = int(self._player.position())
+        item["is_playing"] = self.is_playing()
+        item["can_prev"] = self.can_play_previous()
+        item["can_next"] = self.can_play_next()
+        item["like_enabled"] = (
+            self._favorite_target_mid(item) is not None and self._session is not None
+        )
+        return item
+
+    def _emit_current_item_changed(self) -> None:
+        self.current_item_changed.emit(self.current_item_snapshot())
+        self.transport_state_changed.emit(
+            self.can_play_previous(),
+            self.can_play_next(),
+        )
+
+    def _emit_playback_state(self) -> None:
+        self.playback_state_changed.emit(self.is_playing())
+
+    def _emit_progress_state(self) -> None:
+        pos, dur = self.current_progress()
+        self.progress_changed.emit(pos, dur)
+
+    def toggle_playback(self) -> None:
+        self._toggle_play()
+
+    def play_previous(self) -> None:
+        self._prev_track()
+
+    def play_next(self) -> None:
+        self._next_track()
+
+    def set_current_favorite_checked(self, checked: bool) -> None:
+        if not self._playlist or not self._btn_like.isEnabled():
+            return
+        checked = bool(checked)
+        if self._btn_like.isChecked() == checked:
+            return
+        self._btn_like.setChecked(checked)
+
     def flush_listen_for_close(self) -> None:
         """Перед закрытием окна — отправить накопленное прослушивание текущего трека."""
         self._flush_listen_session()
@@ -750,6 +883,7 @@ class PlayerTab(QWidget):
         self._context_stats = data
         if self._playlist and self._index < len(self._playlist):
             self._apply_item_to_info_panel(self._playlist[self._index])
+            self._emit_current_item_changed()
 
     def _tick_listen_accum(self, pos: int) -> None:
         if not self._playlist or not self._session:
@@ -776,6 +910,9 @@ class PlayerTab(QWidget):
 
     def _on_state_changed(self, state) -> None:
         self._sync_play_button_icon()
+        self._emit_playback_state()
+        self._emit_current_item_changed()
+        self._emit_progress_state()
 
     def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
@@ -804,13 +941,16 @@ class PlayerTab(QWidget):
             self._listen_last_pos_ms = pos
             self._tick_listen_accum(pos)
             self._refresh_progress_time_labels()
+            self._emit_progress_state()
             return
         self._tick_listen_accum(pos)
         self._refresh_progress_time_labels(int(pos))
+        self._emit_progress_state()
 
     def _on_duration_changed(self, dur: int) -> None:
         if dur > 0:
             self._refresh_progress_time_labels()
+        self._emit_progress_state()
 
     def _on_progress_slider_moved(self, v: int) -> None:
         if self._user_seeking:
@@ -861,9 +1001,9 @@ class PlayerTab(QWidget):
         artist = item.get("artist") or ""
         self._album_title.setText(_album_name(item))
         self._now_title.setText(str(title))
-        uid = artist_user_id_from_item(item)
-        self._now_artist.set_artist(str(artist), uid)
+        self._now_artist.set_artist(str(artist).strip())
         self._art.setToolTip(f"{title}\n{artist}")
+        self._emit_current_item_changed()
 
     def _duration_ms_for_ui(self, item: dict) -> int:
         """Длительность для шкалы: из плеера, иначе из данных трека (как на главной)."""
@@ -885,6 +1025,7 @@ class PlayerTab(QWidget):
             self._progress.setRange(0, 1000)
             self._progress.setValue(0)
             self._progress.blockSignals(False)
+            self._emit_progress_state()
             return
         item = self._playlist[self._index]
         dur_ms = self._duration_ms_for_ui(item)
@@ -904,6 +1045,7 @@ class PlayerTab(QWidget):
         self._progress.blockSignals(False)
         self._t_elapsed.setText(_fmt_ms(int(pos_ms)))
         self._t_total.setText(_fmt_ms(dur_ms) if dur_ms > 0 else "—")
+        self._emit_progress_state()
 
     def _artwork_url_for_current(self, item: dict) -> Optional[str]:
         base = self._session.client.base_url if self._session else ""
@@ -1022,10 +1164,13 @@ class PlayerTab(QWidget):
 
     def _refresh_track_sidebar(self) -> None:
         if not self._playlist:
-            self._info_main.setText("")
+            self._info_line_title.setText("")
+            self._info_line_artist.set_artist("")
+            self._info_line_extra.setText("")
             self._info_stats.setText("")
             self._btn_like.setEnabled(False)
             self._btn_review.setEnabled(False)
+            self._emit_current_item_changed()
             return
         item = self._playlist[self._index]
         self._apply_item_to_info_panel(item)
@@ -1060,7 +1205,8 @@ class PlayerTab(QWidget):
             stats_src = {**item, **{k: self._context_stats.get(k) for k in ks}}
         title = item.get("title") or "—"
         artist = (item.get("artist") or "").strip()
-        line1 = f"{title} · {artist}" if artist else title
+        self._info_line_title.setText(str(title))
+        self._info_line_artist.set_artist(artist)
         alb = _album_display(item)
         dur = format_duration_mm_ss(effective_duration_sec(item))
         kind_raw = (item.get("kind") or "").strip()
@@ -1079,7 +1225,7 @@ class PlayerTab(QWidget):
             bits.append(kind_ru)
         if prov:
             bits.append(prov)
-        self._info_main.setText(line1 + ("\n" + " · ".join(bits) if bits else ""))
+        self._info_line_extra.setText(" · ".join(bits) if bits else "")
         lc = int(stats_src.get("listens_count") or 0)
         lt = int(stats_src.get("listen_time_total_sec") or 0)
         fc = int(stats_src.get("favorites_count") or 0)
@@ -1105,6 +1251,7 @@ class PlayerTab(QWidget):
         self._favorite_id = None
         if can and stats_src.get("user_favorited") and mid is not None:
             QTimer.singleShot(0, lambda m=int(mid): self._resolve_favorite_id(m))
+        self._emit_current_item_changed()
 
     def _resolve_favorite_id(self, mid: int) -> None:
         if not self._session:
@@ -1135,6 +1282,7 @@ class PlayerTab(QWidget):
         self._playlist[self._index].update(data)
         self._sync_now_playing_labels(self._playlist[self._index])
         self._apply_item_to_info_panel(self._playlist[self._index])
+        self._emit_current_item_changed()
 
     def _on_like_toggled(self, checked: bool) -> None:
         if not self._session or not self._playlist:
@@ -1158,6 +1306,7 @@ class PlayerTab(QWidget):
                 store["user_favorited"] = True
                 store["favorites_count"] = int(store.get("favorites_count") or 0) + 1
                 self._apply_item_to_info_panel(item)
+                self._emit_current_item_changed()
                 self.library_changed.emit()
             else:
                 self._btn_like.blockSignals(True)
@@ -1178,6 +1327,7 @@ class PlayerTab(QWidget):
                         0, int(store.get("favorites_count") or 0) - 1
                     )
                     self._apply_item_to_info_panel(item)
+                    self._emit_current_item_changed()
                     self.library_changed.emit()
                     return
             self._btn_like.blockSignals(True)
@@ -1213,6 +1363,7 @@ class PlayerTab(QWidget):
                 QTimer.singleShot(150, lambda m=mid: self._pull_context_stats(m))
             else:
                 QTimer.singleShot(150, lambda: self._pull_music_item(mid))
+            self._emit_current_item_changed()
 
     def _rebuild_list(self) -> None:
         while self._list_layout.count():
@@ -1222,22 +1373,26 @@ class PlayerTab(QWidget):
                 w.deleteLater()
         for i, item in enumerate(self._playlist):
             title = item.get("title") or "название песни"
-            artist = item.get("artist") or "исполнитель"
+            raw_artist = (item.get("artist") or "").strip()
+            artist_show = raw_artist.lower() if raw_artist else "исполнитель"
             alb = _album_display(item)
             dur = format_duration_mm_ss(effective_duration_sec(item))
             sub = " · ".join(x for x in (alb, dur) if x and x != "—")
-            auid = artist_user_id_from_item(item)
             row = _TrackRow(
                 str(title).lower(),
-                str(artist).lower(),
+                artist_show,
                 i == self._index,
                 on_click=lambda idx=i: self._select_track(idx),
                 subtitle=sub,
-                artist_user_id=auid,
                 on_open_artist=self._on_open_artist,
+                artist_catalog=raw_artist,
             )
             self._list_layout.addWidget(row)
         self._list_layout.addStretch()
+        self.transport_state_changed.emit(
+            self.can_play_previous(),
+            self.can_play_next(),
+        )
 
     def _select_track(self, idx: int) -> None:
         if idx < 0 or idx >= len(self._playlist):
@@ -1254,6 +1409,9 @@ class PlayerTab(QWidget):
         ref = (item.get("playback_ref") or "").strip()
         if not _is_page_playback_ref(ref) and (was_playing or playback_settings.autoplay()):
             self._player.play()
+        self._emit_current_item_changed()
+        self._emit_playback_state()
+        self._emit_progress_state()
 
     def set_queue(
         self,
@@ -1301,12 +1459,18 @@ class PlayerTab(QWidget):
         if _is_page_playback_ref(ref):
             self._player.stop()
             self._sync_play_button_icon()
+            self._emit_current_item_changed()
+            self._emit_playback_state()
+            self._emit_progress_state()
             return
         if playback_settings.autoplay():
             self._player.play()
         else:
             self._player.stop()
             self._sync_play_button_icon()
+        self._emit_current_item_changed()
+        self._emit_playback_state()
+        self._emit_progress_state()
 
     def set_track(self, music_item: dict) -> None:
         """Задаёт текущий трек (из поиска); очередь = один трек, пока нет альбома из API."""
@@ -1335,9 +1499,15 @@ class PlayerTab(QWidget):
             # Встроенный web-плеер уже загрузил ссылку в _load_current().
             self._player.stop()
             self._sync_play_button_icon()
+            self._emit_current_item_changed()
+            self._emit_playback_state()
+            self._emit_progress_state()
             return
         if playback_settings.autoplay():
             self._player.play()
         else:
             self._player.stop()
             self._sync_play_button_icon()
+        self._emit_current_item_changed()
+        self._emit_playback_state()
+        self._emit_progress_state()

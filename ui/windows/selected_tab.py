@@ -2,25 +2,29 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from ui.interactive_fx import InteractiveRowFrame
+from ui.track_like_review import TrackLikeReviewBar
+
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QFrame,
     QSizePolicy,
     QGraphicsDropShadowEffect,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
-from ui.windows.clickable_artist import ClickableArtistLabel, artist_user_id_from_item
+from ui.artist_link_label import ArtistLinkLabel
 
 OnPlayTrack = Callable[[dict], None]
 OnOpenAlbum = Callable[[list, dict], None]
 OnOpenReview = Callable[[dict], None]
+OnOpenArtist = Callable[[str], None]
 
 
 def _response_list(body) -> list:
@@ -38,7 +42,116 @@ def _owner_id(collection: dict):
     return o
 
 
-class _ClickableRow(QFrame):
+class _ClickableTitle(QLabel):
+    clicked = pyqtSignal()
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
+class _FavAlbumRow(InteractiveRowFrame):
+    """Строка избранного альбома: клик по названию — очередь; по исполнителю — профиль."""
+
+    def __init__(
+        self,
+        title_s: str,
+        sub: str,
+        artist_raw: str,
+        on_album,
+        on_artist: Optional[OnOpenArtist],
+        parent=None,
+    ):
+        super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
+        self.setObjectName("selectedRow")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(4)
+        tt = _ClickableTitle(title_s)
+        tt.setObjectName("selectedRowTitle")
+        if on_album:
+            tt.clicked.connect(on_album)
+        lay.addWidget(tt)
+        ar = (artist_raw or "").strip()
+        if ar and on_artist:
+            row = QHBoxLayout()
+            row.setSpacing(0)
+            pre = QLabel(f"{sub} · ")
+            pre.setObjectName("selectedRowSub")
+            link = ArtistLinkLabel()
+            link.setObjectName("selectedRowArtist")
+            link.set_artist(ar)
+            link.artist_clicked.connect(on_artist)
+            row.addWidget(pre)
+            row.addWidget(link)
+            row.addStretch()
+            lay.addLayout(row)
+        else:
+            disp = ar or "—"
+            lab = QLabel(f"{sub} · {disp}")
+            lab.setObjectName("selectedRowSub")
+            lab.setWordWrap(True)
+            lay.addWidget(lab)
+        self.install_interaction_filters()
+
+
+class _FavTrackRow(InteractiveRowFrame):
+    """Избранный трек: название — в плеер; исполнитель — профиль; ♥ и рецензия как в плеере."""
+
+    def __init__(
+        self,
+        mi: dict,
+        on_play,
+        on_artist: Optional[OnOpenArtist],
+        session: UserSession,
+        on_library_changed: Callable[[], None],
+        parent=None,
+    ):
+        super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
+        self.setObjectName("selectedRow")
+        self._mi = mi
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(4)
+        title_s = str(mi.get("title") or "—")
+        tt = _ClickableTitle(title_s)
+        tt.setObjectName("selectedRowTitle")
+        if on_play:
+            tt.clicked.connect(lambda: on_play(mi))
+        lay.addWidget(tt)
+
+        row_meta = QHBoxLayout()
+        row_meta.setContentsMargins(0, 0, 0, 0)
+        row_meta.setSpacing(8)
+        ar = (mi.get("artist") or "").strip()
+        if ar and on_artist:
+            link = ArtistLinkLabel()
+            link.setObjectName("selectedRowArtist")
+            link.set_artist(ar)
+            link.artist_clicked.connect(on_artist)
+            row_meta.addWidget(link, 0, Qt.AlignmentFlag.AlignLeft)
+        else:
+            lab = QLabel(ar if ar else "—")
+            lab.setObjectName("selectedRowSub")
+            row_meta.addWidget(lab, 0, Qt.AlignmentFlag.AlignLeft)
+        row_meta.addStretch(1)
+        self._actions = TrackLikeReviewBar(
+            mi,
+            session,
+            self.window() or self,
+            on_changed=on_library_changed,
+        )
+        row_meta.addWidget(self._actions, 0, Qt.AlignmentFlag.AlignRight)
+        lay.addLayout(row_meta)
+        self.install_interaction_filters()
+
+
+class _ClickableRow(InteractiveRowFrame):
     def __init__(
         self,
         title: str,
@@ -46,7 +159,7 @@ class _ClickableRow(QFrame):
         on_click: Optional[Callable[[], None]] = None,
         parent=None,
     ):
-        super().__init__(parent)
+        super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
         self.setObjectName("selectedRow")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._on_click = on_click
@@ -62,6 +175,7 @@ class _ClickableRow(QFrame):
         a.setWordWrap(True)
         lay.addWidget(t)
         lay.addWidget(a)
+        self.install_interaction_filters()
 
     def mousePressEvent(self, event):
         if (
@@ -70,55 +184,6 @@ class _ClickableRow(QFrame):
         ):
             self._on_click()
         super().mousePressEvent(event)
-
-
-class _TitlePlayLabel(QLabel):
-    def __init__(self, text: str, on_play: Optional[Callable[[], None]], parent=None):
-        super().__init__(text, parent)
-        self._on_play = on_play
-        self.setObjectName("selectedRowTitle")
-        if on_play:
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if (
-            self._on_play
-            and event.button() == Qt.MouseButton.LeftButton
-        ):
-            self._on_play()
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
-
-
-class _FavoriteTrackRow(QFrame):
-    """Строка избранного трека: клик по названию — play, по исполнителю — страница артиста."""
-
-    def __init__(
-        self,
-        title: str,
-        mi: dict,
-        on_play: Optional[Callable[[], None]],
-        on_open_artist=None,
-        parent=None,
-    ):
-        super().__init__(parent)
-        self.setObjectName("selectedRow")
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(14, 10, 14, 10)
-        lay.setSpacing(2)
-        t = _TitlePlayLabel(str(title), on_play)
-        uid = artist_user_id_from_item(mi)
-        a = ClickableArtistLabel(
-            (mi.get("artist") or "").strip() or "—",
-            uid,
-            on_open_artist,
-            object_name="selectedRowSub",
-        )
-        a.setWordWrap(True)
-        lay.addWidget(t)
-        lay.addWidget(a)
 
 
 class SelectedTab(QWidget):
@@ -131,7 +196,7 @@ class SelectedTab(QWidget):
         on_play_track: Optional[OnPlayTrack] = None,
         on_open_album: Optional[OnOpenAlbum] = None,
         on_open_review: Optional[OnOpenReview] = None,
-        on_open_artist=None,
+        on_open_artist: Optional[OnOpenArtist] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -197,7 +262,7 @@ class SelectedTab(QWidget):
             if fav_albums:
                 for mi in fav_albums:
                     title_t = mi.get("title") or "—"
-                    artist = (mi.get("artist") or "").strip() or "—"
+                    artist_raw = (mi.get("artist") or "").strip()
                     sub = (
                         "Альбом"
                         if (mi.get("kind") or "").strip().lower() == "album"
@@ -207,7 +272,13 @@ class SelectedTab(QWidget):
                     if self._on_open_album:
                         open_cb = lambda m=mi: self._open_favorite_album(m)
                     col.addWidget(
-                        _ClickableRow(str(title_t), f"{sub} · {artist}", open_cb)
+                        _FavAlbumRow(
+                            str(title_t),
+                            sub,
+                            artist_raw,
+                            open_cb,
+                            self._on_open_artist,
+                        )
                     )
             else:
                 col.addWidget(
@@ -220,16 +291,18 @@ class SelectedTab(QWidget):
             col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
             if fav_tracks:
                 for mi in fav_tracks:
-                    title_t = mi.get("title") or "—"
+                    row_mi = dict(mi)
+                    row_mi["user_favorited"] = True
                     play_cb = None
                     if self._on_play_track:
-                        play_cb = lambda m=mi: self._on_play_track(m)
+                        play_cb = lambda m=row_mi: self._on_play_track(m)
                     col.addWidget(
-                        _FavoriteTrackRow(
-                            str(title_t),
-                            mi,
+                        _FavTrackRow(
+                            row_mi,
                             play_cb,
                             self._on_open_artist,
+                            self._session,
+                            self.reload_content,
                         )
                     )
             else:

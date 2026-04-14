@@ -46,6 +46,16 @@ QLabel#selectedRowSub {
     color: #89A194;
 }
 
+QLabel#selectedRowArtist {
+    font-family: "Courier New";
+    font-size: 11px;
+    color: #2A7A8C;
+    text-decoration: underline;
+}
+QLabel#selectedRowArtist:hover {
+    color: #A14016;
+}
+
 QLabel#selectedEmpty {
     font-family: "Courier New";
     font-size: 11px;

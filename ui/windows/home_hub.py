@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui.interactive_fx import animate_stack_fade
+
 
 class HomeHubWidget(QWidget):
     """Популярное и рецензии: переключатель сверху, общий стек контента."""
@@ -67,9 +69,9 @@ class HomeHubWidget(QWidget):
 
     def _sync_stack_from_buttons(self) -> None:
         if self._btn_popular.isChecked():
-            self._stack.setCurrentIndex(self._SUB_POPULAR)
+            animate_stack_fade(self._stack, self._SUB_POPULAR)
         elif self._btn_reviews.isChecked():
-            self._stack.setCurrentIndex(self._SUB_REVIEWS)
+            animate_stack_fade(self._stack, self._SUB_REVIEWS)
 
     def reset_to_popular(self) -> None:
         self._group.blockSignals(True)
@@ -78,7 +80,7 @@ class HomeHubWidget(QWidget):
             self._btn_reviews.setChecked(False)
         finally:
             self._group.blockSignals(False)
-        self._stack.setCurrentIndex(self._SUB_POPULAR)
+        animate_stack_fade(self._stack, self._SUB_POPULAR)
 
     def current_sub_index(self) -> int:
         return self._stack.currentIndex()

@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+from ui.interactive_fx import fade_in_widget
+
 
 class WriteReviewDialog(QDialog):
     def __init__(self, client, music_item_id: int, track_title: str, parent=None):
@@ -57,6 +59,10 @@ class WriteReviewDialog(QDialog):
         row.addWidget(cancel)
         row.addWidget(ok)
         root.addLayout(row)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        fade_in_widget(self)
 
     def _submit(self) -> None:
         body_text = self._text.toPlainText().strip()

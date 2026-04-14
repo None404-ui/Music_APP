@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from ui.interactive_fx import fade_in_widget
+
 
 class ReviewDetailDialog(QDialog):
     """Полная страница рецензии по клику на заголовок у альбома."""
@@ -85,3 +87,7 @@ class ReviewDetailDialog(QDialog):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(self.accept)
         root.addWidget(btn)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        fade_in_widget(self)
