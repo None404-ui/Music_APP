@@ -78,11 +78,36 @@ class ContentWithAmbient(QWidget):
         super().__init__(parent)
         self._bg = AmbientBackground(self)
         self.page_stack = QStackedWidget(self)
+        self._overlay: QWidget | None = None
+        self._overlay_height = 94
+        self._overlay_margin = 16
         self.page_stack.setObjectName("pageStack")
         self.page_stack.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
+
+    def set_overlay_widget(self, widget: QWidget, *, height: int = 94, margin: int = 16) -> None:
+        self._overlay = widget
+        self._overlay_height = height
+        self._overlay_margin = margin
+        widget.setParent(self)
+        widget.hide()
+        self._layout_overlay()
+
+    def overlay_widget(self) -> QWidget | None:
+        return self._overlay
+
+    def _layout_overlay(self) -> None:
+        if self._overlay is None:
+            return
+        w = max(180, self.width() - self._overlay_margin * 2)
+        h = self._overlay_height
+        x = self._overlay_margin
+        y = max(self._overlay_margin, self.height() - h - self._overlay_margin)
+        self._overlay.setGeometry(x, y, w, h)
+        if self._overlay.isVisible():
+            self._overlay.raise_()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -90,3 +115,4 @@ class ContentWithAmbient(QWidget):
         self._bg.setGeometry(r)
         self.page_stack.setGeometry(r)
         self.page_stack.raise_()
+        self._layout_overlay()

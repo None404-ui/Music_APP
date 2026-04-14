@@ -44,6 +44,10 @@ QLabel#playerNowArtist {
     font-size: 11px;
     color: #003366;
 }
+QLabel#playerNowArtist:hover {
+    color: #A14016;
+    text-decoration: underline;
+}
 
 /* Прогресс: пиксельный ретро-ползунок */
 QSlider#playerProgressMock::groove:horizontal {
@@ -180,6 +184,16 @@ QLabel#playerInfoTitleLine {
     color: #003366;
 }
 
+QLabel#playerInfoArtistLine {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    color: #003366;
+    text-decoration: underline;
+}
+QLabel#playerInfoArtistLine:hover {
+    color: #A14016;
+}
+
 QLabel#playerInfoStats {
     font-family: "Courier New", monospace;
     font-size: 10px;
@@ -191,12 +205,18 @@ QPushButton#playerLikeBtn {
     border: none;
     padding: 4px;
     color: #312938;
+    border-radius: 8px;
 }
 QPushButton#playerLikeBtn:hover {
+    background-color: rgba(161, 64, 22, 0.10);
     color: #A14016;
 }
 QPushButton#playerLikeBtn:checked {
+    background-color: rgba(203, 136, 58, 0.15);
     color: #CB883A;
+}
+QPushButton#playerLikeBtn:pressed {
+    background-color: rgba(203, 136, 58, 0.22);
 }
 
 QPushButton#playerReviewBtn {
@@ -204,9 +224,15 @@ QPushButton#playerReviewBtn {
     border: none;
     padding: 4px;
     color: #312938;
+    border-radius: 8px;
 }
 QPushButton#playerReviewBtn:hover {
+    background-color: rgba(42, 122, 140, 0.10);
     color: #004766;
+}
+QPushButton#playerReviewBtn:pressed {
+    background-color: rgba(42, 122, 140, 0.18);
+    color: #2A7A8C;
 }
 
 QLabel#playerTrackMeta {
@@ -252,4 +278,72 @@ QLabel#playerTrackArtist {
     font-family: "Courier New", monospace;
     font-size: 10px;
     color: #003366;
+}
+QLabel#playerTrackArtist:hover {
+    color: #A14016;
+    text-decoration: underline;
+}
+
+QFrame#miniPlayerBar {
+    background-color: rgba(36, 33, 24, 0.94);
+    border: 2px solid rgba(203, 136, 58, 0.55);
+    border-radius: 14px;
+}
+
+QLabel#miniPlayerCover {
+    background-color: #BDB685;
+    border-radius: 8px;
+    border: 1px solid #CB883A;
+    color: #A14016;
+    font-size: 20px;
+}
+
+QLabel#miniPlayerTitle {
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    font-weight: bold;
+    color: #F0E7B8;
+}
+
+QLabel#miniPlayerArtist {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #89A194;
+}
+
+QPushButton#miniPlayerBtn,
+QPushButton#miniPlayerLikeBtn {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+}
+QPushButton#miniPlayerBtn:hover,
+QPushButton#miniPlayerLikeBtn:hover {
+    background-color: rgba(203, 136, 58, 0.12);
+}
+QPushButton#miniPlayerBtn:pressed,
+QPushButton#miniPlayerLikeBtn:pressed {
+    background-color: rgba(161, 64, 22, 0.20);
+}
+
+QPushButton#miniPlayerPlayBtn {
+    background-color: #F4E81A;
+    border: 2px solid #312938;
+    border-radius: 21px;
+}
+QPushButton#miniPlayerPlayBtn:hover {
+    background-color: #fff463;
+}
+QPushButton#miniPlayerPlayBtn:pressed {
+    background-color: #CB883A;
+}
+
+QProgressBar#miniPlayerProgress {
+    background: rgba(207, 200, 154, 0.18);
+    border: 1px solid rgba(49, 41, 56, 0.85);
+    border-radius: 3px;
+}
+QProgressBar#miniPlayerProgress::chunk {
+    background-color: #CB883A;
+    border-radius: 2px;
 }

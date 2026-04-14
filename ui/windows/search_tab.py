@@ -3,8 +3,14 @@ import os
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
-from PyQt6.QtCore import Qt, QSize, QSettings, QTimer
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import Qt, QSize, QSettings, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QMouseEvent
+from backend.api_client import resolve_backend_media_url
+from backend.session import UserSession
+from ui.artist_link_label import ArtistLinkLabel
+from ui.interactive_fx import InteractiveRowFrame
+from ui.track_like_review import TrackLikeReviewBar
+
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -33,8 +39,8 @@ _SEARCH_DEBOUNCE_MS = 1000
 _LIST_ROW_MIN = 48
 _LIST_SPACING = 6
 # Высота строки списка в пикселях (должна быть ≥ реальной отрисовки из search.qss).
-_HISTORY_ROW_PX = 80
-_RESULTS_ROW_PX = 80
+_HISTORY_ROW_PX = 104
+_RESULTS_ROW_PX = 104
 
 
 def _list_font() -> QFont:
@@ -48,12 +54,90 @@ def _settings() -> QSettings:
     return QSettings(QSettings.Scope.UserScope, _ORG, _APP)
 
 
+def _row_height(row: QWidget, fallback: int) -> int:
+    hint = row.sizeHint().height() if row is not None else 0
+    return max(fallback, hint + 8)
+
+
+class _SearchTrackRow(InteractiveRowFrame):
+    """Строка трека: клик по фону — в плеер; по имени исполнителя — профиль; ♥ и рецензия как в плеере."""
+
+    def __init__(
+        self,
+        item: dict,
+        on_play,
+        on_open_artist,
+        *,
+        session: UserSession | None = None,
+        on_library_changed=None,
+        dialog_parent=None,
+        parent=None,
+    ):
+        super().__init__(radius=8, hover_alpha=22, press_alpha=38, active_alpha=16, parent=parent)
+        self.setObjectName("searchListRow")
+        self._item = item
+        self._on_play = on_play
+        self._actions_bar: TrackLikeReviewBar | None = None
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(8, 6, 8, 6)
+        lay.setSpacing(2)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+        self._title = QLabel((item.get("title") or "Без названия").strip())
+        self._title.setObjectName("searchRowTitle")
+        self._title.setFont(_list_font())
+        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        title_row.addWidget(self._title, 1)
+        if session is not None and on_library_changed and dialog_parent is not None:
+            self._actions_bar = TrackLikeReviewBar(
+                item,
+                session,
+                dialog_parent,
+                on_changed=on_library_changed,
+            )
+            title_row.addWidget(self._actions_bar, 0, Qt.AlignmentFlag.AlignTop)
+        lay.addLayout(title_row)
+
+        art = (item.get("artist") or "").strip()
+        self._artist = ArtistLinkLabel()
+        self._artist.setObjectName("searchRowArtist")
+        self._artist.setFont(_list_font())
+        self._artist.set_artist(art)
+        if on_open_artist and art:
+            self._artist.artist_clicked.connect(on_open_artist)
+        lay.addWidget(self._artist)
+        self.install_interaction_filters()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._on_play:
+            if self._actions_bar is not None and self._actions_bar.geometry().contains(
+                event.position().toPoint()
+            ):
+                super().mouseReleaseEvent(event)
+                return
+            if self.rect().contains(event.position().toPoint()):
+                self._on_play(self._item)
+        super().mouseReleaseEvent(event)
+
+
 class SearchTab(QWidget):
-    def __init__(self, on_select_track=None, parent=None):
+    library_changed = pyqtSignal()
+
+    def __init__(
+        self,
+        session: UserSession | None = None,
+        on_select_track=None,
+        on_open_artist=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setObjectName("searchPage")
 
+        self._session = session
         self._on_select_track = on_select_track
+        self._on_open_artist = on_open_artist
         self._backend_url = os.getenv("CRATES_BACKEND_URL", "http://127.0.0.1:8000").rstrip(
             "/"
         )
@@ -147,8 +231,9 @@ class SearchTab(QWidget):
         self._history_list.setObjectName("searchHistory")
         self._history_list.setFont(_list_font())
         self._history_list.setSpacing(_LIST_SPACING)
-        self._history_list.setUniformItemSizes(True)
+        self._history_list.setUniformItemSizes(False)
         self._history_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._history_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._history_list.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel
         )
@@ -162,7 +247,6 @@ class SearchTab(QWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
         )
-        self._history_list.itemClicked.connect(self._on_track_item_clicked)
         hl.addWidget(self._history_list)
         inner_layout.addWidget(self._history_host)
 
@@ -179,8 +263,9 @@ class SearchTab(QWidget):
         self._results_list.setObjectName("searchResults")
         self._results_list.setFont(_list_font())
         self._results_list.setSpacing(_LIST_SPACING)
-        self._results_list.setUniformItemSizes(True)
+        self._results_list.setUniformItemSizes(False)
         self._results_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._results_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._results_list.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel
         )
@@ -190,7 +275,6 @@ class SearchTab(QWidget):
         self._results_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        self._results_list.itemClicked.connect(self._on_track_item_clicked)
         inner_layout.addWidget(self._results_list)
 
         inner_layout.addStretch()
@@ -244,20 +328,38 @@ class SearchTab(QWidget):
     def _save_recent_tracks(self, items: list[dict]) -> None:
         _settings().setValue(_RECENT_KEY, json.dumps(items, ensure_ascii=False))
 
+    def _play_track_item(self, music_item: dict) -> None:
+        if not self._on_select_track:
+            return
+        self._push_recent_track(music_item)
+        self._on_select_track(music_item)
+
+    def _row_library_cb(self):
+        if self._session is not None:
+            return lambda: self.library_changed.emit()
+        return None
+
     def _refresh_recent_list(self) -> None:
         self._history_list.clear()
         vw = self._history_viewport_width()
         for it in self._load_recent_tracks():
             if not isinstance(it, dict):
                 continue
-            title = it.get("title") or "Без названия"
-            artist = it.get("artist") or ""
-            label = f"{title} — {artist}".strip(" —")
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, it)
-            # Без явного sizeHint Qt+QSS часто рисуют строку выше выделенной высоты виджета.
-            item.setSizeHint(QSize(vw, _HISTORY_ROW_PX))
+            item = QListWidgetItem()
+            row = _SearchTrackRow(
+                it,
+                self._play_track_item,
+                self._on_open_artist,
+                session=self._session,
+                on_library_changed=self._row_library_cb(),
+                dialog_parent=self,
+                parent=self._history_list,
+            )
+            row.setFixedWidth(max(vw - 8, 100))
+            item_h = _row_height(row, _HISTORY_ROW_PX)
+            item.setSizeHint(QSize(vw, item_h))
             self._history_list.addItem(item)
+            self._history_list.setItemWidget(item, row)
         cnt = self._history_list.count()
         sp = self._history_list.spacing()
         fw = self._history_list.style().pixelMetric(
@@ -314,34 +416,66 @@ class SearchTab(QWidget):
         if not q:
             return
         self._results_list.clear()
-        try:
-            url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
-            req = Request(url, headers={"Accept": "application/json"})
-            with urlopen(req, timeout=10) as resp:
-                raw = resp.read().decode("utf-8")
-                data = json.loads(raw)
-            items = data.get("results", data) if isinstance(data, dict) else data
-            if not isinstance(items, list):
+        items: list = []
+        if self._session is not None:
+            try:
+                api_base = self._session.client.base_url
+                st, data = self._session.client.get_json(
+                    f"/api/music-items/?q={quote_plus(q)}"
+                )
+                if st == 200:
+                    if isinstance(data, list):
+                        raw_items = data
+                    elif isinstance(data, dict):
+                        r = data.get("results")
+                        raw_items = r if isinstance(r, list) else []
+                    else:
+                        raw_items = []
+                    for it in raw_items:
+                        if not isinstance(it, dict):
+                            continue
+                        row = dict(it)
+                        au = resolve_backend_media_url(
+                            api_base, (row.get("artwork_url") or "").strip()
+                        )
+                        if au:
+                            row["artwork_url"] = au
+                        items.append(row)
+            except Exception:
                 items = []
-        except Exception:
-            items = []
+        else:
+            try:
+                url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
+                req = Request(url, headers={"Accept": "application/json"})
+                with urlopen(req, timeout=10) as resp:
+                    raw = resp.read().decode("utf-8")
+                    data = json.loads(raw)
+                raw_items = (
+                    data.get("results", data) if isinstance(data, dict) else data
+                )
+                if not isinstance(raw_items, list):
+                    raw_items = []
+                items = [x for x in raw_items if isinstance(x, dict)]
+            except Exception:
+                items = []
 
         rw = max(200, self._results_viewport_width(), self.width() - 48)
         for it in items:
-            title = it.get("title") or "Без названия"
-            artist = it.get("artist") or ""
-            label = f"{title} — {artist}".strip(" —")
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, it)
-            item.setSizeHint(QSize(rw, _RESULTS_ROW_PX))
+            if not isinstance(it, dict):
+                continue
+            item = QListWidgetItem()
+            row = _SearchTrackRow(
+                it,
+                self._play_track_item,
+                self._on_open_artist,
+                session=self._session,
+                on_library_changed=self._row_library_cb(),
+                dialog_parent=self,
+                parent=self._results_list,
+            )
+            row.setFixedWidth(max(rw - 8, 100))
+            item_h = _row_height(row, _RESULTS_ROW_PX)
+            item.setSizeHint(QSize(rw, item_h))
             self._results_list.addItem(item)
+            self._results_list.setItemWidget(item, row)
         self._resize_results_list_height()
-
-    def _on_track_item_clicked(self, item: QListWidgetItem):
-        if not self._on_select_track:
-            return
-        music_item = item.data(Qt.ItemDataRole.UserRole) or {}
-        if not isinstance(music_item, dict) or not music_item:
-            return
-        self._push_recent_track(music_item)
-        self._on_select_track(music_item)

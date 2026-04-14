@@ -14,6 +14,18 @@ QWidget#popularPageInner {
     background: transparent;
 }
 
+QFrame#artistHeroBlock {
+    background: transparent;
+}
+
+QScrollArea#artistHeroTrackScroll {
+    background: transparent;
+    border: none;
+}
+QScrollArea#artistHeroTrackScroll > QWidget > QWidget {
+    background: transparent;
+}
+
 /* Заголовки секций (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) — бирюзовый, без плашек */
 QWidget#popularPage QLabel#sectionHeading {
     font-family: "Courier New";
@@ -121,6 +133,14 @@ QLabel#albumCover {
     font-size: 32px;
     color: #A14016;
 }
+QLabel#albumCover:hover {
+    border: 1px solid #CB883A;
+    background-color: #d1c996;
+}
+QFrame#albumCard:hover QLabel#albumCover {
+    border: 1px solid #CB883A;
+    background-color: #d1c996;
+}
 
 QLabel#albumTitle {
     font-family: "Courier New";
@@ -135,6 +155,10 @@ QLabel#albumArtist {
     font-size: 11px;
     color: #89A194;
 }
+QFrame#albumCard:hover QLabel#albumArtist {
+    color: #ffd4a8;
+    text-decoration: underline;
+}
 
 QLabel#artistAvatar {
     background-color: #BDB685;
@@ -145,6 +169,7 @@ QLabel#artistAvatar {
 }
 QLabel#artistAvatar:hover {
     border: 2px solid #CB883A;
+    background-color: #d1c996;
 }
 
 QLabel#artistName {
@@ -164,6 +189,9 @@ QFrame#trackRow {
 QFrame#trackRow:hover {
     background-color: #6d6756;
     border: 1px solid #CB883A;
+}
+QFrame#trackRow:hover QLabel#trackArtist {
+    color: #ffd4a8;
 }
 
 QLabel#trackNumber {
@@ -190,6 +218,10 @@ QLabel#trackArtist {
     font-family: "Courier New";
     font-size: 11px;
     color: rgba(207, 200, 154, 0.88);
+    text-decoration: underline;
+}
+QLabel#trackArtist:hover {
+    color: #ffd4a8;
 }
 
 QLabel#trackStats {

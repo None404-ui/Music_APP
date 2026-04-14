@@ -67,6 +67,22 @@ from .serializers import (
 )
 
 
+def _artist_user_profile_public(request, nickname: str) -> dict | None:
+    """Публичные поля профиля пользователя-исполнителя по нику (без привязки к каталогу треков)."""
+    nick = (nickname or "").strip()
+    if not nick:
+        return None
+    prof = Profile.objects.filter(nickname__iexact=nick).first()
+    if prof is None:
+        return None
+    data = ProfileSerializer(prof, context={"request": request}).data
+    return {
+        "nickname": data.get("nickname") or nick,
+        "avatar_url": (data.get("avatar_url") or "").strip(),
+        "bio": (data.get("bio") or "").strip(),
+    }
+
+
 def _annotate_music_item_listening(qs):
     """Слушатели = уникальные пользователи после порога; время = сумма listen_seconds по сессиям."""
     le_sum = (
@@ -172,6 +188,68 @@ class MusicItemViewSet(viewsets.ModelViewSet):
                 "albums": album_payload[:24],
                 "tracks": MusicItemSerializer(tracks, many=True, context=ctx).data,
                 "artists": artists,
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="artist-profile")
+    def artist_profile(self, request):
+        """
+        Профиль исполнителя по строке artist в каталоге: альбомы, плейлисты и треки (artist__iexact).
+        """
+        raw = (request.query_params.get("name") or "").strip()
+        if not raw:
+            return Response({"detail": "Укажите query-параметр name"}, status=400)
+        base = _annotate_music_item_listening(
+            MusicItem.objects.annotate(
+                reviews_count=Count(
+                    "reviews", filter=Q(reviews__deleted_at__isnull=True), distinct=True
+                ),
+                favorites_count=Count("favorites", distinct=True),
+            )
+        )
+        tk = MusicItem.Kind.TRACK.value
+        ak = MusicItem.Kind.ALBUM.value
+        pk_ = MusicItem.Kind.PLAYLIST.value
+        sample = (
+            base.filter(artist__iexact=raw).values_list("artist", flat=True).first()
+        )
+        if not sample:
+            return Response(
+                {
+                    "name": raw,
+                    "track_count": 0,
+                    "albums": [],
+                    "playlists": [],
+                    "tracks": [],
+                    "user_profile": _artist_user_profile_public(request, raw),
+                }
+            )
+        canon = (sample or raw).strip()
+        ctx = {"request": request}
+        tracks_qs = base.filter(kind=tk, artist__iexact=canon).order_by(
+            "-listens_count", "-favorites_count", "-updated_at"
+        )[:120]
+        albums_qs = base.filter(kind=ak, artist__iexact=canon).order_by(
+            "-listens_count", "-favorites_count", "-updated_at"
+        )[:40]
+        playlists_qs = base.filter(kind=pk_, artist__iexact=canon).order_by(
+            "-listens_count", "-favorites_count", "-updated_at"
+        )[:24]
+        track_count = base.filter(kind=tk, artist__iexact=canon).count()
+        return Response(
+            {
+                "name": canon,
+                "track_count": track_count,
+                "user_profile": _artist_user_profile_public(request, canon),
+                "albums": MusicItemSerializer(
+                    list(albums_qs), many=True, context=ctx
+                ).data,
+                "playlists": MusicItemSerializer(
+                    list(playlists_qs), many=True, context=ctx
+                ).data,
+                "tracks": MusicItemSerializer(
+                    list(tracks_qs), many=True, context=ctx
+                ).data,
             }
         )
 

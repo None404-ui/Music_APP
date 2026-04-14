@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl
+from typing import Callable, Optional
+
+from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QImage, QMouseEvent, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
+from ui.artist_link_label import ArtistLinkLabel
+from ui.interactive_fx import InteractiveRowFrame, animate_scrollbar_to
+from ui.track_like_review import TrackLikeReviewBar
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 
 _album_cover_nam: QNetworkAccessManager | None = None
@@ -28,6 +33,7 @@ class AlbumCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cover_reply: QNetworkReply | None = None
         self._on_open = None
+        self._on_open_artist = None
         self._payload: dict = {}
 
         layout = QVBoxLayout(self)
@@ -39,9 +45,10 @@ class AlbumCard(QFrame):
         self._cover.setObjectName("albumCover")
         self._cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._cover.setScaledContents(False)
+        self._cover.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._apply_cover_placeholder()
 
-        self._artist = QLabel("—")
+        self._artist = ArtistLinkLabel()
         self._artist.setObjectName("albumArtist")
         self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -49,6 +56,9 @@ class AlbumCard(QFrame):
         self._name.setObjectName("albumTitle")
         self._name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._name.setWordWrap(True)
+        self._name.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self._artist.artist_clicked.connect(self._on_artist_clicked)
 
         layout.addWidget(self._cover)
         layout.addWidget(self._artist)
@@ -105,8 +115,7 @@ class AlbumCard(QFrame):
         title = (item.get("title") or "").strip() or "Без названия"
         self._name.setText(title)
         artist = (item.get("artist") or "").strip()
-        self._artist.setText(artist if artist else "—")
-        self._artist.setToolTip(artist if artist else "")
+        self._artist.set_artist(artist)
         url = (item.get("artwork_url") or "").strip()
         self._apply_cover_placeholder()
         if url.startswith(("http://", "https://")):
@@ -115,6 +124,13 @@ class AlbumCard(QFrame):
 
     def set_on_open(self, cb) -> None:
         self._on_open = cb
+
+    def set_on_open_artist(self, cb) -> None:
+        self._on_open_artist = cb
+
+    def _on_artist_clicked(self, name: str) -> None:
+        if self._on_open_artist and (name or "").strip():
+            self._on_open_artist(name.strip())
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._on_open:
@@ -125,6 +141,8 @@ class AlbumCard(QFrame):
 class ArtistWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._on_open_artist = None
+        self._name_key = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(6)
@@ -136,18 +154,37 @@ class ArtistWidget(QWidget):
         self._avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._avatar.setText("♫")
         self._avatar.setStyleSheet("font-size: 24px; color: #A14016;")
+        self._avatar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         self._label = QLabel("—")
         self._label.setObjectName("artistName")
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setWordWrap(True)
         self._label.setFixedWidth(90)
+        self._label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         layout.addWidget(self._avatar, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self._label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
+    def set_on_open_artist(self, cb) -> None:
+        self._on_open_artist = cb
+
     def set_name(self, name: str) -> None:
-        self._label.setText(name.strip() or "—")
+        self._name_key = name.strip()
+        self._label.setText(self._name_key or "—")
+        if self._name_key and self._on_open_artist:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._name_key
+            and self._on_open_artist
+        ):
+            self._on_open_artist(self._name_key)
+        super().mouseReleaseEvent(event)
 
 
 class CarouselSection(QWidget):
@@ -267,18 +304,18 @@ class CarouselSection(QWidget):
 
     def _scroll_left(self) -> None:
         bar = self._scroll.horizontalScrollBar()
-        bar.setValue(bar.value() - self._SCROLL_STEP)
+        animate_scrollbar_to(bar, bar.value() - self._SCROLL_STEP)
 
     def _scroll_right(self) -> None:
         bar = self._scroll.horizontalScrollBar()
-        bar.setValue(bar.value() + self._SCROLL_STEP)
+        animate_scrollbar_to(bar, bar.value() + self._SCROLL_STEP)
 
     def showEvent(self, event):
         super().showEvent(event)
         QTimer.singleShot(0, self._sync_arrows)
 
 
-class TrackRow(QFrame):
+class TrackRow(InteractiveRowFrame):
     _THUMB_SIZE = 44
 
     def __init__(
@@ -287,12 +324,17 @@ class TrackRow(QFrame):
         item: dict,
         on_play,
         parent=None,
+        on_open_artist=None,
+        session: Optional[UserSession] = None,
+        dialog_parent: Optional[QWidget] = None,
+        on_library_changed: Optional[Callable[[], None]] = None,
     ):
-        super().__init__(parent)
+        super().__init__(radius=6, hover_alpha=30, press_alpha=52, active_alpha=18, parent=parent)
         self.setObjectName("trackRow")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._item = item
         self._on_play = on_play
+        self._on_open_artist = on_open_artist
         self._thumb_reply: QNetworkReply | None = None
 
         lay = QHBoxLayout(self)
@@ -302,12 +344,14 @@ class TrackRow(QFrame):
         num = QLabel(str(index))
         num.setObjectName("trackNumber")
         num.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        num.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         self._thumb = QLabel()
         self._thumb.setObjectName("trackRowThumb")
         self._thumb.setFixedSize(self._THUMB_SIZE, self._THUMB_SIZE)
         self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._thumb.setScaledContents(False)
+        self._thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._apply_thumb_placeholder()
         url = (item.get("artwork_url") or "").strip()
         if url.startswith(("http://", "https://")):
@@ -320,33 +364,51 @@ class TrackRow(QFrame):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
         )
+        title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        artist = QLabel((item.get("artist") or "").strip() or "—")
-        artist.setObjectName("trackArtist")
-        artist.setSizePolicy(
+        self._artist_link = ArtistLinkLabel()
+        self._artist_link.setObjectName("trackArtist")
+        self._artist_link.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
         )
+        self._artist_link.set_artist((item.get("artist") or "").strip())
+        if on_open_artist:
+            self._artist_link.artist_clicked.connect(on_open_artist)
 
         likes = int(item.get("favorites_count") or 0)
         listens = int(item.get("listens_count") or 0)
-        stats = QLabel(f"♥ {likes}  ·  {listens} слуш.")
-        stats.setObjectName("trackStats")
-        stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._stats = QLabel(f"♥ {likes}  ·  {listens} слуш.")
+        self._stats.setObjectName("trackStats")
+        self._stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._stats.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         dur = QLabel(format_duration_mm_ss(effective_duration_sec(item)))
         dur.setObjectName("trackDuration")
         dur.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        dur.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         lay.addWidget(num, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(self._thumb, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(title, 2, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
-        lay.addWidget(artist, 2, Qt.AlignmentFlag.AlignVCenter)
+        lay.addWidget(self._artist_link, 2, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
-        lay.addWidget(stats, 0, Qt.AlignmentFlag.AlignVCenter)
+        lay.addWidget(self._stats, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)
         lay.addWidget(dur, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self._actions_bar: TrackLikeReviewBar | None = None
+        if session is not None and dialog_parent is not None and on_library_changed:
+            self._actions_bar = TrackLikeReviewBar(
+                item,
+                session,
+                dialog_parent,
+                on_changed=on_library_changed,
+                stats_label=self._stats,
+            )
+            lay.addWidget(self._actions_bar, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.install_interaction_filters()
 
     def _apply_thumb_placeholder(self) -> None:
         self._thumb.clear()
@@ -390,16 +452,23 @@ class TrackRow(QFrame):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._on_play:
+            if self._actions_bar is not None and self._actions_bar.geometry().contains(
+                event.position().toPoint()
+            ):
+                super().mouseReleaseEvent(event)
+                return
             self._on_play(self._item)
         super().mouseReleaseEvent(event)
 
 
 class PopularTab(QWidget):
+    library_changed = pyqtSignal()
     def __init__(
         self,
         session: UserSession,
         on_play_track=None,
         on_open_album=None,
+        on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -407,6 +476,7 @@ class PopularTab(QWidget):
         self._session = session
         self._on_play_track = on_play_track
         self._on_open_album = on_open_album
+        self._on_open_artist = on_open_artist
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -541,6 +611,8 @@ class PopularTab(QWidget):
             c.set_item(row)
             if self._on_open_album:
                 c.set_on_open(self._on_album_card_clicked)
+            if self._on_open_artist:
+                c.set_on_open_artist(self._on_open_artist)
             album_widgets.append(c)
         self._album_carousel.set_items(album_widgets)
 
@@ -553,6 +625,8 @@ class PopularTab(QWidget):
                 name = row.get("name") or ""
                 w = ArtistWidget()
                 w.set_name(name)
+                if self._on_open_artist:
+                    w.set_on_open_artist(self._on_open_artist)
                 artist_widgets.append(w)
         self._artist_carousel.set_items(artist_widgets)
 
@@ -584,7 +658,15 @@ class PopularTab(QWidget):
         for i, it in enumerate(tracks, start=1):
             if not isinstance(it, dict):
                 continue
-            row = TrackRow(i, it, self._on_play_track)
+            row = TrackRow(
+                i,
+                it,
+                self._on_play_track,
+                on_open_artist=self._on_open_artist,
+                session=self._session,
+                dialog_parent=self,
+                on_library_changed=lambda: self.library_changed.emit(),
+            )
             self._tracks_layout.addWidget(row)
         if not tracks:
             empty = QLabel("Пока нет треков в каталоге.")

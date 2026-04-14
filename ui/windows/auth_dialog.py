@@ -26,6 +26,7 @@ from backend.remember_login import (
     save_remembered,
 )
 from backend.session import UserSession
+from ui.interactive_fx import animate_stack_fade, fade_in_widget
 
 
 class AuthDialog(QDialog):
@@ -82,6 +83,10 @@ class AuthDialog(QDialog):
 
         outer.addWidget(chrome)
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        fade_in_widget(self)
+
     def _build_login_page(self) -> QWidget:
         page = QWidget()
         page.setObjectName("authPage")
@@ -118,7 +123,7 @@ class AuthDialog(QDialog):
         btn_reg.setObjectName("authBtnSecondary")
         btn_reg.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn_reg.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_reg.clicked.connect(lambda: self._stack.setCurrentIndex(1))
+        btn_reg.clicked.connect(lambda: animate_stack_fade(self._stack, 1))
         lay.addWidget(btn_reg)
 
         lay.addStretch()
@@ -173,7 +178,7 @@ class AuthDialog(QDialog):
 
     def _back_to_login(self):
         self._err_reg.clear()
-        self._stack.setCurrentIndex(0)
+        animate_stack_fade(self._stack, 0)
 
     def _apply_saved_login_state(self) -> None:
         if is_remember_me_enabled():

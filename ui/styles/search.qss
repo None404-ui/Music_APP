@@ -85,29 +85,26 @@ QListWidget#searchResults {
 }
 QListWidget#searchHistory::item,
 QListWidget#searchResults::item {
-    background-color: #D4CFA0;
+    background: transparent;
     color: #312938;
-    border: 1px solid #89A194;
-    border-left: 4px solid #2A7A8C;
-    border-radius: 6px;
-    padding: 10px 14px;
-    margin: 2px 0;
-    min-height: 44px;
+    border: none;
+    padding: 2px 0;
+    margin: 0;
+    min-height: 0px;
     font-family: "Courier New", monospace;
     font-size: 13px;
     font-weight: normal;
 }
 QListWidget#searchHistory::item:hover,
 QListWidget#searchResults::item:hover {
-    background-color: #D9D3A8;
-    border-left: 4px solid #CB883A;
+    background-color: transparent;
+    border: none;
 }
 QListWidget#searchHistory::item:selected,
 QListWidget#searchResults::item:selected {
-    background-color: #2A7A8C;
-    color: #CFC89A;
-    border: 1px solid #0A1E2C;
-    border-left: 4px solid #0A1E2C;
+    background-color: transparent;
+    color: inherit;
+    border: none;
 }
 
 /* ---- Empty state label ---- */
@@ -116,4 +113,24 @@ QLabel#searchEmptyLabel {
     font-size: 15px;
     color: #89A194;
     letter-spacing: 2px;
+}
+
+QFrame#searchListRow {
+    background-color: rgba(217, 211, 168, 0.72);
+    border: 1px solid #89A194;
+    border-radius: 8px;
+}
+QLabel#searchRowTitle {
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    color: #312938;
+}
+QLabel#searchRowArtist {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #004766;
+    text-decoration: underline;
+}
+QLabel#searchRowArtist:hover {
+    color: #A14016;
 }
