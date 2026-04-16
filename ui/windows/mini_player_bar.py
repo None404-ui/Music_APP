@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QSlider,
     QSizePolicy,
     QVBoxLayout,
@@ -229,12 +228,15 @@ class MiniPlayerBar(InteractiveRowFrame):
 
         root.addLayout(top)
 
-        self._progress = QProgressBar()
-        self._progress.setObjectName("miniPlayerProgress")
+        self._progress = QSlider(Qt.Orientation.Horizontal)
+        self._progress.setObjectName("miniPlayerSeekSlider")
         self._progress.setRange(0, 1000)
         self._progress.setValue(0)
-        self._progress.setTextVisible(False)
-        self._progress.setFixedHeight(6)
+        self._progress.setFixedHeight(14)
+        self._progress.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._progress.sliderPressed.connect(self._on_mini_seek_press)
+        self._progress.sliderReleased.connect(self._on_mini_seek_release)
+        self._progress.valueChanged.connect(self._on_mini_seek_value_changed)
         root.addWidget(self._progress)
 
         self._volume_popup = QFrame(self, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
@@ -285,6 +287,7 @@ class MiniPlayerBar(InteractiveRowFrame):
             self._volume_popup_slider,
             self._btn_review,
             self._btn_like,
+            self._progress,
         ]
 
     def _apply_cover_placeholder(self) -> None:
@@ -331,11 +334,30 @@ class MiniPlayerBar(InteractiveRowFrame):
 
     def _on_progress_changed(self, pos_ms: int, dur_ms: int) -> None:
         if dur_ms <= 0:
+            self._progress.blockSignals(True)
             self._progress.setRange(0, 1000)
             self._progress.setValue(0)
+            self._progress.blockSignals(False)
             return
+        self._progress.blockSignals(True)
         self._progress.setRange(0, max(1, dur_ms))
-        self._progress.setValue(max(0, min(pos_ms, dur_ms)))
+        if not self._player.is_user_seeking():
+            self._progress.setValue(max(0, min(pos_ms, dur_ms)))
+        self._progress.blockSignals(False)
+
+    def _on_mini_seek_press(self) -> None:
+        if not self._has_track:
+            return
+        self._player.set_user_seeking(True)
+
+    def _on_mini_seek_value_changed(self, value: int) -> None:
+        if self._player.is_user_seeking():
+            self._player.preview_external_seek_ms(int(value))
+
+    def _on_mini_seek_release(self) -> None:
+        if not self._has_track:
+            return
+        self._player.apply_external_seek_ms(int(self._progress.value()))
 
     def _on_like_toggled(self, checked: bool) -> None:
         self._player.set_current_favorite_checked(checked)
@@ -406,8 +428,11 @@ class MiniPlayerBar(InteractiveRowFrame):
             self._btn_play.setEnabled(False)
             self._btn_review.setEnabled(False)
             self._btn_like.setEnabled(False)
+            self._progress.blockSignals(True)
             self._progress.setRange(0, 1000)
             self._progress.setValue(0)
+            self._progress.blockSignals(False)
+            self._progress.setEnabled(False)
             self._apply_cover_placeholder()
             return
 
@@ -422,6 +447,7 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._btn_like.blockSignals(True)
         self._btn_like.setChecked(bool(snapshot.get("user_favorited")))
         self._btn_like.blockSignals(False)
+        self._progress.setEnabled(True)
         self._on_playback_state_changed(bool(snapshot.get("is_playing")))
         self._on_progress_changed(
             int(snapshot.get("position_ms") or 0),

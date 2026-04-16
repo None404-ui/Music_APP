@@ -1,7 +1,7 @@
-/* Вкладка «Моё» — коллекция пользователя */
+/* Вкладка «Моё» — коллекция пользователя (светлый фон, мягкий текст как в настройках) */
 
 QWidget#selectedPage {
-    background-color: rgba(207, 200, 154, 0.88);
+    background-color: rgba(248, 244, 230, 0.96);
 }
 
 QWidget#selectedPage QLabel#sectionHeading {
@@ -15,6 +15,24 @@ QWidget#selectedPage QLabel#sectionHeading {
 
 QWidget#selectedPage QPushButton#btnNav {
     min-width: 132px;
+    background-color: #E4EBE2;
+    color: #4A6B5E;
+    border: 1px solid #B8C9B0;
+    border-radius: 16px;
+    padding: 6px 20px;
+    font-family: "Courier New";
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+QWidget#selectedPage QPushButton#btnNav:hover {
+    background-color: #A14016;
+    color: #FCFAF4;
+    border: 1px solid #8B3A12;
+}
+QWidget#selectedPage QPushButton#btnNav:checked {
+    background-color: #CB883A;
+    color: #312938;
+    border: 1px solid #A14016;
 }
 
 QLabel#selectedSectionLabel {
@@ -28,13 +46,13 @@ QLabel#selectedSectionLabel {
 }
 
 QFrame#selectedRow {
-    background-color: #D4CFA0;
-    border: 1px solid #89A194;
+    background-color: #EDE8D8;
+    border: 1px solid #C5D0C0;
     border-radius: 8px;
 }
 QFrame#selectedRow:hover {
     border: 1px solid #CB883A;
-    background-color: #D9D3A8;
+    background-color: #F5F1E4;
 }
 
 QLabel#selectedRowTitle {
@@ -47,7 +65,7 @@ QLabel#selectedRowTitle {
 QLabel#selectedRowSub {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
+    color: #4A6B5E;
 }
 
 QLabel#selectedRowArtist {
@@ -63,7 +81,7 @@ QLabel#selectedRowArtist:hover {
 QLabel#selectedEmpty {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
+    color: #6B5348;
     font-style: italic;
     padding: 8px 4px;
 }
@@ -76,12 +94,12 @@ QScrollArea#selectedScroll > QWidget > QWidget {
     background: transparent;
 }
 QScrollBar:vertical {
-    background: rgba(189, 182, 133, 0.5);
+    background: #E4DFC8;
     width: 6px;
     border-radius: 3px;
 }
 QScrollBar::handle:vertical {
-    background: #89A194;
+    background: #A8BDA8;
     border-radius: 3px;
     min-height: 30px;
 }

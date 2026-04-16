@@ -22,13 +22,13 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkReques
 from backend.api_client import resolve_backend_media_url
 from ui import i18n, locale_settings, playback_settings
 
-# Слева подпись — #89A194; справа значение — тёплый беж #CFC89A (как в палитре CRATES).
-_SETTINGS_ROW_LABEL_COLOR = "#89A194"
-_SETTINGS_ROW_VALUE_COLOR = "#CFC89A"
+# Светлые строки настроек: более тёмный текст для контраста.
+_SETTINGS_ROW_LABEL_COLOR = "#4A6B5E"
+_SETTINGS_ROW_VALUE_COLOR = "#6B5348"
 
 
 class ToggleSwitch(QWidget):
-    """Animated toggle: circle slides right on activation, track fills beige, circle is blue."""
+    """Переключатель: светлая дорожка (шалфей → янтарь), бегунок приглушённый серо-зелёный."""
 
     toggled = pyqtSignal(bool)
 
@@ -84,15 +84,18 @@ class ToggleSwitch(QWidget):
 
         t = max(0.0, min(1.0, (self._circle_x - self._OFF_X) / (self._ON_X - self._OFF_X)))
 
-        br = int(137 + t * (203 - 137))
-        bg = int(161 + t * (136 - 161))
-        bb = int(148 + t * (58 - 148))
+        # Светлая дорожка: выкл — мягкий шалфей; вкл — тёплый янтарь (читается на светлом фоне вкладки)
+        br0, bg0, bb0 = 214, 222, 214
+        br1, bg1, bb1 = 236, 206, 128
+        br = int(br0 + t * (br1 - br0))
+        bg = int(bg0 + t * (bg1 - bg0))
+        bb = int(bb0 + t * (bb1 - bb0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(br, bg, bb))
         p.drawRoundedRect(0, 0, w, h, r, r)
 
         cx = int(self._circle_x)
-        p.setBrush(QColor("#312938"))
+        p.setBrush(QColor("#5C6460"))
         p.drawEllipse(cx - circle_r, h // 2 - circle_r, circle_r * 2, circle_r * 2)
 
         p.end()

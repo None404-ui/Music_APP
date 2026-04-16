@@ -406,14 +406,36 @@ QPushButton#miniPlayerPlayBtn:pressed {
     border: 2px solid #A14016;
 }
 
-QProgressBar#miniPlayerProgress {
+/* Мини-плеер: ползунок перемотки (как на вкладке плеера, компактнее) */
+QSlider#miniPlayerSeekSlider::groove:horizontal {
     background: rgba(207, 200, 154, 0.18);
     border: 1px solid rgba(49, 41, 56, 0.85);
-    border-radius: 3px;
-}
-QProgressBar#miniPlayerProgress::chunk {
-    background-color: #CB883A;
+    height: 4px;
     border-radius: 2px;
+}
+QSlider#miniPlayerSeekSlider::sub-page:horizontal {
+    background-color: #CB883A;
+    border: 1px solid rgba(49, 41, 56, 0.85);
+    height: 4px;
+    border-radius: 2px;
+}
+QSlider#miniPlayerSeekSlider::add-page:horizontal {
+    background: rgba(207, 200, 154, 0.18);
+    border: 1px solid rgba(49, 41, 56, 0.85);
+    height: 4px;
+    border-radius: 2px;
+}
+QSlider#miniPlayerSeekSlider::handle:horizontal {
+    background-color: #312938;
+    border: 1px solid #CB883A;
+    width: 8px;
+    height: 10px;
+    border-radius: 0px;
+    margin: -5px 0;
+}
+QSlider#miniPlayerSeekSlider::handle:horizontal:hover {
+    background-color: #A14016;
+    border-color: #312938;
 }
 
 QFrame#miniPlayerVolumePopup {

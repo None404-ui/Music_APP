@@ -533,6 +533,26 @@ class PlayerTab(QWidget):
     def is_playing(self) -> bool:
         return self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
 
+    def is_user_seeking(self) -> bool:
+        return self._user_seeking
+
+    def set_user_seeking(self, active: bool) -> None:
+        self._user_seeking = bool(active)
+
+    def preview_external_seek_ms(self, pos_ms: int) -> None:
+        if self._user_seeking:
+            self._refresh_progress_time_labels(int(pos_ms))
+
+    def apply_external_seek_ms(self, pos_ms: int) -> None:
+        """Перемотка с мини-плеера (тот же путь, что отпускание ползунка на вкладке плеера)."""
+        self._user_seeking = False
+        if not self._playlist:
+            return
+        self._player.setPosition(int(pos_ms))
+        self._graphic_eq.reset()
+        self._refresh_progress_time_labels()
+        self._emit_progress_state()
+
     def can_play_previous(self) -> bool:
         return bool(self._playlist) and self._index > 0
 

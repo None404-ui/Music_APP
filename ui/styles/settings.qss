@@ -3,7 +3,7 @@
    ============================================================ */
 
 QWidget#settingsPage {
-    background-color: rgba(207, 200, 154, 0.88);
+    background-color: rgba(248, 244, 230, 0.96);
 }
 
 /* Scroll area */
@@ -12,12 +12,12 @@ QScrollArea#settingsScroll {
     border: none;
 }
 QScrollBar:vertical {
-    background: #BDB685;
+    background: #E4DFC8;
     width: 6px;
     border-radius: 3px;
 }
 QScrollBar::handle:vertical {
-    background: #89A194;
+    background: #A8BDA8;
     border-radius: 3px;
     min-height: 30px;
 }
@@ -107,26 +107,26 @@ QLabel#settingsSectionLabel {
 QLabel#settingsHint {
     font-family: "Courier New";
     font-size: 10px;
-    color: #312938;
+    color: #4a4a48;
     padding: 0 4px 8px 4px;
 }
 
 /* Settings row */
 QFrame#settingsRow {
-    background-color: #D4CFA0;
-    border: 1px solid #89A194;
+    background-color: #EDE8D8;
+    border: 1px solid #C5D0C0;
     border-radius: 8px;
 }
 QFrame#settingsRow:hover {
-    background-color: #D9D3A8;
+    background-color: #F5F1E4;
     border: 1px solid #CB883A;
 }
 
-/* Слева подпись строки */
+/* Подписи строк — тот же приглушённый зелёный, что у «Тёмная тема» (#4A6B5E в коде) */
 QLabel#settingsRowLabel {
     font-family: "Courier New";
     font-size: 13px;
-    color: #312938 !important;
+    color: #4A6B5E;
     letter-spacing: 1px;
 }
 
@@ -135,14 +135,14 @@ QWidget#settingsPage QLabel#settingsRowValue,
 QFrame#settingsRow QLabel#settingsRowValue {
     font-family: "Courier New";
     font-size: 13px;
-    color: #312938 !important;
+    color: #6B5348;
 }
 
-/* Combo box for sound quality */
+/* Combo: язык и качество — светлый фон и тот же цвет текста, что у подписей строк */
 QComboBox#settingsCombo {
-    background-color: #D4CFA0;
-    color: #312938;
-    border: 1px solid #89A194;
+    background-color: #FCFAF4;
+    color: #4A6B5E;
+    border: 1px solid #B8C9B0;
     border-radius: 6px;
     padding: 4px 12px;
     font-family: "Courier New";
@@ -151,10 +151,13 @@ QComboBox#settingsCombo {
 }
 QComboBox#settingsCombo:hover {
     border: 1px solid #CB883A;
+    background-color: #FFFFFF;
+    color: #4A6B5E;
 }
 QComboBox#settingsCombo::drop-down {
     border: none;
     width: 20px;
+    background: transparent;
 }
 QComboBox#settingsCombo::down-arrow {
     image: none;
@@ -166,12 +169,24 @@ QComboBox#settingsCombo::down-arrow {
     margin-right: 6px;
 }
 QComboBox#settingsCombo QAbstractItemView {
-    background-color: #D4CFA0;
-    color: #312938;
-    border: 1px solid #89A194;
+    background-color: #FCFAF4;
+    color: #4A6B5E;
+    border: 1px solid #B8C9B0;
     selection-background-color: #CB883A;
     selection-color: #312938;
     outline: none;
     font-family: "Courier New";
     font-size: 12px;
+}
+QComboBox#settingsCombo QAbstractItemView::item {
+    color: #4A6B5E;
+    padding: 6px 10px;
+}
+QComboBox#settingsCombo QAbstractItemView::item:selected {
+    color: #312938;
+    background-color: #CB883A;
+}
+QComboBox#settingsCombo QAbstractItemView::item:hover {
+    background-color: #E8F0E4;
+    color: #4A6B5E;
 }
