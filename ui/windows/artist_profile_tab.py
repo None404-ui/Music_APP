@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.api_client import resolve_backend_media_url
+from ui import i18n
 from backend.session import UserSession
 from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
@@ -45,12 +46,14 @@ class _PixelExpandArrow(QPushButton):
         self.setFixedSize(52, 24)
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("все треки")
+        self.setToolTip(i18n.tr("все треки"))
         self._expanded = False
 
     def set_expanded(self, expanded: bool) -> None:
         self._expanded = expanded
-        self.setToolTip("свернуть" if expanded else "все треки")
+        self.setToolTip(
+            i18n.tr("свернуть") if expanded else i18n.tr("все треки")
+        )
         self.update()
 
     def paintEvent(self, event) -> None:
@@ -149,7 +152,7 @@ class _ArtistHeroTrackRow(InteractiveRowFrame):
             self._thumb_reply = _album_cover_network().get(QNetworkRequest(QUrl(url)))
             self._thumb_reply.finished.connect(self._on_thumb_finished)
 
-        self._title = QLabel((item.get("title") or "Без названия").strip())
+        self._title = QLabel((item.get("title") or i18n.tr("Без названия")).strip())
         self._title.setObjectName("trackTitle")
         self._title.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -271,7 +274,7 @@ class ArtistProfileTab(QWidget):
         root.setSpacing(10)
 
         nav_row = QHBoxLayout()
-        self._btn_back = QPushButton("← назад")
+        self._btn_back = QPushButton(i18n.tr("← назад"))
         self._btn_back.setObjectName("btnNav")
         self._btn_back.setCheckable(False)
         self._btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -312,7 +315,7 @@ class ArtistProfileTab(QWidget):
         self._heading.setFixedHeight(_HERO_NAME_H)
         right_col.addWidget(self._heading)
 
-        self._popular_lbl = QLabel("популярное")
+        self._popular_lbl = QLabel(i18n.tr("популярное"))
         self._popular_lbl.setObjectName("popularLoadStatus")
         self._popular_lbl.setFixedHeight(_HERO_POPULAR_H)
         right_col.addWidget(self._popular_lbl)
@@ -373,8 +376,8 @@ class ArtistProfileTab(QWidget):
         self._status.hide()
         root.addWidget(self._status)
 
-        self._album_carousel = CarouselSection("АЛЬБОМЫ")
-        self._playlist_carousel = CarouselSection("ПЛЕЙЛИСТЫ")
+        self._album_carousel = CarouselSection(i18n.tr("АЛЬБОМЫ"))
+        self._playlist_carousel = CarouselSection(i18n.tr("ПЛЕЙЛИСТЫ"))
         root.addWidget(self._album_carousel)
         root.addSpacing(8)
         root.addWidget(self._playlist_carousel)
@@ -426,7 +429,7 @@ class ArtistProfileTab(QWidget):
                 w.setParent(None)
                 w.deleteLater()
         if not self._norm_tracks:
-            empty = QLabel("Нет треков в каталоге.")
+            empty = QLabel(i18n.tr("Нет треков в каталоге."))
             empty.setObjectName("popularEmptyHint")
             self._tracks_layout.addWidget(empty)
             return
@@ -487,7 +490,7 @@ class ArtistProfileTab(QWidget):
             return
         self._heading.setText(self._artist_name.upper())
         self._meta.setText("")
-        self._status.setText("загрузка…")
+        self._status.setText(i18n.tr("загрузка…"))
         self._status.show()
         self._norm_tracks = []
         self._tracks_expanded = False
@@ -514,11 +517,11 @@ class ArtistProfileTab(QWidget):
         try:
             st, body = self._session.client.get_json(path)
         except OSError as e:
-            self._status.setText(f"Нет связи с сервером: {e}")
+            self._status.setText(f"{i18n.tr('Нет связи с сервером:')} {e}")
             self._status.show()
             return
         except Exception as e:
-            self._status.setText(f"Ошибка: {e}")
+            self._status.setText(f"{i18n.tr('Ошибка:')} {e}")
             self._status.show()
             return
 
@@ -526,7 +529,7 @@ class ArtistProfileTab(QWidget):
             detail = ""
             if isinstance(body, dict):
                 detail = str(body.get("detail", body))
-            self._status.setText(f"Сервер ответил {st}. {detail}".strip())
+            self._status.setText(f"{i18n.tr('Сервер ответил')} {st}. {detail}".strip())
             self._status.show()
             return
 
@@ -534,7 +537,7 @@ class ArtistProfileTab(QWidget):
         display = (body.get("name") or name).strip() or name
         self._heading.setText(display.upper())
         tc = int(body.get("track_count") or 0)
-        self._meta.setText(f"треков в каталоге: {tc}")
+        self._meta.setText(f"{i18n.tr('треков в каталоге:')} {tc}")
 
         api_base = self._session.client.base_url if self._session else ""
 

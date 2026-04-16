@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from backend.session import UserSession
 from ui.interactive_fx import StatefulIconButton
+from ui import i18n
 
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "icons")
 
@@ -59,7 +60,7 @@ class TrackLikeReviewBar(QWidget):
         self._btn_like.setFixedSize(40, 36)
         self._btn_like.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_like.setIconSize(QSize(22, 22))
-        self._btn_like.setToolTip("В избранное")
+        self._btn_like.setToolTip(i18n.tr("В избранное"))
 
         self._btn_review = StatefulIconButton(
             rev_ic,
@@ -74,7 +75,7 @@ class TrackLikeReviewBar(QWidget):
         self._btn_review.setFixedSize(40, 36)
         self._btn_review.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_review.setIconSize(QSize(22, 22))
-        self._btn_review.setToolTip("Написать рецензию")
+        self._btn_review.setToolTip(i18n.tr("Написать рецензию"))
 
         mid = item.get("id")
         can = mid is not None and session is not None
@@ -99,7 +100,7 @@ class TrackLikeReviewBar(QWidget):
             return
         likes = int(self._item.get("favorites_count") or 0)
         listens = int(self._item.get("listens_count") or 0)
-        self._stats_label.setText(f"♥ {likes}  ·  {listens} слуш.")
+        self._stats_label.setText(i18n.track_stats_line(likes, listens))
 
     def _resolve_favorite_id(self, mid: int) -> None:
         if not self._session:
@@ -171,7 +172,7 @@ class TrackLikeReviewBar(QWidget):
 
         from ui.windows.write_review_dialog import WriteReviewDialog
 
-        title = str(self._item.get("title") or "трек")
+        title = str(self._item.get("title") or i18n.tr("трек"))
         dlg = WriteReviewDialog(
             self._session.client,
             int(mid),

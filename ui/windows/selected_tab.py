@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
+from ui import i18n
 from ui.artist_link_label import ArtistLinkLabel
 from ui.windows.upload_music_dialog import UploadMusicDialog
 
@@ -49,15 +50,15 @@ def _owner_id(collection: dict):
 def _review_title(review: dict) -> str:
     mi = review.get("music_item")
     if isinstance(mi, dict):
-        return mi.get("title") or "Рецензия"
+        return mi.get("title") or i18n.tr("Рецензия")
     if mi is not None:
-        return f"Трек #{mi}"
+        return f"{i18n.tr('Трек')} #{mi}"
     collection = review.get("collection")
     if isinstance(collection, dict):
-        return collection.get("title") or "Подборка"
+        return collection.get("title") or i18n.tr("Подборка")
     if collection is not None:
-        return f"Подборка #{collection}"
-    return "Рецензия"
+        return f"{i18n.tr('Подборка')} #{collection}"
+    return i18n.tr("Рецензия")
 
 
 def _review_excerpt(review: dict, limit: int = 120) -> str:
@@ -241,7 +242,7 @@ class SelectedTab(QWidget):
         self._outer.setContentsMargins(24, 16, 24, 24)
         self._outer.setSpacing(6)
 
-        title = QLabel("МОЁ")
+        title = QLabel(i18n.tr("МОЁ"))
         title.setObjectName("sectionHeading")
         sh = QGraphicsDropShadowEffect(title)
         sh.setBlurRadius(16)
@@ -253,11 +254,11 @@ class SelectedTab(QWidget):
         toggle_row = QHBoxLayout()
         toggle_row.setSpacing(8)
 
-        self._btn_favorites = QPushButton("избранное")
+        self._btn_favorites = QPushButton(i18n.tr("избранное"))
         self._btn_favorites.setObjectName("btnNav")
         self._btn_favorites.setCheckable(True)
 
-        self._btn_uploads = QPushButton("мои загрузки")
+        self._btn_uploads = QPushButton(i18n.tr("мои загрузки"))
         self._btn_uploads.setObjectName("btnNav")
         self._btn_uploads.setCheckable(True)
 
@@ -430,41 +431,41 @@ class SelectedTab(QWidget):
         col.setSpacing(6)
 
         if st_fav != 200:
-            col.addWidget(self._section_label("ИЗБРАННОЕ"))
-            col.addWidget(self._empty("Не удалось загрузить избранное с сервера."))
+            col.addWidget(self._section_label(i18n.tr("ИЗБРАННОЕ")))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить избранное с сервера.")))
         else:
-            col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
+            col.addWidget(self._section_label(i18n.tr("ИЗБРАННЫЕ ТРЕКИ")))
             self._add_track_rows(
                 col,
                 fav_tracks,
-                "Пока нет. ♥ для одного трека (поиск / не из очереди альбома).",
+                i18n.tr("Пока нет. ♥ для одного трека (поиск / не из очереди альбома)."),
             )
 
-            col.addWidget(self._section_label("ИЗБРАННЫЕ АЛЬБОМЫ"))
+            col.addWidget(self._section_label(i18n.tr("ИЗБРАННЫЕ АЛЬБОМЫ")))
             self._add_album_rows(
                 col,
                 fav_albums,
-                "Пока нет. Во время воспроизведения альбома нажмите ♥.",
+                i18n.tr("Пока нет. Во время воспроизведения альбома нажмите ♥."),
                 item_kind="album",
             )
 
             if fav_playlists:
-                col.addWidget(self._section_label("ИЗБРАННЫЕ ПЛЕЙЛИСТЫ"))
+                col.addWidget(self._section_label(i18n.tr("ИЗБРАННЫЕ ПЛЕЙЛИСТЫ")))
                 self._add_album_rows(
                     col,
                     fav_playlists,
-                    "Пока нет.",
+                    i18n.tr("Пока нет."),
                     item_kind="playlist",
                 )
 
-        col.addWidget(self._section_label("ИЗБРАННЫЕ РЕЦЕНЗИИ"))
+        col.addWidget(self._section_label(i18n.tr("ИЗБРАННЫЕ РЕЦЕНЗИИ")))
         if st_review_fav != 200:
-            col.addWidget(self._empty("Не удалось загрузить избранные рецензии."))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить избранные рецензии.")))
         elif favorite_reviews:
             self._add_review_rows(col, favorite_reviews)
         else:
             col.addWidget(
-                self._empty("Пока нет. Отмечайте понравившиеся рецензии сердцем.")
+                self._empty(i18n.tr("Пока нет. Отмечайте понравившиеся рецензии сердцем."))
             )
 
         col.addStretch()
@@ -490,10 +491,10 @@ class SelectedTab(QWidget):
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 4)
         actions.setSpacing(8)
-        btn_upload_track = QPushButton("загрузить трек")
+        btn_upload_track = QPushButton(i18n.tr("загрузить трек"))
         btn_upload_track.setObjectName("btnPrimary")
         btn_upload_track.clicked.connect(lambda: self._open_upload_dialog("track"))
-        btn_upload_album = QPushButton("загрузить альбом")
+        btn_upload_album = QPushButton(i18n.tr("загрузить альбом"))
         btn_upload_album.setObjectName("btnPrimary")
         btn_upload_album.clicked.connect(lambda: self._open_upload_dialog("album"))
         btn_upload_track.setMinimumWidth(160)
@@ -503,34 +504,34 @@ class SelectedTab(QWidget):
         actions.addStretch(1)
         col.addLayout(actions)
 
-        col.addWidget(self._section_label("МОИ ТРЕКИ"))
+        col.addWidget(self._section_label(i18n.tr("МОИ ТРЕКИ")))
         if st_own_tracks != 200:
-            col.addWidget(self._empty("Не удалось загрузить ваши треки."))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить ваши треки.")))
         else:
-            self._add_track_rows(col, own_tracks, "Вы пока не загружали треки.")
+            self._add_track_rows(col, own_tracks, i18n.tr("Вы пока не загружали треки."))
 
-        col.addWidget(self._section_label("МОИ АЛЬБОМЫ"))
+        col.addWidget(self._section_label(i18n.tr("МОИ АЛЬБОМЫ")))
         if st_own_albums != 200:
-            col.addWidget(self._empty("Не удалось загрузить ваши альбомы."))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить ваши альбомы.")))
         else:
             self._add_album_rows(
                 col,
                 own_albums,
-                "Вы пока не загружали альбомы.",
+                i18n.tr("Вы пока не загружали альбомы."),
                 item_kind="album",
             )
 
-        col.addWidget(self._section_label("МОИ РЕЦЕНЗИИ"))
+        col.addWidget(self._section_label(i18n.tr("МОИ РЕЦЕНЗИИ")))
         if st_rev != 200:
-            col.addWidget(self._empty("Не удалось загрузить рецензии."))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить рецензии.")))
         elif own_reviews:
             self._add_review_rows(col, own_reviews)
         else:
-            col.addWidget(self._empty("Рецензий пока нет. Добавьте из плеера."))
+            col.addWidget(self._empty(i18n.tr("Рецензий пока нет. Добавьте из плеера.")))
 
-        col.addWidget(self._section_label("МОИ ПОДБОРКИ"))
+        col.addWidget(self._section_label(i18n.tr("МОИ ПОДБОРКИ")))
         if st_col != 200:
-            col.addWidget(self._empty("Не удалось загрузить подборки."))
+            col.addWidget(self._empty(i18n.tr("Не удалось загрузить подборки.")))
         elif own_collections:
             for collection in own_collections:
                 col.addWidget(
@@ -541,7 +542,7 @@ class SelectedTab(QWidget):
                     )
                 )
         else:
-            col.addWidget(self._empty("Подборок пока нет."))
+            col.addWidget(self._empty(i18n.tr("Подборок пока нет.")))
 
         col.addStretch()
         return container
@@ -588,7 +589,7 @@ class SelectedTab(QWidget):
         if not items:
             layout.addWidget(self._empty(empty_text))
             return
-        sub = "Альбом" if item_kind == "album" else "Плейлист"
+        sub = i18n.tr("Альбом") if item_kind == "album" else i18n.tr("Плейлист")
         for item in items:
             open_cb = None
             if self._on_open_album:

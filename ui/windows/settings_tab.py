@@ -20,7 +20,7 @@ from PyQt6.QtGui import QPainter, QColor, QImage, QPainterPath, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 from backend.api_client import resolve_backend_media_url
-from ui import playback_settings
+from ui import i18n, locale_settings, playback_settings
 
 # Слева подпись — #89A194; справа значение — тёплый беж #CFC89A (как в палитре CRATES).
 _SETTINGS_ROW_LABEL_COLOR = "#89A194"
@@ -146,10 +146,11 @@ class SettingsRow(QFrame):
             layout.addWidget(val)
 
 
+_INTERFACE_SECTION = "ИНТЕРФЕЙС"
+
 _SECTIONS_OTHER = {
-    "ИНТЕРФЕЙС": [
+    _INTERFACE_SECTION: [
         ("Тёмная тема", None, "toggle"),
-        ("Язык", "Русский", "text"),
     ],
 }
 
@@ -160,6 +161,7 @@ class SettingsTab(QWidget):
         session: Optional["UserSession"] = None,
         on_playback_changed=None,
         on_logout: Optional[Callable[[], None]] = None,
+        on_language_changed: Optional[Callable[[], None]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -167,6 +169,7 @@ class SettingsTab(QWidget):
         self._session = session
         self._on_playback_changed = on_playback_changed
         self._on_logout = on_logout
+        self._on_language_changed = on_language_changed
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 24)
@@ -187,7 +190,7 @@ class SettingsTab(QWidget):
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setText("♪")
         if session is not None:
-            avatar.setToolTip("Нажмите, чтобы выбрать фото профиля")
+            avatar.setToolTip(i18n.tr("Нажмите, чтобы выбрать фото профиля"))
             avatar.clicked.connect(self._pick_avatar)
         else:
             avatar.setToolTip("")
@@ -197,11 +200,13 @@ class SettingsTab(QWidget):
         if session is not None:
             email = (session.email or "").strip()
             nick = (session.nickname or "").strip()
-            display = nick or (email.split("@", 1)[0] if email else "") or "Пользователь"
+            display = nick or (email.split("@", 1)[0] if email else "") or i18n.tr(
+                "Пользователь"
+            )
             name_lbl = QLabel(display)
             handle_lbl = QLabel(email or "—")
         else:
-            name_lbl = QLabel("Пользователь")
+            name_lbl = QLabel(i18n.tr("Пользователь"))
             handle_lbl = QLabel("—")
         name_lbl.setObjectName("profileName")
         handle_lbl.setObjectName("profileHandle")
@@ -216,7 +221,7 @@ class SettingsTab(QWidget):
         profile_layout.addLayout(name_col, stretch=1)
 
         if on_logout is not None:
-            btn_out = QPushButton("Выйти из аккаунта")
+            btn_out = QPushButton(i18n.tr("Выйти из аккаунта"))
             btn_out.setObjectName("settingsLogoutBtn")
             btn_out.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_out.setSizePolicy(
@@ -247,7 +252,7 @@ class SettingsTab(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
 
-        acc_lbl = QLabel("АККАУНТ")
+        acc_lbl = QLabel(i18n.tr("АККАУНТ"))
         acc_lbl.setObjectName("settingsSectionLabel")
         col.addWidget(acc_lbl)
         if session is not None:
@@ -257,44 +262,64 @@ class SettingsTab(QWidget):
             mail_row = email_acc or "—"
         else:
             name_row, mail_row = "—", "—"
-        col.addWidget(SettingsRow("Имя пользователя", name_row, "text"))
-        col.addWidget(SettingsRow("Электронная почта", mail_row, "text"))
-        col.addWidget(SettingsRow("Сменить пароль", "", "text"))
+        col.addWidget(
+            SettingsRow(i18n.tr("Имя пользователя"), name_row, "text"),
+        )
+        col.addWidget(
+            SettingsRow(i18n.tr("Электронная почта"), mail_row, "text"),
+        )
+        col.addWidget(
+            SettingsRow(i18n.tr("Сменить пароль"), "", "text"),
+        )
 
         for section_name, rows in _SECTIONS_OTHER.items():
-            section_lbl = QLabel(section_name)
+            section_lbl = QLabel(i18n.tr(section_name))
             section_lbl.setObjectName("settingsSectionLabel")
             col.addWidget(section_lbl)
             for row_label, row_data, row_type in rows:
-                col.addWidget(SettingsRow(row_label, row_data, row_type))
+                col.addWidget(
+                    SettingsRow(i18n.tr(row_label), row_data, row_type),
+                )
+            if section_name == _INTERFACE_SECTION:
+                col.addWidget(self._build_language_row())
+                lang_hint = QLabel(
+                    i18n.tr(
+                        "При смене языка главное окно пересоздаётся (сессия сохраняется)."
+                    )
+                )
+                lang_hint.setObjectName("settingsHint")
+                lang_hint.setWordWrap(True)
+                col.addWidget(lang_hint)
 
-        pb_lbl = QLabel("ВОСПРОИЗВЕДЕНИЕ")
+        pb_lbl = QLabel(i18n.tr("ВОСПРОИЗВЕДЕНИЕ"))
         pb_lbl.setObjectName("settingsSectionLabel")
         col.addWidget(pb_lbl)
 
         self._quality_combo = QComboBox()
         self._quality_combo.setObjectName("settingsCombo")
-        for opt in ["Авто", "Высокое", "Среднее", "Низкое"]:
-            self._quality_combo.addItem(opt)
+        for key, label_ru in playback_settings.QUALITY_CHOICES:
+            self._quality_combo.addItem(i18n.tr(label_ru), key)
         qrow = QFrame()
         qrow.setObjectName("settingsRow")
         qrow.setFixedHeight(52)
         ql = QHBoxLayout(qrow)
         ql.setContentsMargins(16, 0, 16, 0)
-        q_lab = QLabel("Качество звука")
+        q_lab = QLabel(i18n.tr("Качество звука"))
         q_lab.setObjectName("settingsRowLabel")
         q_lab.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         ql.addWidget(q_lab)
         ql.addStretch()
         ql.addWidget(self._quality_combo)
-        idx = self._quality_combo.findText(playback_settings.quality_label())
+        q_idx = self._quality_combo.findData(playback_settings.quality_key())
         self._quality_combo.blockSignals(True)
-        self._quality_combo.setCurrentIndex(max(0, idx))
+        self._quality_combo.setCurrentIndex(max(0, q_idx))
         self._quality_combo.blockSignals(False)
         self._quality_combo.currentIndexChanged.connect(self._on_quality_index_changed)
         col.addWidget(qrow)
         q_hint = QLabel(
-            "Меняет максимальную громкость: «Низкое» тише, «Высокое» — полный уровень ползунка."
+            i18n.tr(
+                "Меняет максимальную громкость: «Низкое» тише, «Высокое» — полный уровень ползунка."
+            )
         )
         q_hint.setObjectName("settingsHint")
         q_hint.setWordWrap(True)
@@ -308,7 +333,7 @@ class SettingsTab(QWidget):
         arow.setFixedHeight(52)
         al = QHBoxLayout(arow)
         al.setContentsMargins(16, 0, 16, 0)
-        a_lab = QLabel("Автовоспроизведение")
+        a_lab = QLabel(i18n.tr("Автовоспроизведение"))
         a_lab.setObjectName("settingsRowLabel")
         al.addWidget(a_lab)
         al.addStretch()
@@ -323,7 +348,7 @@ class SettingsTab(QWidget):
         nrow.setFixedHeight(52)
         nl = QHBoxLayout(nrow)
         nl.setContentsMargins(16, 0, 16, 0)
-        n_lab = QLabel("Нормализация громкости")
+        n_lab = QLabel(i18n.tr("Нормализация громкости"))
         n_lab.setObjectName("settingsRowLabel")
         nl.addWidget(n_lab)
         nl.addStretch()
@@ -336,8 +361,44 @@ class SettingsTab(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self._sync_playback_and_language_widgets()
         if self._session:
             self._reload_profile_header()
+
+    def _build_language_row(self) -> QFrame:
+        row = QFrame()
+        row.setObjectName("settingsRow")
+        row.setFixedHeight(52)
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(16, 0, 16, 0)
+        lab = QLabel(i18n.tr("Язык"))
+        lab.setObjectName("settingsRowLabel")
+        lab.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
+        lay.addWidget(lab)
+        lay.addStretch()
+        self._lang_combo = QComboBox()
+        self._lang_combo.setObjectName("settingsCombo")
+        self._lang_combo.addItem(i18n.tr("Русский"), "ru")
+        self._lang_combo.addItem("English", "en")
+        li = self._lang_combo.findData(locale_settings.language_code())
+        self._lang_combo.blockSignals(True)
+        self._lang_combo.setCurrentIndex(max(0, li))
+        self._lang_combo.blockSignals(False)
+        self._lang_combo.currentIndexChanged.connect(self._on_language_index_changed)
+        lay.addWidget(self._lang_combo)
+        return row
+
+    def _sync_playback_and_language_widgets(self) -> None:
+        q_idx = self._quality_combo.findData(playback_settings.quality_key())
+        self._quality_combo.blockSignals(True)
+        self._quality_combo.setCurrentIndex(max(0, q_idx))
+        self._quality_combo.blockSignals(False)
+        li = self._lang_combo.findData(locale_settings.language_code())
+        self._lang_combo.blockSignals(True)
+        self._lang_combo.setCurrentIndex(max(0, li))
+        self._lang_combo.blockSignals(False)
+        self._autoplay_toggle.setChecked(playback_settings.autoplay())
+        self._norm_toggle.setChecked(playback_settings.normalization())
 
     def _round_avatar_pixmap(self, src: QPixmap) -> QPixmap:
         size = 90
@@ -404,7 +465,9 @@ class SettingsTab(QWidget):
             return
         nick = (body.get("nickname") or "").strip()
         email = (self._session.email or "").strip()
-        display = nick or (email.split("@", 1)[0] if email else "") or "Пользователь"
+        display = nick or (email.split("@", 1)[0] if email else "") or i18n.tr(
+            "Пользователь"
+        )
         self._name_lbl.setText(display)
         self._handle_lbl.setText(email or "—")
         url = resolve_backend_media_url(
@@ -423,9 +486,9 @@ class SettingsTab(QWidget):
             return
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Изображение для аватара",
+            i18n.tr("Изображение для аватара"),
             "",
-            "Изображения (*.png *.jpg *.jpeg *.webp *.bmp);;Все файлы (*.*)",
+            i18n.tr("Изображения (*.png *.jpg *.jpeg *.webp *.bmp);;Все файлы (*.*)"),
         )
         if not path:
             return
@@ -451,9 +514,21 @@ class SettingsTab(QWidget):
             self._on_playback_changed()
 
     def _on_quality_index_changed(self, index: int) -> None:
-        text = self._quality_combo.itemText(index)
-        playback_settings.set_quality_label(text)
+        key = self._quality_combo.itemData(index)
+        if not isinstance(key, str):
+            return
+        playback_settings.set_quality_key(key)
         self._emit_playback()
+
+    def _on_language_index_changed(self, _index: int) -> None:
+        code = self._lang_combo.currentData()
+        if not isinstance(code, str):
+            return
+        if code == locale_settings.language_code():
+            return
+        locale_settings.set_language_code(code)
+        if self._on_language_changed:
+            self._on_language_changed()
 
     def _on_autoplay_toggled(self, checked: bool) -> None:
         playback_settings.set_autoplay(checked)

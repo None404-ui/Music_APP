@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
 )
 
-from ui import playback_settings
+from ui import i18n, playback_settings
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
@@ -54,7 +54,7 @@ def _album_name(item: dict) -> str:
     artist = (item.get("artist") or "").strip()
     if artist:
         return artist.upper()
-    return "ИМЯ АЛЬБОМА"
+    return i18n.tr("ИМЯ АЛЬБОМА")
 
 
 def _album_display(item: dict) -> str:
@@ -67,18 +67,6 @@ def _album_display(item: dict) -> str:
         except json.JSONDecodeError:
             pass
     return "—"
-
-
-def _fmt_listen_total_sec(sec: int) -> str:
-    if sec <= 0:
-        return "0 с"
-    if sec < 60:
-        return f"{sec} с"
-    m, s = divmod(sec, 60)
-    if m < 60:
-        return f"{m} мин {s:02d} с" if s else f"{m} мин"
-    h, m = divmod(m, 60)
-    return f"{h} ч {m} мин"
 
 
 def _media_url_from_audio_url(ref: str) -> QUrl:
@@ -271,7 +259,7 @@ class PlayerTab(QWidget):
         band.setObjectName("playerTrackBand")
         bl = QVBoxLayout(band)
         bl.setContentsMargins(14, 10, 14, 10)
-        lbl_trek = QLabel("ТРЕК")
+        lbl_trek = QLabel(i18n.tr("ТРЕК"))
         lbl_trek.setObjectName("playerTrekLabel")
         bl.addWidget(lbl_trek)
         self._now_title = QLabel("—")
@@ -385,7 +373,7 @@ class PlayerTab(QWidget):
         tab_header.setObjectName("playerAlbumTab")
         th_lay = QHBoxLayout(tab_header)
         th_lay.setContentsMargins(20, 12, 20, 10)
-        self._album_title = QLabel("ИМЯ АЛЬБОМА")
+        self._album_title = QLabel(i18n.tr("ИМЯ АЛЬБОМА"))
         self._album_title.setObjectName("playerAlbumTitle")
         th_lay.addWidget(self._album_title)
         th_lay.addStretch()
@@ -438,7 +426,7 @@ class PlayerTab(QWidget):
         self._btn_like.setFixedSize(40, 36)
         self._btn_like.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_like.setIconSize(QSize(22, 22))
-        self._btn_like.setToolTip("В избранное")
+        self._btn_like.setToolTip(i18n.tr("В избранное"))
         self._btn_like.toggled.connect(self._on_like_toggled)
 
         self._btn_review = StatefulIconButton(
@@ -454,7 +442,7 @@ class PlayerTab(QWidget):
         self._btn_review.setFixedSize(40, 36)
         self._btn_review.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_review.setIconSize(QSize(22, 22))
-        self._btn_review.setToolTip("Написать рецензию")
+        self._btn_review.setToolTip(i18n.tr("Написать рецензию"))
         self._btn_review.clicked.connect(self._on_review_clicked)
 
         tools.addWidget(self._btn_like)
@@ -950,17 +938,13 @@ class PlayerTab(QWidget):
         alb = _album_display(item)
         dur = format_duration_mm_ss(effective_duration_sec(item))
         kind_raw = (item.get("kind") or "").strip()
-        kind_ru = {
-            "track": "трек",
-            "album": "альбом",
-            "playlist": "плейлист",
-        }.get(kind_raw, kind_raw)
+        kind_ru = i18n.music_kind_label(kind_raw) if kind_raw else ""
         prov = (item.get("provider") or "").strip()
         bits: list[str] = []
         if dur != "—":
             bits.append(dur)
         if alb != "—":
-            bits.append(f"альбом: {alb}")
+            bits.append(f"{i18n.tr('альбом:')} {alb}")
         if kind_ru:
             bits.append(kind_ru)
         if prov:
@@ -972,13 +956,10 @@ class PlayerTab(QWidget):
         rc = int(stats_src.get("reviews_count") or 0)
         mid = self._favorite_target_mid(item)
         if mid is not None and self._session:
-            self._info_stats.setText(
-                f"Слушателей: {lc}  ·  Наслушано всего: {_fmt_listen_total_sec(lt)}  ·  "
-                f"В избранном: {fc}  ·  Рецензии: {rc}"
-            )
+            self._info_stats.setText(i18n.player_stats_line(lc, lt, fc, rc))
         else:
             self._info_stats.setText(
-                "Счётчики и избранное — после входа в аккаунт"
+                i18n.tr("Счётчики и избранное — после входа в аккаунт")
                 if not self._session
                 else ""
             )
@@ -1086,7 +1067,7 @@ class PlayerTab(QWidget):
         if mid is None:
             return
         mid = int(mid)
-        title = str(item.get("title") or "трек")
+        title = str(item.get("title") or i18n.tr("трек"))
         if self._context_is_album_or_catalog_playlist() and self._context_stats:
             title = str(self._context_stats.get("title") or title)
         elif item.get("id") is None and self._context_stats:
@@ -1112,9 +1093,9 @@ class PlayerTab(QWidget):
             if w:
                 w.deleteLater()
         for i, item in enumerate(self._playlist):
-            title = item.get("title") or "название песни"
+            title = item.get("title") or i18n.tr("название песни")
             raw_artist = (item.get("artist") or "").strip()
-            artist_show = raw_artist.lower() if raw_artist else "исполнитель"
+            artist_show = raw_artist.lower() if raw_artist else i18n.tr("исполнитель")
             alb = _album_display(item)
             dur = format_duration_mm_ss(effective_duration_sec(item))
             sub = " · ".join(x for x in (alb, dur) if x and x != "—")

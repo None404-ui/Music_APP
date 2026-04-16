@@ -1,7 +1,9 @@
 .DS_Store
 backend/venv/
 ui/venv/
+venv/
 backend/db.sqlite3
 backend/**/__pycache__/
 backend/**/.pytest_cache/
 .python-version
+__pycache__/

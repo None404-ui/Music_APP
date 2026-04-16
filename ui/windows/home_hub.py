@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.interactive_fx import animate_stack_fade
+from ui import i18n
 
 
 class HomeHubWidget(QWidget):
@@ -33,11 +34,11 @@ class HomeHubWidget(QWidget):
         toggle_row = QHBoxLayout()
         toggle_row.setSpacing(8)
 
-        self._btn_popular = QPushButton("популярное")
+        self._btn_popular = QPushButton(i18n.tr("популярное"))
         self._btn_popular.setObjectName("btnNav")
         self._btn_popular.setCheckable(True)
 
-        self._btn_reviews = QPushButton("рецензии")
+        self._btn_reviews = QPushButton(i18n.tr("рецензии"))
         self._btn_reviews.setObjectName("btnNav")
         self._btn_reviews.setCheckable(True)
 

@@ -8,6 +8,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkReques
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from backend.api_client import resolve_backend_media_url
+from ui import i18n
 from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
@@ -93,7 +94,7 @@ class AlbumCard(QFrame):
 
     def _apply_cover_placeholder(self) -> None:
         self._cover.clear_cover()
-        self._cover.setToolTip("Обложка не указана")
+        self._cover.setToolTip(i18n.tr("Обложка не указана"))
 
     def _apply_cover_style(self, hovered: bool) -> None:
         if hovered:
@@ -134,7 +135,7 @@ class AlbumCard(QFrame):
     def set_item(self, item: dict) -> None:
         self._abort_cover_load()
         self._payload = dict(item) if isinstance(item, dict) else {}
-        title = (item.get("title") or "").strip() or "Без названия"
+        title = (item.get("title") or "").strip() or i18n.tr("Без названия")
         self._name.setText(title)
         artist = (item.get("artist") or "").strip()
         self._artist.set_artist(artist)
@@ -454,7 +455,7 @@ class TrackRow(InteractiveRowFrame):
             self._thumb_reply = _album_cover_network().get(QNetworkRequest(QUrl(url)))
             self._thumb_reply.finished.connect(self._on_thumb_finished)
 
-        title = QLabel((item.get("title") or "Без названия").strip())
+        title = QLabel((item.get("title") or i18n.tr("Без названия")).strip())
         title.setObjectName("trackTitle")
         title.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -474,7 +475,7 @@ class TrackRow(InteractiveRowFrame):
 
         likes = int(item.get("favorites_count") or 0)
         listens = int(item.get("listens_count") or 0)
-        self._stats = QLabel(f"♥ {likes}  ·  {listens} слуш.")
+        self._stats = QLabel(i18n.track_stats_line(likes, listens))
         self._stats.setObjectName("trackStats")
         self._stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._stats.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -508,7 +509,7 @@ class TrackRow(InteractiveRowFrame):
 
     def _apply_thumb_placeholder(self) -> None:
         self._thumb.clear_cover()
-        self._thumb.setToolTip("Обложка не указана")
+        self._thumb.setToolTip(i18n.tr("Обложка не указана"))
 
     def _apply_thumb_style(self, hovered: bool) -> None:
         if hovered:
@@ -596,7 +597,7 @@ class PopularTab(QWidget):
         root.setContentsMargins(24, 16, 24, 24)
         root.setSpacing(10)
 
-        page_title = QLabel("ПОПУЛЯРНОЕ")
+        page_title = QLabel(i18n.tr("ПОПУЛЯРНОЕ"))
         page_title.setObjectName("sectionHeading")
         root.addWidget(page_title)
 
@@ -605,15 +606,15 @@ class PopularTab(QWidget):
         self._status.hide()
         root.addWidget(self._status)
 
-        self._album_carousel = CarouselSection("АЛЬБОМЫ")
-        self._artist_carousel = CarouselSection("ИСПОЛНИТЕЛИ")
+        self._album_carousel = CarouselSection(i18n.tr("АЛЬБОМЫ"))
+        self._artist_carousel = CarouselSection(i18n.tr("ИСПОЛНИТЕЛИ"))
 
         root.addWidget(self._album_carousel)
         root.addSpacing(8)
         root.addWidget(self._artist_carousel)
         root.addSpacing(8)
 
-        tracks_title = QLabel("ТРЕКИ")
+        tracks_title = QLabel(i18n.tr("ТРЕКИ"))
         tracks_title.setObjectName("subSectionHeading")
         root.addWidget(tracks_title)
 
@@ -667,14 +668,14 @@ class PopularTab(QWidget):
         try:
             status, body = self._session.client.get_json("/api/music-items/popular-feed/")
         except OSError as e:
-            self._status.setText(f"Нет связи с сервером: {e}")
+            self._status.setText(f"{i18n.tr('Нет связи с сервером:')} {e}")
             self._status.show()
             self._album_carousel.set_items([])
             self._artist_carousel.set_items([])
             self._clear_tracks()
             return
         except Exception as e:
-            self._status.setText(f"Ошибка загрузки: {e}")
+            self._status.setText(f"{i18n.tr('Ошибка загрузки:')} {e}")
             self._status.show()
             self._album_carousel.set_items([])
             self._artist_carousel.set_items([])
@@ -686,7 +687,7 @@ class PopularTab(QWidget):
             if isinstance(body, dict):
                 detail = str(body.get("detail", body))
             self._status.setText(
-                f"Сервер ответил {status}. {detail}".strip()
+                f"{i18n.tr('Сервер ответил')} {status}. {detail}".strip()
             )
             self._status.show()
             self._album_carousel.set_items([])
@@ -780,6 +781,6 @@ class PopularTab(QWidget):
             )
             self._tracks_layout.addWidget(row)
         if not tracks:
-            empty = QLabel("Пока нет треков в каталоге.")
+            empty = QLabel(i18n.tr("Пока нет треков в каталоге."))
             empty.setObjectName("popularEmptyHint")
             self._tracks_layout.addWidget(empty)

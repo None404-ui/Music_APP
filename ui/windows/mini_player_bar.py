@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame, StatefulIconButton
+from ui import i18n
 
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "icons")
 _mini_cover_nam: QNetworkAccessManager | None = None
@@ -172,7 +173,7 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._btn_review.setObjectName("miniPlayerBtn")
         self._btn_review.setFixedSize(34, 34)
         self._btn_review.setIconSize(QSize(20, 20))
-        self._btn_review.setToolTip("Написать рецензию")
+        self._btn_review.setToolTip(i18n.tr("Написать рецензию"))
         self._btn_review.clicked.connect(self._on_review_clicked)
 
         self._btn_volume = StatefulIconButton(
@@ -338,8 +339,9 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._volume_popup_slider.blockSignals(True)
         self._volume_popup_slider.setValue(volume)
         self._volume_popup_slider.blockSignals(False)
-        self._btn_volume.setToolTip(f"Громкость: {volume}%")
-        self._volume_popup_slider.setToolTip(f"Громкость: {volume}%")
+        tip = i18n.volume_percent_tooltip(volume)
+        self._btn_volume.setToolTip(tip)
+        self._volume_popup_slider.setToolTip(tip)
 
     def _on_volume_changed(self, value: int) -> None:
         self._player.set_volume_percent(value)

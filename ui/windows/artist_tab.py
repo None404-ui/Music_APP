@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
+from ui import i18n
 
 OnPlayTrack = Callable[[dict], None]
 
@@ -65,13 +66,15 @@ class _ArtistTrackRow(QFrame):
         num.setObjectName("trackNumber")
         num.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        title = QLabel((item.get("title") or "Без названия").strip())
+        title = QLabel((item.get("title") or i18n.tr("Без названия")).strip())
         title.setObjectName("trackTitle")
         title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         stats = QLabel(
-            f"♥ {int(item.get('favorites_count') or 0)}  ·  "
-            f"{int(item.get('listens_count') or 0)} слуш."
+            i18n.track_stats_line(
+                int(item.get("favorites_count") or 0),
+                int(item.get("listens_count") or 0),
+            )
         )
         stats.setObjectName("trackStats")
 
@@ -114,7 +117,7 @@ class ArtistTab(QWidget):
         head = QHBoxLayout()
         head.setSpacing(16)
 
-        self._btn_back = QPushButton("← Назад")
+        self._btn_back = QPushButton(i18n.tr("← Назад"))
         self._btn_back.setObjectName("btnArtistBack")
         self._btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_back.clicked.connect(on_back)
@@ -146,7 +149,7 @@ class ArtistTab(QWidget):
         profile_row.addLayout(meta, stretch=1)
         outer.addLayout(profile_row)
 
-        tracks_title = QLabel("ТРЕКИ")
+        tracks_title = QLabel(i18n.tr("ТРЕКИ"))
         tracks_title.setObjectName("sectionHeading")
         outer.addWidget(tracks_title)
 
@@ -214,9 +217,9 @@ class ArtistTab(QWidget):
         st, body = self._session.client.get_json(f"/api/users/{user_id}/artist/")
         if st != 200 or not isinstance(body, dict):
             self._status.setText(
-                "Не удалось загрузить страницу артиста."
+                i18n.tr("Не удалось загрузить страницу артиста.")
                 if st != 404
-                else "Пользователь не найден."
+                else i18n.tr("Пользователь не найден.")
             )
             self._status.show()
             self._nickname.setText("—")
@@ -245,7 +248,7 @@ class ArtistTab(QWidget):
             row = _ArtistTrackRow(i, it, self._on_play_track, self._tracks_host)
             self._tracks_layout.addWidget(row)
         if not tracks:
-            empty = QLabel("Пока нет треков.")
+            empty = QLabel(i18n.tr("Пока нет треков."))
             empty.setObjectName("popularEmptyHint")
             self._tracks_layout.addWidget(empty)
 

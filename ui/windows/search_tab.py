@@ -10,6 +10,7 @@ from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
 from ui.interactive_fx import InteractiveRowFrame
 from ui.track_like_review import TrackLikeReviewBar
+from ui import i18n
 
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -27,7 +28,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-_FILTER_LABELS = ["альбомы", "рецензии", "исполнители"]
+_FILTER_LABELS_RU = ("альбомы", "рецензии", "исполнители")
 
 _ICON_SEARCH = os.path.join(os.path.dirname(__file__), "..", "icons", "search.svg")
 
@@ -85,7 +86,7 @@ class _SearchTrackRow(InteractiveRowFrame):
         title_row = QHBoxLayout()
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(8)
-        self._title = QLabel((item.get("title") or "Без названия").strip())
+        self._title = QLabel((item.get("title") or i18n.tr("Без названия")).strip())
         self._title.setObjectName("searchRowTitle")
         self._title.setFont(_list_font())
         self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -169,7 +170,7 @@ class SearchTab(QWidget):
 
         self._search_input = QLineEdit()
         self._search_input.setObjectName("searchInput")
-        self._search_input.setPlaceholderText("поиск . . . .")
+        self._search_input.setPlaceholderText(i18n.tr("поиск . . . ."))
         bar_layout.addWidget(self._search_input, stretch=1)
 
         btn_search = QPushButton()
@@ -199,8 +200,8 @@ class SearchTab(QWidget):
         filter_layout.setSpacing(10)
 
         self._filter_btns: list[QPushButton] = []
-        for label in _FILTER_LABELS:
-            btn = QPushButton(label)
+        for label in _FILTER_LABELS_RU:
+            btn = QPushButton(i18n.tr(label))
             btn.setObjectName("btnFilter")
             btn.setCheckable(True)
             btn.clicked.connect(self._on_filter_clicked)
@@ -223,7 +224,7 @@ class SearchTab(QWidget):
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(8)
 
-        history_label = QLabel("недавние треки")
+        history_label = QLabel(i18n.tr("недавние треки"))
         history_label.setObjectName("searchSectionLabel")
         hl.addWidget(history_label)
 
@@ -252,7 +253,7 @@ class SearchTab(QWidget):
 
         # --- Search results ---
         inner_layout.addSpacing(10)
-        results_label = QLabel("результаты")
+        results_label = QLabel(i18n.tr("результаты"))
         results_label.setObjectName("searchSectionLabel")
         results_label.setMinimumHeight(
             max(22, results_label.sizeHint().height() + 4)

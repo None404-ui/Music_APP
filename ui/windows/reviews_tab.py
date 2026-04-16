@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.session import UserSession
+from ui import i18n
 from ui.artist_link_label import ArtistLinkLabel
 from ui.interactive_fx import InteractiveRowFrame
 
@@ -31,11 +32,11 @@ def _response_list(body) -> list:
 def _headline(review: dict) -> str:
     mi = review.get("music_item")
     if isinstance(mi, dict):
-        return (mi.get("title") or "Без названия").strip()
+        return (mi.get("title") or i18n.tr("Без названия")).strip()
     col = review.get("collection")
     if isinstance(col, dict):
-        return (col.get("title") or "Подборка").strip()
-    return "Рецензия"
+        return (col.get("title") or i18n.tr("Подборка")).strip()
+    return i18n.tr("Рецензия")
 
 
 def _subtitle(review: dict) -> str:
@@ -167,7 +168,7 @@ class ReviewsTab(QWidget):
         root.setContentsMargins(24, 16, 24, 24)
         root.setSpacing(10)
 
-        heading = QLabel("ТОП РЕЦЕНЗИЙ")
+        heading = QLabel(i18n.tr("ТОП РЕЦЕНЗИЙ"))
         heading.setObjectName("reviewsHeading")
         root.addWidget(heading)
 
@@ -209,11 +210,11 @@ class ReviewsTab(QWidget):
         st, body = self._session.client.get_json("/api/reviews/top/")
         reviews = _response_list(body) if st == 200 else []
         if st != 200:
-            self._hint.setText("Не удалось загрузить топ рецензий.")
+            self._hint.setText(i18n.tr("Не удалось загрузить топ рецензий."))
             self._hint.show()
             return
         if not reviews:
-            self._hint.setText("Пока нет рецензий.")
+            self._hint.setText(i18n.tr("Пока нет рецензий."))
             self._hint.show()
             return
 

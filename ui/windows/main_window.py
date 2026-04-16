@@ -26,6 +26,7 @@ from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
 from ui.windows.settings_tab import SettingsTab
+from ui import i18n
 
 _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
@@ -194,7 +195,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._session = session
         self._logout_restart = False
-        self.setWindowTitle("CRATES")
+        self._language_restart = False
+        self.setWindowTitle(i18n.tr("CRATES"))
         self.setMinimumSize(900, 600)
 
         central = QWidget()
@@ -258,15 +260,15 @@ class MainWindow(QMainWindow):
             body = review.get("text") or ""
             mi = review.get("music_item")
             if isinstance(mi, dict):
-                album = mi.get("title") or "Трек"
+                album = mi.get("title") or i18n.tr("Трек")
             elif mi is not None:
-                album = f"Трек #{mi}"
+                album = f"{i18n.tr('Трек')} #{mi}"
             else:
-                album = "Рецензия"
-            headline = body.split("\n")[0].strip() if body else "Рецензия"
+                album = i18n.tr("Рецензия")
+            headline = body.split("\n")[0].strip() if body else i18n.tr("Рецензия")
             if len(headline) > 100:
                 headline = headline[:97] + "…"
-            author = session.email or "Вы"
+            author = session.email or i18n.tr("Вы")
             dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
             dlg.exec()
 
@@ -285,6 +287,7 @@ class MainWindow(QMainWindow):
             session=session,
             on_playback_changed=self._player.refresh_playback_settings,
             on_logout=self._do_logout,
+            on_language_changed=self._request_language_restart,
         )
 
         self._popular_tab = PopularTab(
@@ -339,6 +342,15 @@ class MainWindow(QMainWindow):
         v = self._logout_restart
         self._logout_restart = False
         return v
+
+    def consume_language_restart(self) -> bool:
+        v = self._language_restart
+        self._language_restart = False
+        return v
+
+    def _request_language_restart(self) -> None:
+        self._language_restart = True
+        self.close()
 
     def _do_logout(self) -> None:
         from backend.api_client import api_logout

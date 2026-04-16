@@ -36,20 +36,26 @@ def main():
     family = register_retro_font()
     app.setStyleSheet(inject_font_into_qss(load_stylesheets(), family))
 
+    session = None
     while True:
-        session = try_session_from_saved()
         if session is None:
-            auth = AuthDialog()
-            if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
-                sys.exit(0)
-            session = auth.session
+            session = try_session_from_saved()
+            if session is None:
+                auth = AuthDialog()
+                if auth.exec() != QDialog.DialogCode.Accepted or auth.session is None:
+                    sys.exit(0)
+                session = auth.session
 
         window = MainWindow(session)
         window.show()
         app.exec()
 
-        if not window.consume_logout_restart():
-            break
+        if window.consume_logout_restart():
+            session = None
+            continue
+        if window.consume_language_restart():
+            continue
+        break
 
     sys.exit(0)
 
