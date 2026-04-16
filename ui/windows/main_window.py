@@ -256,7 +256,7 @@ class MainWindow(QMainWindow):
         )
         self._ambient_host.set_overlay_widget(self._mini_player, height=94, margin=14)
 
-        def on_open_review_from_selected(review: dict) -> None:
+        def on_open_review_dialog(review: dict) -> None:
             body = review.get("text") or ""
             mi = review.get("music_item")
             if isinstance(mi, dict):
@@ -268,7 +268,7 @@ class MainWindow(QMainWindow):
             headline = body.split("\n")[0].strip() if body else i18n.tr("Рецензия")
             if len(headline) > 100:
                 headline = headline[:97] + "…"
-            author = session.email or i18n.tr("Вы")
+            author = (review.get("author_label") or "").strip() or session.email or i18n.tr("Вы")
             dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
             dlg.exec()
 
@@ -276,7 +276,7 @@ class MainWindow(QMainWindow):
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
-            on_open_review=on_open_review_from_selected,
+            on_open_review=on_open_review_dialog,
             on_open_artist=self._open_artist_profile,
         )
 
@@ -308,7 +308,9 @@ class MainWindow(QMainWindow):
         self._search_tab = SearchTab(
             session=session,
             on_select_track=on_select_track,
+            on_open_album=on_open_album_queue,
             on_open_artist=self._open_artist_profile,
+            on_open_review=on_open_review_dialog,
         )
         self._search_tab.library_changed.connect(self._selected_tab.reload_content)
 

@@ -29,6 +29,8 @@ class CoverArtWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAutoFillBackground(False)
         self._pm: Optional[QPixmap] = None
+        self._scaled_pm: Optional[QPixmap] = None
+        self._scaled_pm_key: tuple[int, int, int, int] | None = None
         self._radius = radius
         self._border_width = border_width
         self._border_color = border_color or QColor("#000000")
@@ -46,10 +48,14 @@ class CoverArtWidget(QWidget):
 
     def set_cover_pixmap(self, pm: Optional[QPixmap]) -> None:
         self._pm = None if pm is None or pm.isNull() else pm
+        self._scaled_pm = None
+        self._scaled_pm_key = None
         self.update()
 
     def clear_cover(self) -> None:
         self._pm = None
+        self._scaled_pm = None
+        self._scaled_pm_key = None
         self.update()
 
     def set_placeholder(
@@ -149,6 +155,21 @@ class CoverArtWidget(QWidget):
         elif self._fill_color is not None:
             painter.fillRect(rect, self._fill_color)
 
+    def _scaled_cover(self, width: int, height: int) -> Optional[QPixmap]:
+        if self._pm is None:
+            return None
+        tw, th = max(1, int(width)), max(1, int(height))
+        key = (tw, th, self._pm.width(), self._pm.height())
+        if self._scaled_pm is None or self._scaled_pm_key != key:
+            self._scaled_pm = self._pm.scaled(
+                tw,
+                th,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._scaled_pm_key = key
+        return self._scaled_pm
+
     def paintEvent(self, event) -> None:
         del event
         painter = QPainter(self)
@@ -178,13 +199,11 @@ class CoverArtWidget(QWidget):
         self._fill_cover_rect(painter, inner)
 
         if self._pm is not None:
-            tw, th = max(1, int(inner.width())), max(1, int(inner.height()))
-            scaled = self._pm.scaled(
-                tw,
-                th,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+            scaled = self._scaled_cover(int(inner.width()), int(inner.height()))
+            if scaled is None:
+                painter.restore()
+                painter.end()
+                return
             x = int(inner.x() + (inner.width() - scaled.width()) / 2)
             y = int(inner.y() + (inner.height() - scaled.height()) / 2)
             painter.drawPixmap(x, y, scaled)

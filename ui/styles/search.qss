@@ -137,3 +137,15 @@ QLabel#searchRowArtist {
 QLabel#searchRowArtist:hover {
     color: #CB883A;
 }
+
+QLabel#searchRowMeta {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #89A194;
+}
+
+QLabel#searchRowBody {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #312938;
+}

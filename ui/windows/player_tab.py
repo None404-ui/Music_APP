@@ -12,6 +12,7 @@ from PyQt6.QtMultimedia import (
     QAudioBuffer,
     QAudioBufferOutput,
     QAudioFormat,
+    QAudioOutput,
     QAudioSink,
     QMediaDevices,
     QMediaPlayer,
@@ -237,10 +238,9 @@ class PlayerTab(QWidget):
         self._player = QMediaPlayer(self)
         self._graphic_eq_channels = 2
         self._graphic_eq = GraphicEQProcessor(self._graphic_eq_channels)
+        self._audio_out = QAudioOutput(self)
         self._buf_out = QAudioBufferOutput(self)
         self._buf_out.audioBufferReceived.connect(self._on_eq_audio_buffer)
-        self._player.setAudioBufferOutput(self._buf_out)
-        self._player.setAudioOutput(None)
         self._eq_sink: Optional[QAudioSink] = None
         self._eq_sink_io: Optional[QIODevice] = None
         self._eq_sink_format: Optional[QAudioFormat] = None
@@ -671,6 +671,8 @@ class PlayerTab(QWidget):
         """Остановить декодер и вывод, чтобы при пересоздании окна звук не «висел» в фоне."""
         self._player.stop()
         self._player.setSource(QUrl())
+        self._player.setAudioBufferOutput(None)
+        self._player.setAudioOutput(None)
         self._release_eq_sink()
         QCoreApplication.processEvents()
 
@@ -865,7 +867,9 @@ class PlayerTab(QWidget):
         pass
 
     def _compute_master_linear(self) -> float:
-        v = self._volume.value() / 100.0
+        volume_widget = getattr(self, "_volume", None)
+        volume_percent = int(volume_widget.value()) if volume_widget is not None else 75
+        v = volume_percent / 100.0
         cap = playback_settings.quality_volume_cap()
         v = min(v * cap, cap)
         cur = (
@@ -878,9 +882,12 @@ class PlayerTab(QWidget):
 
     def _apply_volume(self) -> None:
         ml = self._compute_master_linear()
+        self._audio_out.setVolume(ml)
         if self._eq_sink is not None:
             self._eq_sink.setVolume(ml)
-        self.volume_changed.emit(int(self._volume.value()))
+        volume_widget = getattr(self, "_volume", None)
+        if volume_widget is not None:
+            self.volume_changed.emit(int(volume_widget.value()))
 
     def current_volume_percent(self) -> int:
         return int(self._volume.value())
@@ -901,9 +908,23 @@ class PlayerTab(QWidget):
     def refresh_playback_settings(self) -> None:
         self._apply_volume()
 
+    def _equalizer_is_active(self) -> bool:
+        return any(abs(float(gain)) >= 1e-3 for gain in self._graphic_eq.gains_db())
+
+    def _sync_audio_pipeline(self) -> None:
+        if self._equalizer_is_active():
+            self._player.setAudioOutput(None)
+            self._player.setAudioBufferOutput(self._buf_out)
+            return
+        self._player.setAudioBufferOutput(None)
+        self._release_eq_sink()
+        self._player.setAudioOutput(self._audio_out)
+
     def sync_equalizer_from_settings(self) -> None:
         gains = equalizer_settings.band_gains_db()
         self._graphic_eq.set_gains_db(gains)
+        self._sync_audio_pipeline()
+        self._apply_volume()
 
     def _release_eq_sink(self) -> None:
         if self._eq_sink is not None:
@@ -974,6 +995,8 @@ class PlayerTab(QWidget):
         return a.tobytes()
 
     def _on_eq_audio_buffer(self, buffer: QAudioBuffer) -> None:
+        if not self._equalizer_is_active():
+            return
         if not buffer.isValid() or buffer.frameCount() == 0:
             return
         fmt = buffer.format()

@@ -23,11 +23,13 @@ Project root URLConf for CRATES.
 
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from crates.admin_site import crates_admin_site
+from apps.core.media_views import serve_media
 
 urlpatterns = [
+    re_path(r"^media/(?P<path>.*)$", serve_media, name="media-serve"),
     path("admin/", crates_admin_site.urls),
     path("api/", include("apps.core.urls")),
 ]

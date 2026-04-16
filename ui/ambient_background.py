@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import random
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
 from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 
@@ -21,6 +21,17 @@ class AmbientBackground(QWidget):
             for _ in range(900)
         ]
         self._cache = QPixmap()
+        self._rebuild_timer = QTimer(self)
+        self._rebuild_timer.setSingleShot(True)
+        self._rebuild_timer.setInterval(120)
+        self._rebuild_timer.timeout.connect(self._rebuild_cache)
+
+    def _render_size(self, w: int, h: int) -> tuple[int, int]:
+        area = max(1, int(w) * int(h))
+        if area <= 1_200_000:
+            return int(w), int(h)
+        scale = (1_200_000 / area) ** 0.5
+        return max(1, int(w * scale)), max(1, int(h * scale))
 
     def _rebuild_cache(self) -> None:
         w, h = self.width(), self.height()
@@ -28,7 +39,8 @@ class AmbientBackground(QWidget):
             self._cache = QPixmap()
             return
 
-        pm = QPixmap(w, h)
+        rw, rh = self._render_size(w, h)
+        pm = QPixmap(rw, rh)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -36,11 +48,11 @@ class AmbientBackground(QWidget):
         p.fillRect(pm.rect(), QColor(18, 12, 28))
 
         blobs = [
-            (w * 0.22, h * 0.35, max(w, h) * 0.55, QColor(255, 120, 40, 55)),
-            (w * 0.78, h * 0.28, max(w, h) * 0.5, QColor(40, 200, 190, 45)),
-            (w * 0.55, h * 0.72, max(w, h) * 0.6, QColor(60, 90, 220, 40)),
-            (w * 0.1, h * 0.85, max(w, h) * 0.45, QColor(200, 80, 30, 35)),
-            (w * 0.9, h * 0.65, max(w, h) * 0.4, QColor(30, 140, 180, 38)),
+            (rw * 0.22, rh * 0.35, max(rw, rh) * 0.55, QColor(255, 120, 40, 55)),
+            (rw * 0.78, rh * 0.28, max(rw, rh) * 0.5, QColor(40, 200, 190, 45)),
+            (rw * 0.55, rh * 0.72, max(rw, rh) * 0.6, QColor(60, 90, 220, 40)),
+            (rw * 0.1, rh * 0.85, max(rw, rh) * 0.45, QColor(200, 80, 30, 35)),
+            (rw * 0.9, rh * 0.65, max(rw, rh) * 0.4, QColor(30, 140, 180, 38)),
         ]
         for cx, cy, r, col in blobs:
             grad = QRadialGradient(cx, cy, r)
@@ -55,19 +67,19 @@ class AmbientBackground(QWidget):
 
         p.setPen(QPen(QColor(255, 160, 80, 25), 3))
         for i in range(5):
-            y = int(h * (0.15 + i * 0.18))
-            p.drawLine(0, y, w, y + int(12 + i * 4))
+            y = int(rh * (0.15 + i * 0.18))
+            p.drawLine(0, y, rw, y + int(12 + i * 4))
 
         p.setPen(QPen(QColor(50, 200, 200, 18), 2))
         for i in range(4):
-            x = int(w * (0.1 + i * 0.22))
-            p.drawLine(x, 0, x + 40, h)
+            x = int(rw * (0.1 + i * 0.22))
+            p.drawLine(x, 0, x + 40, rh)
 
         p.setPen(Qt.PenStyle.NoPen)
         step = 6
         idx = 0
-        for y in range(0, h, step):
-            for x in range(0, w, step):
+        for y in range(0, rh, step):
+            for x in range(0, rw, step):
                 r, g, b = self._grain[idx % len(self._grain)]
                 idx += 1
                 p.setBrush(QColor(r, g, b, 14))
@@ -81,12 +93,15 @@ class AmbientBackground(QWidget):
         if self._cache.isNull():
             return
         p = QPainter(self)
-        p.drawPixmap(0, 0, self._cache)
+        p.drawPixmap(self.rect(), self._cache)
         p.end()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._rebuild_cache()
+        if self._cache.isNull():
+            self._rebuild_cache()
+            return
+        self._rebuild_timer.start()
 
 
 class ContentWithAmbient(QWidget):

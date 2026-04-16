@@ -14,6 +14,7 @@ from ui import i18n
 
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -28,7 +29,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-_FILTER_LABELS_RU = ("альбомы", "рецензии", "исполнители")
+_FILTER_DEFS = (
+    ("all", "все"),
+    ("albums", "альбомы"),
+    ("tracks", "треки"),
+    ("reviews", "рецензии"),
+    ("users", "пользователи"),
+)
 
 _ICON_SEARCH = os.path.join(os.path.dirname(__file__), "..", "icons", "search.svg")
 
@@ -58,6 +65,39 @@ def _settings() -> QSettings:
 def _row_height(row: QWidget, fallback: int) -> int:
     hint = row.sizeHint().height() if row is not None else 0
     return max(fallback, hint + 8)
+
+
+def _response_list(body) -> list:
+    if isinstance(body, list):
+        return body
+    if isinstance(body, dict):
+        rows = body.get("results")
+        return rows if isinstance(rows, list) else []
+    return []
+
+
+def _review_title(review: dict) -> str:
+    music_item = review.get("music_item")
+    if isinstance(music_item, dict):
+        return (music_item.get("title") or i18n.tr("Без названия")).strip()
+    collection = review.get("collection")
+    if isinstance(collection, dict):
+        return (collection.get("title") or i18n.tr("Подборка")).strip()
+    return i18n.tr("Рецензия")
+
+
+def _review_artist(review: dict) -> str:
+    music_item = review.get("music_item")
+    if isinstance(music_item, dict):
+        return (music_item.get("artist") or "").strip()
+    return ""
+
+
+def _review_excerpt(review: dict, limit: int = 140) -> str:
+    text = str(review.get("text") or "").strip().replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
 
 
 class _SearchTrackRow(InteractiveRowFrame):
@@ -123,6 +163,63 @@ class _SearchTrackRow(InteractiveRowFrame):
         super().mouseReleaseEvent(event)
 
 
+class _SearchEntityRow(InteractiveRowFrame):
+    def __init__(
+        self,
+        title: str,
+        meta: str = "",
+        body: str = "",
+        on_activate=None,
+        parent=None,
+    ):
+        super().__init__(radius=8, hover_alpha=22, press_alpha=38, active_alpha=16, parent=parent)
+        self.setObjectName("searchListRow")
+        self._on_activate = on_activate
+        self.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            if on_activate is not None
+            else Qt.CursorShape.ArrowCursor
+        )
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(4)
+
+        self._title = QLabel((title or i18n.tr("Без названия")).strip())
+        self._title.setObjectName("searchRowTitle")
+        self._title.setFont(_list_font())
+        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        lay.addWidget(self._title)
+
+        if meta:
+            self._meta = QLabel(meta.strip())
+            self._meta.setObjectName("searchRowMeta")
+            self._meta.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+            )
+            lay.addWidget(self._meta)
+
+        if body:
+            self._body = QLabel(body.strip())
+            self._body.setObjectName("searchRowBody")
+            self._body.setWordWrap(True)
+            self._body.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+            )
+            lay.addWidget(self._body)
+
+        self.install_interaction_filters()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._on_activate is not None
+            and self.rect().contains(event.position().toPoint())
+        ):
+            self._on_activate()
+        super().mouseReleaseEvent(event)
+
+
 class SearchTab(QWidget):
     library_changed = pyqtSignal()
 
@@ -130,7 +227,9 @@ class SearchTab(QWidget):
         self,
         session: UserSession | None = None,
         on_select_track=None,
+        on_open_album=None,
         on_open_artist=None,
+        on_open_review=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -138,10 +237,19 @@ class SearchTab(QWidget):
 
         self._session = session
         self._on_select_track = on_select_track
+        self._on_open_album = on_open_album
         self._on_open_artist = on_open_artist
+        self._on_open_review = on_open_review
         self._backend_url = os.getenv("CRATES_BACKEND_URL", "http://127.0.0.1:8000").rstrip(
             "/"
         )
+        self._search_cache: dict[str, list[dict]] = {
+            "albums": [],
+            "tracks": [],
+            "reviews": [],
+            "users": [],
+        }
+        self._active_filter = "all"
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -199,17 +307,21 @@ class SearchTab(QWidget):
         filter_layout.setContentsMargins(0, 0, 0, 0)
         filter_layout.setSpacing(10)
 
-        self._filter_btns: list[QPushButton] = []
-        for label in _FILTER_LABELS_RU:
+        self._filter_group = QButtonGroup(self)
+        self._filter_group.setExclusive(True)
+        self._filter_btns: dict[str, QPushButton] = {}
+        for idx, (filter_key, label) in enumerate(_FILTER_DEFS):
             btn = QPushButton(i18n.tr(label))
-            btn.setObjectName("btnFilter")
+            btn.setObjectName("btnNav")
             btn.setCheckable(True)
+            btn.setProperty("filterKey", filter_key)
             btn.clicked.connect(self._on_filter_clicked)
+            self._filter_group.addButton(btn, idx)
             filter_layout.addWidget(btn)
-            self._filter_btns.append(btn)
+            self._filter_btns[filter_key] = btn
 
         if self._filter_btns:
-            self._filter_btns[0].setChecked(True)
+            self._filter_btns["all"].setChecked(True)
 
         filter_layout.addStretch()
         inner_layout.addWidget(filter_row)
@@ -303,6 +415,15 @@ class SearchTab(QWidget):
         self._resize_results_list_height()
 
     def _on_search_text_changed(self, _text: str) -> None:
+        if not self._search_input.text().strip():
+            self._search_cache = {
+                "albums": [],
+                "tracks": [],
+                "reviews": [],
+                "users": [],
+            }
+            self._results_list.clear()
+            self._resize_results_list_height()
         self._debounce.stop()
         self._debounce.start()
 
@@ -312,9 +433,13 @@ class SearchTab(QWidget):
 
     def _on_filter_clicked(self):
         sender = self.sender()
-        for btn in self._filter_btns:
-            if btn is not sender:
-                btn.setChecked(False)
+        if isinstance(sender, QPushButton):
+            self._active_filter = str(sender.property("filterKey") or "all")
+        if not self._search_input.text().strip():
+            self._results_list.clear()
+            self._resize_results_list_height()
+            return
+        self._render_search_results()
 
     def _load_recent_tracks(self) -> list[dict]:
         raw = _settings().value(_RECENT_KEY, "[]", str)
@@ -394,7 +519,11 @@ class SearchTab(QWidget):
         if cnt == 0:
             self._results_list.setFixedHeight(_LIST_ROW_MIN + 16)
             return
-        h = cnt * _RESULTS_ROW_PX + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
+        rows_h = 0
+        for idx in range(cnt):
+            item = self._results_list.item(idx)
+            rows_h += item.sizeHint().height() if item is not None else _RESULTS_ROW_PX
+        h = rows_h + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
         self._results_list.setFixedHeight(h)
 
     def _push_recent_track(self, music_item: dict) -> None:
@@ -412,71 +541,224 @@ class SearchTab(QWidget):
         self._save_recent_tracks(items[:_RECENT_MAX])
         self._refresh_recent_list()
 
+    def _get_json(self, path: str):
+        if self._session is not None:
+            return self._session.client.get_json(path)
+        try:
+            url = f"{self._backend_url}{path}"
+            req = Request(url, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode("utf-8")
+                return resp.status, json.loads(raw)
+        except Exception:
+            return 0, None
+
+    def _normalize_music_items(self, rows: list[dict]) -> list[dict]:
+        api_base = self._session.client.base_url if self._session is not None else self._backend_url
+        items: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            item = dict(row)
+            artwork_url = resolve_backend_media_url(
+                api_base, (item.get("artwork_url") or "").strip()
+            )
+            if artwork_url:
+                item["artwork_url"] = artwork_url
+            items.append(item)
+        return items
+
+    def _extract_user_results(self, items: list[dict]) -> list[dict]:
+        users: list[dict] = []
+        seen: dict[str, dict] = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            artist_user = item.get("artist_user")
+            if isinstance(artist_user, dict):
+                nickname = (artist_user.get("nickname") or "").strip()
+                avatar_url = (artist_user.get("avatar_url") or "").strip()
+                user_id = artist_user.get("id")
+            else:
+                nickname = ""
+                avatar_url = ""
+                user_id = None
+            if not nickname:
+                nickname = (item.get("artist") or "").strip()
+            if not nickname:
+                continue
+            key = str(user_id) if user_id is not None else nickname.casefold()
+            row = seen.get(key)
+            if row is None:
+                row = {
+                    "id": user_id,
+                    "nickname": nickname,
+                    "avatar_url": avatar_url,
+                    "items_count": 0,
+                }
+                seen[key] = row
+                users.append(row)
+            row["items_count"] = int(row.get("items_count") or 0) + 1
+        return users
+
+    def _fetch_album_queue(self, music_item: dict) -> list[dict]:
+        provider = (music_item.get("provider") or "").strip()
+        if provider == "collection":
+            collection_id = music_item.get("external_id")
+            if collection_id is None:
+                return []
+            path = f"/api/music-items/playback-queue/?collection_id={collection_id}"
+        else:
+            music_item_id = music_item.get("id")
+            if music_item_id is None:
+                return []
+            path = f"/api/music-items/playback-queue/?music_item_id={music_item_id}"
+        status, body = self._get_json(path)
+        if status != 200 or not isinstance(body, dict):
+            return []
+        tracks = body.get("tracks")
+        return self._normalize_music_items(tracks if isinstance(tracks, list) else [])
+
+    def _open_album_result(self, music_item: dict) -> None:
+        if self._on_open_album is None:
+            return
+        tracks = self._fetch_album_queue(music_item)
+        if not tracks:
+            return
+        self._on_open_album(tracks, music_item)
+
+    def _visible_results(self) -> list[tuple[str, dict]]:
+        if self._active_filter == "albums":
+            return [("album", row) for row in self._search_cache["albums"]]
+        if self._active_filter == "tracks":
+            return [("track", row) for row in self._search_cache["tracks"]]
+        if self._active_filter == "reviews":
+            return [("review", row) for row in self._search_cache["reviews"]]
+        if self._active_filter == "users":
+            return [("user", row) for row in self._search_cache["users"]]
+        results: list[tuple[str, dict]] = []
+        results.extend(("album", row) for row in self._search_cache["albums"])
+        results.extend(("track", row) for row in self._search_cache["tracks"])
+        results.extend(("review", row) for row in self._search_cache["reviews"])
+        results.extend(("user", row) for row in self._search_cache["users"])
+        return results
+
+    def _add_result_widget(self, row_widget: QWidget, fallback_height: int = _RESULTS_ROW_PX) -> None:
+        row_width = max(200, self._results_viewport_width(), self.width() - 48)
+        item = QListWidgetItem()
+        row_widget.setFixedWidth(max(row_width - 8, 100))
+        item.setSizeHint(QSize(row_width, _row_height(row_widget, fallback_height)))
+        self._results_list.addItem(item)
+        self._results_list.setItemWidget(item, row_widget)
+
+    def _render_search_results(self) -> None:
+        self._results_list.clear()
+        results = self._visible_results()
+        if not results:
+            empty = QLabel(i18n.tr("Ничего не найдено."))
+            empty.setObjectName("searchEmptyLabel")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._add_result_widget(empty, fallback_height=_LIST_ROW_MIN + 12)
+            self._resize_results_list_height()
+            return
+
+        for kind, payload in results:
+            if kind == "track":
+                row_widget = _SearchTrackRow(
+                    payload,
+                    self._play_track_item,
+                    self._on_open_artist,
+                    session=self._session,
+                    on_library_changed=self._row_library_cb(),
+                    dialog_parent=self,
+                    parent=self._results_list,
+                )
+            elif kind == "album":
+                artist = (payload.get("artist") or "").strip()
+                meta = i18n.tr("Альбом")
+                if artist:
+                    meta = f"{meta} · {artist}"
+                row_widget = _SearchEntityRow(
+                    (payload.get("title") or i18n.tr("Без названия")).strip(),
+                    meta=meta,
+                    body=i18n.tr("Открыть альбом"),
+                    on_activate=lambda item=payload: self._open_album_result(item),
+                    parent=self._results_list,
+                )
+            elif kind == "review":
+                author = (payload.get("author_label") or "—").strip()
+                artist = _review_artist(payload)
+                meta = f"{i18n.tr('Рецензия')} · {author}"
+                if artist:
+                    meta = f"{meta} · {artist}"
+                row_widget = _SearchEntityRow(
+                    _review_title(payload),
+                    meta=meta,
+                    body=_review_excerpt(payload),
+                    on_activate=(
+                        (lambda review=payload: self._on_open_review(review))
+                        if self._on_open_review is not None
+                        else None
+                    ),
+                    parent=self._results_list,
+                )
+            else:
+                items_count = int(payload.get("items_count") or 0)
+                body = i18n.tr("Найдено релизов:") + f" {items_count}"
+                row_widget = _SearchEntityRow(
+                    (payload.get("nickname") or "—").strip(),
+                    meta=i18n.tr("Пользователь"),
+                    body=body,
+                    on_activate=(
+                        (lambda nickname=(payload.get("nickname") or "").strip(): self._on_open_artist(nickname))
+                        if self._on_open_artist is not None
+                        else None
+                    ),
+                    parent=self._results_list,
+                )
+            self._add_result_widget(row_widget)
+        self._resize_results_list_height()
+
     def _do_search(self) -> None:
         q = self._search_input.text().strip()
         if not q:
+            self._search_cache = {
+                "albums": [],
+                "tracks": [],
+                "reviews": [],
+                "users": [],
+            }
+            self._results_list.clear()
+            self._resize_results_list_height()
             return
-        self._results_list.clear()
-        items: list = []
-        if self._session is not None:
-            try:
-                api_base = self._session.client.base_url
-                st, data = self._session.client.get_json(
-                    f"/api/music-items/?q={quote_plus(q)}"
-                )
-                if st == 200:
-                    if isinstance(data, list):
-                        raw_items = data
-                    elif isinstance(data, dict):
-                        r = data.get("results")
-                        raw_items = r if isinstance(r, list) else []
-                    else:
-                        raw_items = []
-                    for it in raw_items:
-                        if not isinstance(it, dict):
-                            continue
-                        row = dict(it)
-                        au = resolve_backend_media_url(
-                            api_base, (row.get("artwork_url") or "").strip()
-                        )
-                        if au:
-                            row["artwork_url"] = au
-                        items.append(row)
-            except Exception:
-                items = []
-        else:
-            try:
-                url = f"{self._backend_url}/api/music-items/?q={quote_plus(q)}"
-                req = Request(url, headers={"Accept": "application/json"})
-                with urlopen(req, timeout=10) as resp:
-                    raw = resp.read().decode("utf-8")
-                    data = json.loads(raw)
-                raw_items = (
-                    data.get("results", data) if isinstance(data, dict) else data
-                )
-                if not isinstance(raw_items, list):
-                    raw_items = []
-                items = [x for x in raw_items if isinstance(x, dict)]
-            except Exception:
-                items = []
-
-        rw = max(200, self._results_viewport_width(), self.width() - 48)
-        for it in items:
-            if not isinstance(it, dict):
-                continue
-            item = QListWidgetItem()
-            row = _SearchTrackRow(
-                it,
-                self._play_track_item,
-                self._on_open_artist,
-                session=self._session,
-                on_library_changed=self._row_library_cb(),
-                dialog_parent=self,
-                parent=self._results_list,
+        status_items, body_items = self._get_json(f"/api/music-items/?q={quote_plus(q)}")
+        music_items = (
+            self._normalize_music_items(
+                [row for row in _response_list(body_items) if isinstance(row, dict)]
             )
-            row.setFixedWidth(max(rw - 8, 100))
-            item_h = _row_height(row, _RESULTS_ROW_PX)
-            item.setSizeHint(QSize(rw, item_h))
-            self._results_list.addItem(item)
-            self._results_list.setItemWidget(item, row)
-        self._resize_results_list_height()
+            if status_items == 200
+            else []
+        )
+
+        status_reviews, body_reviews = self._get_json(f"/api/reviews/?q={quote_plus(q)}")
+        reviews = (
+            [row for row in _response_list(body_reviews) if isinstance(row, dict)]
+            if status_reviews == 200
+            else []
+        )
+
+        self._search_cache = {
+            "albums": [
+                row
+                for row in music_items
+                if (row.get("kind") or "").strip().lower() == "album"
+            ],
+            "tracks": [
+                row
+                for row in music_items
+                if (row.get("kind") or "").strip().lower() == "track"
+            ],
+            "reviews": reviews,
+            "users": self._extract_user_results(music_items),
+        }
+        self._render_search_results()
