@@ -69,21 +69,10 @@ class MusicItem(models.Model):
         help_text="Заполняется автоматически при сохранении трека с файлом audio_file (mutagen).",
     )
 
-    playback_ref = models.CharField(
-        max_length=512,
-        blank=True,
-        help_text=(
-            "Ссылка на воспроизведение (рекомендуется): полный URL https://… "
-            "(YouTube, стриминг, прямой MP3/AAC). Имеет приоритет над файлом на сервере."
-        ),
-    )
     audio_file = models.FileField(
         upload_to="music/tracks/",
         blank=True,
-        help_text=(
-            "Локальная загрузка на сервер — используется в API только если в «Ссылке на воспроизведение» "
-            "нет HTTP(S)-URL."
-        ),
+        help_text="Локальная загрузка трека на сервер. Используется для воспроизведения в приложении.",
     )
     meta_json = models.TextField(blank=True)
 
@@ -112,23 +101,20 @@ class MusicItem(models.Model):
             models.Index(fields=["artist_user"], name="idx_musicitem_artist_user"),
         ]
 
-    def save(self, *args, **kwargs):
-        uid = getattr(self, "artist_user_id", None)
-        if uid:
-            prof = Profile.objects.filter(user_id=uid).first()
-            if prof:
-                self.artist = prof.nickname
-            else:
-                u = get_user_model().objects.filter(pk=uid).first()
-                self.artist = (u.get_username() if u else "") or ""
-        super().save(*args, **kwargs)
-
     def __str__(self) -> str:
         if self.artist:
             return f"{self.artist} — {self.title}"
         return self.title
 
     def save(self, *args, **kwargs):
+        uid = getattr(self, "artist_user_id", None)
+        if uid:
+            prof = Profile.objects.filter(user_id=uid).first()
+            if prof and (prof.nickname or "").strip():
+                self.artist = prof.nickname.strip()
+            else:
+                u = get_user_model().objects.filter(pk=uid).first()
+                self.artist = ((u.get_username() if u else "") or "").strip()
         super().save(*args, **kwargs)
         if self.kind != self.Kind.TRACK.value:
             return

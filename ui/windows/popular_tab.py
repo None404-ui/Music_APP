@@ -173,6 +173,7 @@ class ArtistWidget(QWidget):
         super().__init__(parent)
         self._on_open_artist = None
         self._name_key = ""
+        self._avatar_reply: QNetworkReply | None = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(6)
@@ -196,8 +197,52 @@ class ArtistWidget(QWidget):
         layout.addWidget(self._avatar, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self._label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
+    def _abort_avatar_load(self) -> None:
+        if self._avatar_reply is None:
+            return
+        reply = self._avatar_reply
+        self._avatar_reply = None
+        reply.abort()
+
+    def _apply_avatar_placeholder(self) -> None:
+        self._avatar.clear()
+        self._avatar.setPixmap(QPixmap())
+        self._avatar.setText("♫")
+
+    def _on_avatar_finished(self) -> None:
+        reply = self.sender()
+        if not isinstance(reply, QNetworkReply):
+            return
+        if self._avatar_reply is not reply:
+            reply.deleteLater()
+            return
+        self._avatar_reply = None
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self._apply_avatar_placeholder()
+                return
+            data = reply.readAll()
+            img = QImage()
+            if not img.loadFromData(data):
+                self._apply_avatar_placeholder()
+                return
+            pix = QPixmap.fromImage(img).scaled(
+                80,
+                80,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._avatar.setPixmap(pix)
+            self._avatar.setText("")
+        finally:
+            reply.deleteLater()
+
     def set_on_open_artist(self, cb) -> None:
         self._on_open_artist = cb
+        if self._name_key and self._on_open_artist:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def set_name(self, name: str) -> None:
         self._name_key = name.strip()
@@ -206,6 +251,15 @@ class ArtistWidget(QWidget):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def set_avatar_url(self, url: str) -> None:
+        self._abort_avatar_load()
+        self._apply_avatar_placeholder()
+        raw = (url or "").strip()
+        if not raw.startswith(("http://", "https://")):
+            return
+        self._avatar_reply = _album_cover_network().get(QNetworkRequest(QUrl(raw)))
+        self._avatar_reply.finished.connect(self._on_avatar_finished)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if (
@@ -674,9 +728,14 @@ class PopularTab(QWidget):
         artist_widgets: list[QWidget] = []
         for row in artists:
             if isinstance(row, dict):
-                name = row.get("name") or ""
+                name = (row.get("nickname") or row.get("name") or "").strip()
                 w = ArtistWidget()
                 w.set_name(name)
+                avatar_url = resolve_backend_media_url(
+                    api_base, (row.get("avatar_url") or "").strip()
+                )
+                if avatar_url:
+                    w.set_avatar_url(avatar_url)
                 if self._on_open_artist:
                     w.set_on_open_artist(self._on_open_artist)
                 artist_widgets.append(w)

@@ -4,9 +4,8 @@ import copy
 import json
 import os
 from typing import TYPE_CHECKING, Callable, Optional
-from urllib.parse import parse_qs, urlparse
 
-from PyQt6.QtCore import Qt, QUrl, QUrlQuery, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, QUrl, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
 from PyQt6.QtGui import QPixmap, QImage, QColor, QIcon
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -21,50 +20,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QScrollArea,
 )
-# WebEngine: версии PyQt6 и PyQt6-WebEngine должны совпадать.
-QWebEngineView = None  # type: ignore[misc, assignment]
-CratesWebEnginePage = None  # type: ignore[misc, assignment]
-CratesYoutubeRequestInterceptor = None  # type: ignore[misc, assignment]
-try:
-    from PyQt6.QtWebEngineCore import QWebEnginePage as _QWebEnginePage
-    from PyQt6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
-    from PyQt6.QtWebEngineWidgets import QWebEngineView as _QWebEngineView
-
-    class CratesWebEnginePage(_QWebEnginePage):
-        """Для части сетей/прокси Chromium ругается на сертификат — принимаем переопределяемые."""
-
-        def certificateError(self, error):
-            try:
-                if error.isOverridable():
-                    error.acceptCertificate()
-            except Exception:
-                pass
-            return True
-
-    class CratesYoutubeRequestInterceptor(QWebEngineUrlRequestInterceptor):
-        """
-        YouTube CDN (googlevideo, ytimg) ожидает нормальный Referer с youtube.com;
-        без него часто ломается плеер (в т.ч. «ошибка 153» / настройка плеера).
-        """
-
-        def interceptRequest(self, info) -> None:
-            try:
-                host = (info.requestUrl().host() or "").lower()
-                if not host:
-                    return
-                if (
-                    "googlevideo.com" in host
-                    or host == "ytimg.com"
-                    or host.endswith(".ytimg.com")
-                    or "ggpht.com" in host
-                ):
-                    info.setHttpHeader(b"Referer", b"https://www.youtube.com/")
-            except Exception:
-                pass
-
-    QWebEngineView = _QWebEngineView
-except (ImportError, OSError):
-    pass
 
 from ui import playback_settings
 from ui.artist_link_label import ArtistLinkLabel
@@ -126,7 +81,7 @@ def _fmt_listen_total_sec(sec: int) -> str:
     return f"{h} ч {m} мин"
 
 
-def _media_url_from_playback_ref(ref: str) -> QUrl:
+def _media_url_from_audio_url(ref: str) -> QUrl:
     """
     Локальные файлы (Windows/Linux): QUrl.fromUserInput даёт сбои → FFmpeg «Permission denied».
     Надёжно открываем через fromLocalFile после normpath/expanduser.
@@ -153,69 +108,6 @@ def _media_url_from_playback_ref(ref: str) -> QUrl:
         if os.path.isfile(local):
             return QUrl.fromLocalFile(local)
     return QUrl.fromUserInput(r)
-
-
-def _is_page_playback_ref(ref: str) -> bool:
-    r = (ref or "").strip().lower()
-    if not r:
-        return False
-    # Streaming pages are not direct media streams for QMediaPlayer/FFmpeg.
-    page_hosts = (
-        "youtube.com",
-        "youtu.be",
-        "music.yandex",
-        "vk.com/music",
-        "music.vk.com",
-    )
-    return any(h in r for h in page_hosts)
-
-
-def _web_embed_url(ref: str) -> str:
-    """
-    Converts known page URLs to embeddable player URLs.
-    Falls back to original URL when conversion is not supported.
-    """
-    raw = (ref or "").strip()
-    if not raw:
-        return raw
-    try:
-        u = urlparse(raw)
-        host = (u.netloc or "").lower()
-        if "youtube.com" in host:
-            if u.path == "/watch":
-                vid = parse_qs(u.query).get("v", [None])[0]
-                if vid:
-                    return f"https://www.youtube.com/embed/{vid}?autoplay=1"
-            if u.path.startswith("/shorts/"):
-                vid = u.path.split("/shorts/", 1)[1].split("/", 1)[0]
-                if vid:
-                    return f"https://www.youtube.com/embed/{vid}?autoplay=1"
-        if "youtu.be" in host:
-            vid = (u.path or "").lstrip("/").split("/", 1)[0]
-            if vid:
-                return f"https://www.youtube.com/embed/{vid}?autoplay=1"
-    except Exception:
-        return raw
-    return raw
-
-
-def _youtube_embed_id(ref: str) -> Optional[str]:
-    raw = (ref or "").strip()
-    if not raw:
-        return None
-    try:
-        u = urlparse(raw)
-        host = (u.netloc or "").lower()
-        if "youtube.com" in host:
-            if u.path == "/watch":
-                return parse_qs(u.query).get("v", [None])[0]
-            if u.path.startswith("/shorts/"):
-                return u.path.split("/shorts/", 1)[1].split("/", 1)[0]
-        if "youtu.be" in host:
-            return (u.path or "").lstrip("/").split("/", 1)[0]
-    except Exception:
-        return None
-    return None
 
 
 class _TrackRow(InteractiveRowFrame):
@@ -355,9 +247,6 @@ class PlayerTab(QWidget):
         self._player.errorOccurred.connect(self._on_player_error)
 
         self._nam = QNetworkAccessManager(self)
-        self._web: Optional[QWebEngineView] = None
-        self._yt_request_interceptor: Optional[object] = None
-        self._last_youtube_embed = False
 
         root = QHBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 16)
@@ -586,57 +475,12 @@ class PlayerTab(QWidget):
         scroll.setWidget(self._list_host)
         rv.addWidget(scroll, stretch=1)
 
-        # Built-in player surface for YouTube/Yandex/VK page links.
-        if QWebEngineView is not None:
-            from PyQt6.QtWebEngineCore import QWebEngineSettings
-
-            self._web = QWebEngineView(self)
-            self._web.setObjectName("playerWebView")
-            if CratesWebEnginePage is not None:
-                self._web.setPage(CratesWebEnginePage(self._web))
-            ws = self._web.settings()
-            ws.setAttribute(
-                QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
-            )
-            ws.setAttribute(
-                QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-            )
-            prof = self._web.page().profile()
-            prof.setHttpUserAgent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            )
-            if CratesYoutubeRequestInterceptor is not None:
-                self._yt_request_interceptor = CratesYoutubeRequestInterceptor()
-                prof.setUrlRequestInterceptor(self._yt_request_interceptor)
-            self._web.setMinimumHeight(200)
-            self._web.setSizePolicy(
-                QSizePolicy.Policy.Expanding,
-                QSizePolicy.Policy.Expanding,
-            )
-            self._web.loadFinished.connect(self._on_web_loaded)
-            rv.addWidget(self._web, stretch=1)
-            self._web.hide()
-
         root.addWidget(self._left_card, stretch=2)
         root.addWidget(self._right_card, stretch=5)
 
         self._apply_volume()
         self._sync_play_button_icon()
         self._rebuild_list()
-
-    def _set_web_panel_visible(self, visible: bool) -> None:
-        """WebEngine даёт белую область на локальных файлах — показываем только для YouTube/страниц."""
-        if self._web is None:
-            return
-        if visible:
-            self._web.setMinimumHeight(200)
-            self._web.setMaximumHeight(16777215)
-            self._web.show()
-        else:
-            self._web.hide()
-            self._web.setMinimumHeight(0)
-            self._web.setMaximumHeight(0)
 
     def _context_is_album_or_catalog_playlist(self) -> bool:
         if not self._context_stats:
@@ -771,8 +615,7 @@ class PlayerTab(QWidget):
             return
         item = self._playlist[self._index]
         mid = self._listen_target_music_item_id(item)
-        ref = (item.get("playback_ref") or "").strip()
-        if mid is None or _is_page_playback_ref(ref):
+        if mid is None:
             self._listen_accum_ms = 0
             self._listen_last_pos_ms = None
             return
@@ -823,10 +666,6 @@ class PlayerTab(QWidget):
 
     def _tick_listen_accum(self, pos: int) -> None:
         if not self._playlist or not self._session:
-            return
-        item = self._playlist[self._index]
-        ref = (item.get("playback_ref") or "").strip()
-        if _is_page_playback_ref(ref):
             return
         if self._player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
             self._listen_last_pos_ms = pos
@@ -919,13 +758,6 @@ class PlayerTab(QWidget):
     def _toggle_play(self) -> None:
         if not self._playlist:
             return
-        current = self._playlist[self._index] if self._playlist else {}
-        ref = (current.get("playback_ref") or "").strip()
-        if ref and _is_page_playback_ref(ref):
-            if self._web is not None:
-                self._set_web_panel_visible(True)
-                self._load_web_ref(ref)
-            return
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
         else:
@@ -963,12 +795,9 @@ class PlayerTab(QWidget):
 
     def _duration_ms_for_ui(self, item: dict) -> int:
         """Длительность для шкалы: из плеера, иначе из данных трека (как на главной)."""
-        ref = (item.get("playback_ref") or "").strip()
         pdur = int(self._player.duration())
         si = effective_duration_sec(item)
         item_ms = int(si * 1000) if si else 0
-        if _is_page_playback_ref(ref):
-            return item_ms
         if pdur > 0:
             return pdur
         return item_ms
@@ -1023,67 +852,22 @@ class PlayerTab(QWidget):
         self._listen_last_pos_ms = None
         item = self._playlist[self._index]
         self._sync_now_playing_labels(item)
-        ref = (item.get("playback_ref") or "").strip()
+        base = self._session.client.base_url if self._session else ""
+        ref = resolve_backend_media_url(base, (item.get("audio_url") or "").strip())
         if not ref:
-            self._set_web_panel_visible(False)
             self._player.stop()
             self._load_artwork(None)
             self._refresh_track_sidebar()
             self._refresh_progress_time_labels(0)
             return
-        if _is_page_playback_ref(ref):
-            self._player.stop()
-            self._set_web_panel_visible(True)
-            if self._web is not None:
-                self._load_web_ref(ref)
-            self._load_artwork(self._artwork_url_for_current(item))
-            self._refresh_track_sidebar()
-            self._refresh_progress_time_labels(0)
-            return
-        self._set_web_panel_visible(False)
         self._player.stop()
         self._player.setSource(QUrl())
         QCoreApplication.processEvents()
-        url = _media_url_from_playback_ref(ref)
+        url = _media_url_from_audio_url(ref)
         self._player.setSource(url)
         self._load_artwork(self._artwork_url_for_current(item))
         self._refresh_track_sidebar()
         self._refresh_progress_time_labels(0)
-
-    def _load_web_ref(self, ref: str) -> None:
-        if self._web is None:
-            return
-        self._last_youtube_embed = False
-        vid = _youtube_embed_id(ref)
-        if vid:
-            self._last_youtube_embed = True
-            # Прямой URL вместо setHtml+iframe: меньше проблем с TLS/QUIC к googlevideo.
-            u = QUrl(f"https://www.youtube.com/embed/{vid}")
-            q = QUrlQuery()
-            q.addQueryItem("autoplay", "1")
-            q.addQueryItem("rel", "0")
-            q.addQueryItem("modestbranding", "1")
-            q.addQueryItem("playsinline", "1")
-            q.addQueryItem("enablejsapi", "1")
-            # Для встроенного плеера YouTube сверяет origin страницы с параметром.
-            q.addQueryItem("origin", "https://www.youtube.com")
-            u.setQuery(q)
-            dest = QUrl(u.toString())
-            wv = self._web
-            wv.load(QUrl("about:blank"))
-            QTimer.singleShot(50, lambda: wv.load(dest))
-            return
-        embed = _web_embed_url(ref)
-        self._last_youtube_embed = (
-            "youtube.com" in embed.lower() or "youtu.be" in (ref or "").lower()
-        )
-        dest2 = QUrl.fromUserInput(embed)
-        wv2 = self._web
-        wv2.load(QUrl("about:blank"))
-        QTimer.singleShot(50, lambda: wv2.load(dest2))
-
-    def _on_web_loaded(self, ok: bool) -> None:
-        pass
 
     def _load_artwork(self, url: Optional[str]) -> None:
         if self._art_reply is not None:
@@ -1359,11 +1143,7 @@ class PlayerTab(QWidget):
         was_playing = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
         self._load_current()
         self._rebuild_list()
-        # Web-плейбек (YouTube/Яндекс/VK) нельзя проигрывать через QMediaPlayer,
-        # иначе снова появятся FFmpeg/TLS ошибки.
-        item = self._playlist[self._index] if self._playlist else {}
-        ref = (item.get("playback_ref") or "").strip()
-        if not _is_page_playback_ref(ref) and (was_playing or playback_settings.autoplay()):
+        if was_playing or playback_settings.autoplay():
             self._player.play()
         self._emit_current_item_changed()
         self._emit_playback_state()
@@ -1411,14 +1191,6 @@ class PlayerTab(QWidget):
                 0,
                 lambda m=context_music_item_id: self._pull_context_stats(m),
             )
-        ref = (item.get("playback_ref") or "").strip()
-        if _is_page_playback_ref(ref):
-            self._player.stop()
-            self._sync_play_button_icon()
-            self._emit_current_item_changed()
-            self._emit_playback_state()
-            self._emit_progress_state()
-            return
         if playback_settings.autoplay():
             self._player.play()
         else:
@@ -1450,15 +1222,6 @@ class PlayerTab(QWidget):
         self._progress.blockSignals(False)
         self._load_current()
         self._rebuild_list()
-        ref = (item.get("playback_ref") or "").strip()
-        if _is_page_playback_ref(ref):
-            # Встроенный web-плеер уже загрузил ссылку в _load_current().
-            self._player.stop()
-            self._sync_play_button_icon()
-            self._emit_current_item_changed()
-            self._emit_playback_state()
-            self._emit_progress_state()
-            return
         if playback_settings.autoplay():
             self._player.play()
         else:

@@ -38,6 +38,19 @@ from .models import (
 User = get_user_model()
 
 
+def _absolute_media_url(request, raw_url: str) -> str:
+    url = (raw_url or "").strip()
+    if not url:
+        return ""
+    if url.startswith(("http://", "https://")):
+        return url
+    if url.startswith("//"):
+        return "https:" + url
+    if not url.startswith("/"):
+        url = "/" + url.lstrip("/")
+    return request.build_absolute_uri(url) if request else url
+
+
 def public_artist_user_payload(user_id: int, request) -> dict | None:
     """Публичные поля исполнителя для вложения в MusicItem и фиды."""
     if not user_id:
@@ -50,10 +63,7 @@ def public_artist_user_payload(user_id: int, request) -> dict | None:
         avatar_url = (prof.avatar_url or "").strip()
         af = getattr(prof, "avatar_file", None)
         if af and getattr(af, "name", ""):
-            rel = af.url
-            avatar_url = (
-                request.build_absolute_uri(rel) if request else rel
-            )
+            avatar_url = _absolute_media_url(request, af.url)
     if not nickname:
         u = User.objects.filter(pk=user_id).first()
         if not u:
@@ -69,10 +79,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         af = getattr(instance, "avatar_file", None)
         if af and getattr(af, "name", ""):
-            rel = af.url
-            data["avatar_url"] = (
-                request.build_absolute_uri(rel) if request else rel
-            )
+            data["avatar_url"] = _absolute_media_url(request, af.url)
         return data
 
     class Meta:
@@ -106,24 +113,9 @@ class MusicItemSerializer(serializers.ModelSerializer):
     listens_count = serializers.SerializerMethodField()
     listen_time_total_sec = serializers.SerializerMethodField()
     user_favorited = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
     audio_file = serializers.FileField(write_only=True, required=False, allow_null=True)
     artwork_file = serializers.FileField(write_only=True, required=False, allow_null=True)
-
-    @staticmethod
-    def effective_playback_ref(instance, request):
-        """
-        Приоритет для клиента: внешняя HTTP(S)-ссылка в playback_ref (без хранения аудио на сервере).
-        URL загруженного audio_file подставляется только если нет такой ссылки.
-        """
-        pref = (getattr(instance, "playback_ref", None) or "").strip()
-        low = pref.lower()
-        if low.startswith(("http://", "https://")):
-            return pref
-        audio = getattr(instance, "audio_file", None)
-        if audio and getattr(audio, "name", ""):
-            rel = audio.url
-            return request.build_absolute_uri(rel) if request else rel
-        return pref
 
     @staticmethod
     def _duration_sec_from_meta(meta_json) -> int | None:
@@ -159,14 +151,9 @@ class MusicItemSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        request = self.context.get("request")
-        data["playback_ref"] = self.effective_playback_ref(instance, request)
         cover = getattr(instance, "artwork_file", None)
         if cover and getattr(cover, "name", ""):
-            rel = cover.url
-            data["artwork_url"] = (
-                request.build_absolute_uri(rel) if request else rel
-            )
+            data["artwork_url"] = _absolute_media_url(self.context.get("request"), cover.url)
         ds = data.get("duration_sec")
         if ds is None or (isinstance(ds, (int, float, str)) and str(ds).strip() in ("", "0")):
             try:
@@ -192,6 +179,12 @@ class MusicItemSerializer(serializers.ModelSerializer):
             return None
         return public_artist_user_payload(uid, self.context.get("request"))
 
+    def get_audio_url(self, obj):
+        audio = getattr(obj, "audio_file", None)
+        if audio and getattr(audio, "name", ""):
+            return _absolute_media_url(self.context.get("request"), audio.url)
+        return ""
+
     class Meta:
         model = MusicItem
         fields = [
@@ -206,7 +199,7 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "artwork_url",
             "artwork_file",
             "duration_sec",
-            "playback_ref",
+            "audio_url",
             "audio_file",
             "meta_json",
             "updated_at",
@@ -227,7 +220,6 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "artist_user",
         ]
         extra_kwargs = {
-            "playback_ref": {"required": False, "allow_blank": True},
             "meta_json": {"required": False, "allow_blank": True},
         }
         # `provider` и `external_id` заполняются сервером в `perform_create`.
@@ -237,18 +229,12 @@ class MusicItemSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         current_kind = getattr(self.instance, "kind", "") if self.instance else ""
-        current_ref = getattr(self.instance, "playback_ref", "") if self.instance else ""
         current_audio = getattr(self.instance, "audio_file", None) if self.instance else None
         kind = (attrs.get("kind") or current_kind or "").strip().lower()
-        playback_ref = (attrs.get("playback_ref") or current_ref or "").strip()
         audio_file = attrs.get("audio_file", current_audio)
-        if kind == MusicItem.Kind.TRACK.value and not playback_ref and not audio_file:
+        if kind == MusicItem.Kind.TRACK.value and not audio_file:
             raise serializers.ValidationError(
                 "Для трека выберите аудиофайл."
-            )
-        if kind == MusicItem.Kind.ALBUM.value and not playback_ref:
-            raise serializers.ValidationError(
-                "Для альбома укажите ссылку или путь к папке с треками."
             )
         return attrs
 

@@ -401,7 +401,7 @@ class SearchTab(QWidget):
             if a.get("id") is not None and a.get("id") == b.get("id"):
                 return True
             return (
-                (a.get("playback_ref") or "") == (b.get("playback_ref") or "")
+                (a.get("audio_url") or "") == (b.get("audio_url") or "")
                 and (a.get("title") or "") == (b.get("title") or "")
             )
 

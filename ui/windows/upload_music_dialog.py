@@ -50,21 +50,6 @@ class UploadMusicDialog(QDialog):
         self._title_edit.setObjectName("authField")
         form.addRow("Название", self._title_edit)
 
-        self._source_edit: QLineEdit | None = None
-        if self._kind == "album":
-            self._source_edit = QLineEdit()
-            self._source_edit.setObjectName("authField")
-            self._source_edit.setPlaceholderText(self._source_placeholder())
-            source_row = QHBoxLayout()
-            source_row.setContentsMargins(0, 0, 0, 0)
-            source_row.setSpacing(8)
-            source_row.addWidget(self._source_edit, 1)
-            self._source_btn = QPushButton("Выбрать")
-            self._source_btn.setObjectName("btnSecondary")
-            self._source_btn.clicked.connect(self._pick_source)
-            source_row.addWidget(self._source_btn)
-            form.addRow(self._source_label(), self._wrap(source_row))
-
         self._audio_edit = QLineEdit()
         self._audio_edit.setObjectName("authField")
         self._audio_edit.setReadOnly(True)
@@ -113,29 +98,13 @@ class UploadMusicDialog(QDialog):
     def _hint_text(self) -> str:
         if self._kind == "track":
             return "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку."
-        return (
-            "Для альбома укажите ссылку на воспроизведение или выберите папку с треками. "
-            "Папка работает, если сервер запущен на этой же машине."
-        )
-
-    def _source_label(self) -> str:
-        return "Ссылка / папка"
-
-    def _source_placeholder(self) -> str:
-        return "https://... или путь к папке"
+        return "Для альбома укажите название и при желании добавьте обложку."
 
     @staticmethod
     def _wrap(layout: QHBoxLayout) -> QWidget:
         wrap = QWidget()
         wrap.setLayout(layout)
         return wrap
-
-    def _pick_source(self) -> None:
-        if not self._source_edit:
-            return
-        path = QFileDialog.getExistingDirectory(self, "Папка с треками")
-        if path:
-            self._source_edit.setText(path)
 
     def _pick_audio_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -159,7 +128,6 @@ class UploadMusicDialog(QDialog):
 
     def _submit(self) -> None:
         title = self._title_edit.text().strip()
-        source = self._source_edit.text().strip() if self._source_edit else ""
         audio = self._audio_edit.text().strip()
         cover = self._cover_edit.text().strip()
         if not title:
@@ -168,16 +136,11 @@ class UploadMusicDialog(QDialog):
         if self._kind == "track" and not audio:
             self._show_error("Для трека выберите аудиофайл.")
             return
-        if self._kind == "album" and not source:
-            self._show_error("Для альбома нужна ссылка или папка с треками.")
-            return
 
         fields = {
             "kind": self._kind,
             "title": title,
         }
-        if source:
-            fields["playback_ref"] = source
         files: dict[str, str] = {}
         if audio:
             files["audio_file"] = audio

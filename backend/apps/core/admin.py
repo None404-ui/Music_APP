@@ -98,11 +98,12 @@ class MusicItemAdmin(admin.ModelAdmin):
     list_display = ("id", "provider", "kind", "artist", "title", "updated_at")
     search_fields = ("title", "artist", "external_id")
     list_filter = ("provider", "kind")
+    autocomplete_fields = ("artist_user",)
 
     class Media:
         js = ("admin/js/musicitem_kind_fieldsets.js",)
 
-    readonly_fields = ("duration_sec",)
+    readonly_fields = ("artist", "duration_sec")
 
     fieldsets = (
         (
@@ -113,32 +114,19 @@ class MusicItemAdmin(admin.ModelAdmin):
                     "external_id",
                     "kind",
                     "title",
+                    "artist_user",
                     "artist",
                 )
             },
         ),
         (
-            "Воспроизведение по ссылке (рекомендуется)",
-            {
-                "fields": ("playback_ref",),
-                "classes": ("wide",),
-                "description": (
-                    "Укажите полный URL https://… — YouTube, страница стриминга, прямой поток аудио. "
-                    "Клиент воспроизводит по этой ссылке; хранить аудио на сервере не требуется. "
-                    "Для альбома/плейлиста без отдельных записей треков можно указать абсолютный путь к папке "
-                    "с файлами на машине Django (см. очередь «Популярное»)."
-                ),
-            },
-        ),
-        (
-            "Локальный аудиофайл на сервере (если нет HTTP-ссылки)",
+            "Аудиофайл на сервере",
             {
                 "fields": ("audio_file", "duration_sec"),
                 "classes": ("wide", "musicitem-fs-track"),
                 "description": (
-                    "Используется только когда поле выше пустое или не содержит http(s)-ссылки: "
-                    "тогда API отдаст URL вида /media/.... Для продакшена предпочтительна внешняя ссылка. "
-                    "Длительность трека заполняется автоматически при сохранении файла (не вводить вручную)."
+                    "Трек загружается на сервер и воспроизводится приложением напрямую из backend. "
+                    "Длительность заполняется автоматически при сохранении файла."
                 ),
             },
         ),

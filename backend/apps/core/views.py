@@ -9,12 +9,11 @@ Exposes JSON endpoints used by the PyQt client:
 """
 
 import json
-import os
 import uuid
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Sum
+from django.db.models import Count, IntegerField, Max, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -48,7 +47,6 @@ from .permissions import (
     IsStaff,
     IsOwnerOrReadOnly,
 )
-from .audio_duration import probe_audio_duration_sec
 from .serializers import (
     public_artist_user_payload,
     CollectionSerializer,
@@ -150,7 +148,7 @@ class MusicItemViewSet(viewsets.ModelViewSet):
     def popular_feed(self, request):
         """
         Сводка для вкладки «Популярное»: в albums только kind=album; треки отдельно в tracks;
-        исполнители — по числу треков в каталоге.
+        исполнители — реальные пользователи с треками, отсортированные по популярности.
         """
         base = _annotate_music_item_listening(
             MusicItem.objects.annotate(
@@ -194,21 +192,40 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         artist_rows = (
             MusicItem.objects.filter(kind=track_kind, artist_user__isnull=False)
             .values("artist_user_id")
-            .annotate(track_count=Count("id"))
-            .order_by("-track_count")[:24]
+            .annotate(
+                track_count=Count("id", distinct=True),
+                total_favorites=Count("favorites", distinct=True),
+                total_reviews=Count(
+                    "reviews",
+                    filter=Q(reviews__deleted_at__isnull=True),
+                    distinct=True,
+                ),
+                total_listens=Count("qualified_listens", distinct=True),
+                latest_track_at=Max("updated_at"),
+            )
+            .order_by(
+                "-total_favorites",
+                "-total_reviews",
+                "-total_listens",
+                "-track_count",
+                "-latest_track_at",
+            )[:24]
         )
         artists = []
         for row in artist_rows:
             uid = row["artist_user_id"]
-            base = public_artist_user_payload(uid, request)
-            if not base:
+            artist_public = public_artist_user_payload(uid, request)
+            if not artist_public:
                 continue
             artists.append(
                 {
                     "user_id": uid,
-                    "nickname": base["nickname"],
-                    "avatar_url": base["avatar_url"],
+                    "nickname": artist_public["nickname"],
+                    "avatar_url": artist_public["avatar_url"],
                     "track_count": row["track_count"],
+                    "favorites_count": row["total_favorites"],
+                    "reviews_count": row["total_reviews"],
+                    "listens_count": row["total_listens"],
                 }
             )
         ctx = {"request": request}
@@ -350,64 +367,6 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
         return ""
-
-    @staticmethod
-    def _synthetic_tracks_from_directory(
-        playback_ref: str,
-        *,
-        artist: str = "",
-        album_title: str = "",
-    ) -> list[dict]:
-        """
-        Если в каталоге одна запись «альбом» с playback_ref = папка на диске,
-        а отдельных MusicItem для каждого файла нет — собираем очередь из файлов.
-        """
-        if not playback_ref or not str(playback_ref).strip():
-            return []
-        base = os.path.normpath(
-            os.path.expanduser(os.path.expandvars(str(playback_ref).strip()))
-        )
-        if not os.path.isdir(base):
-            return []
-        audio_exts = {".mp3", ".flac", ".m4a", ".ogg", ".opus", ".wav", ".aac"}
-        files: list[str] = []
-        try:
-            for name in sorted(os.listdir(base), key=str.lower):
-                p = os.path.join(base, name)
-                if os.path.isfile(p) and os.path.splitext(name)[1].lower() in audio_exts:
-                    files.append(os.path.normpath(p))
-        except OSError:
-            return []
-        meta: dict = {}
-        if album_title:
-            meta["album"] = album_title
-        meta_json = json.dumps(meta, ensure_ascii=False) if meta else "{}"
-        tk = MusicItem.Kind.TRACK.value
-        out: list[dict] = []
-        for p in files:
-            stem = os.path.splitext(os.path.basename(p))[0]
-            dur_sec = probe_audio_duration_sec(p)
-            out.append(
-                {
-                    "id": None,
-                    "provider": "local",
-                    "external_id": p,
-                    "kind": tk,
-                    "title": stem,
-                    "artist": artist or "",
-                    "artwork_url": "",
-                    "duration_sec": dur_sec,
-                    "playback_ref": p,
-                    "meta_json": meta_json,
-                    "updated_at": None,
-                    "reviews_count": 0,
-                    "favorites_count": 0,
-                    "listens_count": 0,
-                    "listen_time_total_sec": 0,
-                    "user_favorited": False,
-                }
-            )
-        return out
 
     @action(
         detail=True,
@@ -552,46 +511,6 @@ class MusicItemViewSet(viewsets.ModelViewSet):
             out_models = [root] if root.kind == tk else []
 
         serialized = MusicItemViewSet._serialize_track_list(out_models, ctx)
-
-        def _album_title_for_folder_scan() -> str:
-            if root.kind in (ak, pk_):
-                return (root.title or "").strip()
-            return MusicItemViewSet._meta_album_title(root.meta_json or "")
-
-        if not serialized:
-            syn = MusicItemViewSet._synthetic_tracks_from_directory(
-                (root.playback_ref or "").strip(),
-                artist=(root.artist or "").strip(),
-                album_title=_album_title_for_folder_scan(),
-            )
-            if syn:
-                return Response(
-                    {
-                        "tracks": MusicItemViewSet._apply_root_artwork_to_tracks(
-                            root, syn, ctx
-                        )
-                    }
-                )
-        elif len(serialized) == 1:
-            ref0 = (serialized[0].get("playback_ref") or "").strip()
-            p0 = os.path.normpath(os.path.expanduser(os.path.expandvars(ref0)))
-            if os.path.isdir(p0):
-                syn = MusicItemViewSet._synthetic_tracks_from_directory(
-                    p0,
-                    artist=(serialized[0].get("artist") or "").strip(),
-                    album_title=MusicItemViewSet._meta_album_title(
-                        serialized[0].get("meta_json") or ""
-                    )
-                    or _album_title_for_folder_scan(),
-                )
-                if syn:
-                    return Response(
-                        {
-                            "tracks": MusicItemViewSet._apply_root_artwork_to_tracks(
-                                root, syn, ctx
-                            )
-                        }
-                    )
 
         serialized = MusicItemViewSet._apply_root_artwork_to_tracks(
             root, serialized, ctx
