@@ -156,6 +156,79 @@ QPushButton#playerVolumeIcon:focus {
     outline: none;
 }
 
+QPushButton#playerEqBtn {
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0px;
+    color: #312938;
+}
+QPushButton#playerEqBtn:focus {
+    border: none;
+    outline: none;
+}
+QPushButton#playerEqBtn:hover {
+    color: #A14016;
+}
+QPushButton#playerEqBtn:pressed {
+    color: #CB883A;
+}
+
+QFrame#playerPlaybackSettingsPopup {
+    background-color: rgba(36, 33, 24, 0.98);
+    border: 2px solid #CB883A;
+    border-radius: 8px;
+    min-width: 280px;
+}
+
+QFrame#playerPlaybackSettingsPopup QLabel#settingsHint {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    color: #89A194;
+    background: transparent;
+}
+
+QSlider#eqBandSlider::groove:vertical {
+    background-color: #312938;
+    width: 4px;
+    border: 1px solid #89A194;
+    border-radius: 0px;
+}
+QSlider#eqBandSlider::handle:vertical {
+    background-color: #CB883A;
+    border: 2px solid #312938;
+    width: 12px;
+    height: 8px;
+    margin: 0 -6px;
+    border-radius: 0px;
+}
+QSlider#eqBandSlider::handle:vertical:hover {
+    background-color: #A14016;
+}
+
+QLabel#eqBandHzLabel {
+    font-family: "Courier New", monospace;
+    font-size: 9px;
+    color: #CFC89A;
+    background: transparent;
+}
+
+QLabel#playerPlaybackPopupTitle {
+    font-family: "Segoe UI", "Arial", sans-serif;
+    font-size: 11px;
+    font-weight: bold;
+    color: #CB883A;
+    letter-spacing: 3px;
+    background: transparent;
+}
+
+QLabel#playerPlaybackPopupLabel {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #89A194;
+    background: transparent;
+}
+
 QFrame#playerAlbumTab {
     background-color: #C8C18F;
     border-top-left-radius: 18px;

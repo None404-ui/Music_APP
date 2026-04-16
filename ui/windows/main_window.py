@@ -26,7 +26,7 @@ from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
 from ui.windows.settings_tab import SettingsTab
-from ui import i18n
+from ui import i18n, playback_resume
 
 _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
@@ -332,9 +332,16 @@ class MainWindow(QMainWindow):
         self._stack.currentChanged.connect(self._sync_mini_player_visibility)
         self._player.current_item_changed.connect(lambda _item: self._sync_mini_player_visibility())
 
-        self._side_nav.set_current_index(self._HOME_PAGE_INDEX)
-        self._stack.setCurrentIndex(self._HOME_PAGE_INDEX)
-        self._home_hub.reset_to_popular()
+        snap = playback_resume.peek_language_restart_snapshot()
+        restored = bool(snap and self._player.apply_language_restart_snapshot(snap))
+        playback_resume.clear_language_restart_snapshot()
+        if restored:
+            animate_stack_fade(self._stack, self._PLAYER_PAGE_INDEX)
+            self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
+        else:
+            self._side_nav.set_current_index(self._HOME_PAGE_INDEX)
+            self._stack.setCurrentIndex(self._HOME_PAGE_INDEX)
+            self._home_hub.reset_to_popular()
         self._popular_tab.reload_content()
         self._sync_mini_player_visibility()
 
@@ -377,6 +384,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._player.flush_listen_for_close()
+        if self._language_restart:
+            self._player.save_language_restart_snapshot()
+        else:
+            playback_resume.clear_language_restart_snapshot()
+        self._player.shutdown_audio_for_close()
         super().closeEvent(event)
 
     def _on_side_nav_clicked(self, index: int) -> None:

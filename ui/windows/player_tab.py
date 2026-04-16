@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import array
 import copy
 import json
 import os
 from typing import TYPE_CHECKING, Callable, Optional
 
-from PyQt6.QtCore import Qt, QUrl, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, QUrl, QByteArray, QIODevice, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
 from PyQt6.QtGui import QPixmap, QImage, QColor, QIcon
-from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PyQt6.QtMultimedia import (
+    QAudioBuffer,
+    QAudioBufferOutput,
+    QAudioFormat,
+    QAudioSink,
+    QMediaDevices,
+    QMediaPlayer,
+)
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtWidgets import (
     QWidget,
@@ -21,7 +29,9 @@ from PyQt6.QtWidgets import (
     QScrollArea,
 )
 
-from ui import i18n, playback_settings
+from ui import i18n, equalizer_settings, playback_resume, playback_settings
+from ui.audio_eq import GraphicEQProcessor
+from ui.equalizer_popup import EqualizerPopup
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
@@ -224,10 +234,17 @@ class PlayerTab(QWidget):
         self._user_seeking = False
         self._art_reply: Optional[QNetworkReply] = None
 
-        self._audio = QAudioOutput(self)
-        self._audio.setVolume(0.75)
         self._player = QMediaPlayer(self)
-        self._player.setAudioOutput(self._audio)
+        self._graphic_eq_channels = 2
+        self._graphic_eq = GraphicEQProcessor(self._graphic_eq_channels)
+        self._buf_out = QAudioBufferOutput(self)
+        self._buf_out.audioBufferReceived.connect(self._on_eq_audio_buffer)
+        self._player.setAudioBufferOutput(self._buf_out)
+        self._player.setAudioOutput(None)
+        self._eq_sink: Optional[QAudioSink] = None
+        self._eq_sink_io: Optional[QIODevice] = None
+        self._eq_sink_format: Optional[QAudioFormat] = None
+        self.sync_equalizer_from_settings()
         self._player.positionChanged.connect(self._on_position_changed)
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.playbackStateChanged.connect(self._on_state_changed)
@@ -305,6 +322,7 @@ class PlayerTab(QWidget):
         self._ico_player_play = QIcon(os.path.join(_ICONS_DIR, "player_play.svg"))
         self._ico_player_pause = QIcon(os.path.join(_ICONS_DIR, "player_pause.svg"))
         self._ico_player_volume = QIcon(os.path.join(_ICONS_DIR, "player_volume.svg"))
+        self._ico_player_eq = QIcon(os.path.join(_ICONS_DIR, "player_equalizer.svg"))
 
         self._btn_prev = QPushButton()
         self._btn_prev.setObjectName("playerBtnPrev")
@@ -352,8 +370,23 @@ class PlayerTab(QWidget):
         self._volume.setRange(0, 100)
         self._volume.setValue(75)
         self._volume.valueChanged.connect(self._apply_volume)
+        self._btn_playback_settings = QPushButton()
+        self._btn_playback_settings.setObjectName("playerEqBtn")
+        self._btn_playback_settings.setIcon(self._ico_player_eq)
+        self._btn_playback_settings.setIconSize(QSize(22, 22))
+        self._btn_playback_settings.setFlat(True)
+        self._btn_playback_settings.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._btn_playback_settings.setFixedSize(28, 28)
+        self._btn_playback_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_playback_settings.setToolTip(i18n.tr("Эквалайзер"))
+        self._btn_playback_settings.clicked.connect(self._toggle_equalizer_popup)
+        self._equalizer_popup = EqualizerPopup(
+            self,
+            on_changed=self.sync_equalizer_from_settings,
+        )
         vol_row.addWidget(vol_ic)
         vol_row.addWidget(self._volume, stretch=1)
+        vol_row.addWidget(self._btn_playback_settings)
         cvl.addLayout(vol_row)
 
         lv.addWidget(ctrl_block, stretch=0)
@@ -596,6 +629,121 @@ class PlayerTab(QWidget):
         """Перед закрытием окна — отправить накопленное прослушивание текущего трека."""
         self._flush_listen_session()
 
+    def build_language_restart_snapshot(self) -> Optional[dict]:
+        if not self._playlist:
+            return None
+        return {
+            "playlist": copy.deepcopy(self._playlist),
+            "index": int(self._index),
+            "position_ms": int(self._player.position()),
+            "was_playing": self.is_playing(),
+            "volume_percent": self.current_volume_percent(),
+            "context_music_item_id": self._context_music_item_id,
+            "queue_artwork_fallback": (self._queue_artwork_fallback or "").strip(),
+        }
+
+    def save_language_restart_snapshot(self) -> None:
+        data = self.build_language_restart_snapshot()
+        if data:
+            playback_resume.save_language_restart_snapshot(data)
+
+    def shutdown_audio_for_close(self) -> None:
+        """Остановить декодер и вывод, чтобы при пересоздании окна звук не «висел» в фоне."""
+        self._player.stop()
+        self._player.setSource(QUrl())
+        self._release_eq_sink()
+        QCoreApplication.processEvents()
+
+    def apply_language_restart_snapshot(self, data: dict) -> bool:
+        """Восстановить очередь и позицию после перезапуска окна (смена языка)."""
+        pl = data.get("playlist")
+        if not isinstance(pl, list) or not pl:
+            return False
+        clean: list[dict] = []
+        for t in pl:
+            if isinstance(t, dict):
+                clean.append(copy.deepcopy(dict(t)))
+        if not clean:
+            return False
+
+        ctx = data.get("context_music_item_id")
+        if ctx is not None:
+            try:
+                self._context_music_item_id = int(ctx)
+            except (TypeError, ValueError):
+                self._context_music_item_id = None
+        else:
+            self._context_music_item_id = None
+
+        self._queue_artwork_fallback = str(data.get("queue_artwork_fallback") or "").strip()
+        self._context_stats = {}
+        self._playlist = clean
+        idx = int(data.get("index", 0))
+        self._index = max(0, min(idx, len(self._playlist) - 1))
+        item = self._playlist[self._index]
+
+        self._listen_accum_ms = 0
+        self._listen_last_pos_ms = None
+
+        self._sync_now_playing_labels(item)
+        self._apply_item_to_info_panel(item)
+        self._player.stop()
+        self._player.setSource(QUrl())
+        QCoreApplication.processEvents()
+
+        self._t_elapsed.setText("0:00")
+        self._t_total.setText("—")
+        self._progress.blockSignals(True)
+        self._progress.setRange(0, 1000)
+        self._progress.setValue(0)
+        self._progress.blockSignals(False)
+
+        try:
+            self.set_volume_percent(int(data.get("volume_percent", 75)))
+        except (TypeError, ValueError):
+            pass
+
+        self._load_current()
+        self._rebuild_list()
+
+        cid = self._context_music_item_id
+        if cid is not None and self._session:
+            QTimer.singleShot(0, lambda m=int(cid): self._pull_context_stats(m))
+
+        pos_ms = int(data.get("position_ms", 0))
+        was_playing = bool(data.get("was_playing", False))
+        self._schedule_restore_transport(pos_ms, was_playing)
+        return True
+
+    def _schedule_restore_transport(self, pos_ms: int, play: bool) -> None:
+        pos_ms = max(0, int(pos_ms))
+        play = bool(play)
+
+        def tick(attempt: int) -> None:
+            if attempt > 80:
+                self._apply_volume()
+                self._sync_play_button_icon()
+                self._emit_current_item_changed()
+                self._emit_playback_state()
+                self._emit_progress_state()
+                return
+            dur = int(self._player.duration())
+            if dur <= 0:
+                QTimer.singleShot(50, lambda: tick(attempt + 1))
+                return
+            self._player.setPosition(min(pos_ms, max(0, dur - 1)))
+            self._apply_volume()
+            if play:
+                self._player.play()
+            else:
+                self._player.pause()
+            self._sync_play_button_icon()
+            self._emit_current_item_changed()
+            self._emit_playback_state()
+            self._emit_progress_state()
+
+        QTimer.singleShot(0, lambda: tick(0))
+
     def _flush_listen_session(self) -> None:
         if not self._session or not self._playlist:
             self._listen_accum_ms = 0
@@ -696,7 +844,7 @@ class PlayerTab(QWidget):
     def _on_player_error(self, error, message: str = "") -> None:
         pass
 
-    def _apply_volume(self) -> None:
+    def _compute_master_linear(self) -> float:
         v = self._volume.value() / 100.0
         cap = playback_settings.quality_volume_cap()
         v = min(v * cap, cap)
@@ -706,7 +854,12 @@ class PlayerTab(QWidget):
             else None
         )
         v *= playback_settings.normalization_gain_for_item(cur)
-        self._audio.setVolume(min(1.0, max(0.0, v)))
+        return min(1.0, max(0.0, v))
+
+    def _apply_volume(self) -> None:
+        ml = self._compute_master_linear()
+        if self._eq_sink is not None:
+            self._eq_sink.setVolume(ml)
         self.volume_changed.emit(int(self._volume.value()))
 
     def current_volume_percent(self) -> int:
@@ -727,6 +880,115 @@ class PlayerTab(QWidget):
 
     def refresh_playback_settings(self) -> None:
         self._apply_volume()
+
+    def sync_equalizer_from_settings(self) -> None:
+        gains = equalizer_settings.band_gains_db()
+        self._graphic_eq.set_gains_db(gains)
+
+    def _release_eq_sink(self) -> None:
+        if self._eq_sink is not None:
+            self._eq_sink.stop()
+            self._eq_sink.deleteLater()
+            self._eq_sink = None
+        self._eq_sink_io = None
+        self._eq_sink_format = None
+
+    def _ensure_eq_sink(self, fmt: QAudioFormat) -> bool:
+        if self._eq_sink is not None and self._eq_sink_format is not None:
+            if (
+                fmt.sampleRate() == self._eq_sink_format.sampleRate()
+                and fmt.channelCount() == self._eq_sink_format.channelCount()
+                and fmt.sampleFormat() == self._eq_sink_format.sampleFormat()
+            ):
+                return self._eq_sink_io is not None
+        self._release_eq_sink()
+        dev = QMediaDevices.defaultAudioOutput()
+        if dev.isNull():
+            return False
+        self._eq_sink = QAudioSink(dev, fmt, self)
+        self._eq_sink_io = self._eq_sink.start()
+        if self._eq_sink_io is None:
+            self._eq_sink = None
+            return False
+        self._eq_sink_format = fmt
+        self._eq_sink.setVolume(self._compute_master_linear())
+        return True
+
+    def _write_all_sink(self, data: bytes) -> None:
+        if not self._eq_sink_io:
+            return
+        off = 0
+        b = data
+        while off < len(b):
+            n = self._eq_sink_io.write(b[off:])
+            if n is None or n <= 0:
+                break
+            off += int(n)
+
+    def _eq_process_int16(self, raw: bytes, n_ch: int) -> bytes:
+        a = array.array("h")
+        a.frombytes(raw)
+        for i in range(0, len(a), n_ch):
+            for c in range(n_ch):
+                x = a[i + c] / 32768.0
+                y = self._graphic_eq.process_sample(x, c)
+                if y > 1.0:
+                    y = 1.0
+                elif y < -1.0:
+                    y = -1.0
+                iv = int(round(y * 32767.0))
+                a[i + c] = max(-32768, min(32767, iv))
+        return a.tobytes()
+
+    def _eq_process_float32(self, raw: bytes, n_ch: int) -> bytes:
+        a = array.array("f")
+        a.frombytes(raw)
+        for i in range(0, len(a), n_ch):
+            for c in range(n_ch):
+                y = self._graphic_eq.process_sample(float(a[i + c]), c)
+                if y > 1.0:
+                    y = 1.0
+                elif y < -1.0:
+                    y = -1.0
+                a[i + c] = y
+        return a.tobytes()
+
+    def _on_eq_audio_buffer(self, buffer: QAudioBuffer) -> None:
+        if not buffer.isValid() or buffer.frameCount() == 0:
+            return
+        fmt = buffer.format()
+        if not fmt.isValid():
+            return
+        n_ch = fmt.channelCount()
+        if n_ch < 1:
+            return
+        if self._graphic_eq_channels != n_ch:
+            self._graphic_eq_channels = n_ch
+            self._graphic_eq = GraphicEQProcessor(n_ch)
+            self._graphic_eq.set_gains_db(equalizer_settings.band_gains_db())
+        self._graphic_eq.set_sample_rate(float(fmt.sampleRate()))
+
+        raw = bytes(buffer.data())
+        bpf = fmt.bytesPerFrame()
+        expected = buffer.frameCount() * bpf
+        if len(raw) < expected:
+            return
+        raw = raw[:expected]
+
+        if not self._ensure_eq_sink(fmt):
+            return
+
+        sf = fmt.sampleFormat()
+        if sf == QAudioFormat.SampleFormat.Int16:
+            out = self._eq_process_int16(raw, n_ch)
+        elif sf == QAudioFormat.SampleFormat.Float:
+            out = self._eq_process_float32(raw, n_ch)
+        else:
+            out = raw
+        self._write_all_sink(out)
+
+    def _toggle_equalizer_popup(self) -> None:
+        self._equalizer_popup.toggle_near(self._btn_playback_settings)
 
     def open_review_dialog(self) -> None:
         self._on_review_clicked()
@@ -754,6 +1016,7 @@ class PlayerTab(QWidget):
     def _on_seek_released(self) -> None:
         self._user_seeking = False
         self._player.setPosition(self._progress.value())
+        self._graphic_eq.reset()
 
     def _toggle_play(self) -> None:
         if not self._playlist:
@@ -860,6 +1123,7 @@ class PlayerTab(QWidget):
             self._refresh_track_sidebar()
             self._refresh_progress_time_labels(0)
             self._apply_volume()
+            self._graphic_eq.reset()
             return
         self._player.stop()
         self._player.setSource(QUrl())
@@ -870,6 +1134,7 @@ class PlayerTab(QWidget):
         self._refresh_track_sidebar()
         self._refresh_progress_time_labels(0)
         self._apply_volume()
+        self._graphic_eq.reset()
 
     def _load_artwork(self, url: Optional[str]) -> None:
         if self._art_reply is not None:

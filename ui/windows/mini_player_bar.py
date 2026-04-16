@@ -20,6 +20,7 @@ from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame, StatefulIconButton
 from ui import i18n
+from ui.equalizer_popup import EqualizerPopup
 
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "icons")
 _mini_cover_nam: QNetworkAccessManager | None = None
@@ -190,6 +191,21 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._btn_volume.setIconSize(QSize(20, 20))
         self._btn_volume.clicked.connect(self._toggle_volume_popup)
 
+        self._btn_eq = StatefulIconButton(
+            os.path.join(_ICONS_DIR, "player_equalizer.svg"),
+            base_color="#CFC89A",
+            hover_color="#CB883A",
+            pressed_color="#A14016",
+            checked_color="#CB883A",
+            pulse_on_toggle=False,
+            parent=self,
+        )
+        self._btn_eq.setObjectName("miniPlayerBtn")
+        self._btn_eq.setFixedSize(34, 34)
+        self._btn_eq.setIconSize(QSize(20, 20))
+        self._btn_eq.setToolTip(i18n.tr("Эквалайзер"))
+        self._btn_eq.clicked.connect(self._toggle_playback_popup)
+
         controls.addWidget(self._btn_prev)
         controls.addWidget(self._btn_play)
         controls.addWidget(self._btn_next)
@@ -204,6 +220,7 @@ class MiniPlayerBar(InteractiveRowFrame):
         right_top.setSpacing(6)
         right_top.addStretch(1)
         right_top.addWidget(self._btn_volume, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        right_top.addWidget(self._btn_eq, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         right_top.addWidget(self._btn_review, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         right_top.addWidget(self._btn_like, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -239,6 +256,11 @@ class MiniPlayerBar(InteractiveRowFrame):
         popup_layout.addWidget(self._volume_popup_slider, 0, Qt.AlignmentFlag.AlignHCenter)
         self._volume_popup.hide()
 
+        self._equalizer_popup = EqualizerPopup(
+            self,
+            on_changed=self._player.sync_equalizer_from_settings,
+        )
+
         self.install_interaction_filters()
         self.hide()
 
@@ -259,6 +281,7 @@ class MiniPlayerBar(InteractiveRowFrame):
             self._btn_play,
             self._btn_next,
             self._btn_volume,
+            self._btn_eq,
             self._volume_popup_slider,
             self._btn_review,
             self._btn_like,
@@ -317,7 +340,14 @@ class MiniPlayerBar(InteractiveRowFrame):
     def _on_like_toggled(self, checked: bool) -> None:
         self._player.set_current_favorite_checked(checked)
 
+    def _toggle_playback_popup(self) -> None:
+        if self._volume_popup.isVisible():
+            self._volume_popup.hide()
+        self._equalizer_popup.toggle_near(self._btn_eq)
+
     def _toggle_volume_popup(self) -> None:
+        if self._equalizer_popup.isVisible():
+            self._equalizer_popup.hide()
         if self._volume_popup.isVisible():
             self._volume_popup.hide()
             return
