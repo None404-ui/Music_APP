@@ -685,6 +685,13 @@ class PlayerTab(QWidget):
                 self._load_current()
                 self._rebuild_list()
                 self._player.play()
+                return
+            # Последний трек: при автовоспроизведении — снова с начала очереди (один трек = повтор)
+            if playback_settings.autoplay() and self._playlist:
+                self._index = 0
+                self._load_current()
+                self._rebuild_list()
+                self._player.play()
 
     def _on_player_error(self, error, message: str = "") -> None:
         pass
@@ -693,7 +700,12 @@ class PlayerTab(QWidget):
         v = self._volume.value() / 100.0
         cap = playback_settings.quality_volume_cap()
         v = min(v * cap, cap)
-        v *= playback_settings.normalization_factor()
+        cur = (
+            self._playlist[self._index]
+            if self._playlist and 0 <= self._index < len(self._playlist)
+            else None
+        )
+        v *= playback_settings.normalization_gain_for_item(cur)
         self._audio.setVolume(min(1.0, max(0.0, v)))
         self.volume_changed.emit(int(self._volume.value()))
 
@@ -847,6 +859,7 @@ class PlayerTab(QWidget):
             self._load_artwork(None)
             self._refresh_track_sidebar()
             self._refresh_progress_time_labels(0)
+            self._apply_volume()
             return
         self._player.stop()
         self._player.setSource(QUrl())
@@ -856,6 +869,7 @@ class PlayerTab(QWidget):
         self._load_artwork(self._artwork_url_for_current(item))
         self._refresh_track_sidebar()
         self._refresh_progress_time_labels(0)
+        self._apply_volume()
 
     def _load_artwork(self, url: Optional[str]) -> None:
         if self._art_reply is not None:
@@ -1003,6 +1017,7 @@ class PlayerTab(QWidget):
         self._playlist[self._index].update(data)
         self._sync_now_playing_labels(self._playlist[self._index])
         self._apply_item_to_info_panel(self._playlist[self._index])
+        self._apply_volume()
         self._emit_current_item_changed()
 
     def _on_like_toggled(self, checked: bool) -> None:

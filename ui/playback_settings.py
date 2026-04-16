@@ -1,5 +1,11 @@
 """Настройки воспроизведения (QSettings), читает плеер и пишет вкладка «настройки»."""
 
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, Optional
+
 from PyQt6.QtCore import QSettings
 
 _ORG = "CRATES"
@@ -90,6 +96,66 @@ def set_normalization(v: bool) -> None:
     _s().setValue("playback/normalization", v)
 
 
+# Нормализация: множитель к выходной громкости (после ползунка и quality cap).
+_DEFAULT_NORM_GAIN_NO_METADATA = 0.82
+_NORM_GAIN_MIN = 0.12
+_NORM_GAIN_MAX = 1.55
+
+
+def _parse_meta_dict(item: Optional[dict]) -> dict[str, Any]:
+    if not item or not isinstance(item, dict):
+        return {}
+    m = item.get("meta_json")
+    if isinstance(m, dict):
+        return m
+    if isinstance(m, str) and m.strip():
+        try:
+            parsed = json.loads(m)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _parse_db_value(v: Any) -> Optional[float]:
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().lower()
+    s = re.sub(r"\s*db\s*$", "", s).strip()
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def normalization_gain_for_item(item: Optional[dict]) -> float:
+    """
+    Множитель громкости при включённой нормализации.
+    Если в meta_json трека есть ReplayGain (dB), применяется 10^(dB/20) с ограничением.
+    Иначе — мягкое снижение по умолчанию (как раньше одна константа 0.82).
+    """
+    if not normalization():
+        return 1.0
+    meta = _parse_meta_dict(item)
+    for key in (
+        "replay_gain_db",
+        "replaygain_track_gain_db",
+        "replaygain_track_gain",
+        "rg_track_db",
+    ):
+        if key not in meta:
+            continue
+        db = _parse_db_value(meta.get(key))
+        if db is not None:
+            g = 10.0 ** (db / 20.0)
+            return max(_NORM_GAIN_MIN, min(_NORM_GAIN_MAX, g))
+    return _DEFAULT_NORM_GAIN_NO_METADATA
+
+
 def quality_volume_cap() -> float:
     """Верхняя граница громкости (множитель) в зависимости от «качества»."""
     q = quality_key()
@@ -100,7 +166,3 @@ def quality_volume_cap() -> float:
     if q == _QUALITY_HIGH:
         return 1.0
     return 0.88
-
-
-def normalization_factor() -> float:
-    return 0.82 if normalization() else 1.0
