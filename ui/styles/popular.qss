@@ -26,12 +26,12 @@ QScrollArea#artistHeroTrackScroll > QWidget > QWidget {
     background: transparent;
 }
 
-/* Заголовки секций (АЛЬБОМЫ, ИСПОЛНИТЕЛИ, ТРЕКИ) — бирюзовый, без плашек */
+/* Заголовки страницы и секций */
 QWidget#popularPage QLabel#sectionHeading {
     font-family: "Courier New";
     font-size: 28px;
     font-weight: bold;
-    color: #2A7A8C;
+    color: #A14016;
     letter-spacing: 5px;
     margin-bottom: 4px;
     background: transparent;
@@ -80,7 +80,15 @@ QLabel#carouselHeading {
     font-family: "Courier New";
     font-size: 14px;
     font-weight: bold;
-    color: #2A7A8C;
+    color: #A14016;
+    letter-spacing: 3px;
+}
+
+QWidget#popularPage QLabel#subSectionHeading {
+    font-family: "Courier New";
+    font-size: 14px;
+    font-weight: bold;
+    color: #A14016;
     letter-spacing: 3px;
 }
 
@@ -126,22 +134,6 @@ QFrame#albumCard:hover {
     background-color: #6d6756;
 }
 
-QLabel#albumCover {
-    background-color: #BDB685;
-    border-radius: 6px;
-    border: 1px solid #89A194;
-    font-size: 32px;
-    color: #A14016;
-}
-QLabel#albumCover:hover {
-    border: 1px solid #CB883A;
-    background-color: #d1c996;
-}
-QFrame#albumCard:hover QLabel#albumCover {
-    border: 1px solid #CB883A;
-    background-color: #d1c996;
-}
-
 QLabel#albumTitle {
     font-family: "Courier New";
     font-size: 12px;
@@ -153,11 +145,11 @@ QLabel#albumTitle {
 QLabel#albumArtist {
     font-family: "Courier New";
     font-size: 11px;
-    color: #89A194;
+    color: #2A7A8C;
+    text-decoration: underline;
 }
 QFrame#albumCard:hover QLabel#albumArtist {
-    color: #ffd4a8;
-    text-decoration: underline;
+    color: #CB883A;
 }
 
 QLabel#artistAvatar {
@@ -176,8 +168,12 @@ QLabel#artistName {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
-    color: #CFC89A;
+    color: #2A7A8C;
     letter-spacing: 1px;
+    text-decoration: underline;
+}
+QLabel#artistName:hover {
+    color: #CB883A;
 }
 
 /* Строка трека: акцент на названии, длительности и статистике */
@@ -191,7 +187,7 @@ QFrame#trackRow:hover {
     border: 1px solid #CB883A;
 }
 QFrame#trackRow:hover QLabel#trackArtist {
-    color: #ffd4a8;
+    color: #CB883A;
 }
 
 QLabel#trackNumber {
@@ -199,12 +195,6 @@ QLabel#trackNumber {
     font-size: 12px;
     color: rgba(207, 200, 154, 0.75);
     min-width: 28px;
-}
-
-QLabel#trackRowThumb {
-    background-color: rgba(49, 41, 56, 0.35);
-    border: 1px solid #89A194;
-    border-radius: 4px;
 }
 
 QLabel#trackTitle {
@@ -217,11 +207,11 @@ QLabel#trackTitle {
 QLabel#trackArtist {
     font-family: "Courier New";
     font-size: 11px;
-    color: rgba(207, 200, 154, 0.88);
+    color: #2A7A8C;
     text-decoration: underline;
 }
 QLabel#trackArtist:hover {
-    color: #ffd4a8;
+    color: #CB883A;
 }
 
 QLabel#trackStats {

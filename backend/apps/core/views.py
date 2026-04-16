@@ -10,6 +10,7 @@ Exposes JSON endpoints used by the PyQt client:
 
 import json
 import os
+import uuid
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -40,10 +41,10 @@ from .models import (
 )
 from .models import AdUnit, ListeningEvent, MusicItemQualifiedListen, Notification, Reaction
 from .permissions import (
-    IsAdminOrReadOnly,
     IsAuthorOrReadOnly,
     IsConversationMember,
     IsCollectionItemOwner,
+    IsMusicUploaderOrAdminReadOnly,
     IsStaff,
     IsOwnerOrReadOnly,
 )
@@ -104,7 +105,8 @@ def _annotate_music_item_listening(qs):
 class MusicItemViewSet(viewsets.ModelViewSet):
     queryset = MusicItem.objects.all().order_by("-updated_at")
     serializer_class = MusicItemSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsMusicUploaderOrAdminReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -129,7 +131,20 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         kind = self.request.query_params.get("kind")
         if kind:
             qs = qs.filter(kind=kind)
+        artist_user_id = self.request.query_params.get("artist_user_id")
+        if artist_user_id:
+            qs = qs.filter(artist_user_id=artist_user_id)
         return qs
+
+    def perform_create(self, serializer):
+        profile = Profile.objects.filter(user=self.request.user).first()
+        artist_name = (profile.nickname if profile else "") or self.request.user.get_username()
+        serializer.save(
+            artist_user=self.request.user,
+            artist=artist_name,
+            provider="upload",
+            external_id=str(uuid.uuid4()),
+        )
 
     @action(detail=False, methods=["get"], url_path="popular-feed")
     def popular_feed(self, request):

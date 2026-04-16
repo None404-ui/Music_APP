@@ -89,34 +89,55 @@ class CratesApiClient:
     def get_json(self, path: str, timeout: float = 20.0) -> tuple[int, Any]:
         return self.request_json("GET", path, None, timeout=timeout)
 
-    def patch_multipart_file(
+    def request_multipart(
         self,
+        method: str,
         path: str,
-        field_name: str,
-        file_path: str,
+        *,
+        fields: dict[str, str] | None = None,
+        files: dict[str, str] | None = None,
         timeout: float = 60.0,
     ) -> tuple[int, Any]:
-        """PATCH multipart/form-data с одним файлом (например avatar_file)."""
-        p = Path(file_path)
-        if not p.is_file():
-            return 0, {"detail": "Файл не найден"}
-        raw = p.read_bytes()
-        ct = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+        fields = fields or {}
+        files = files or {}
         boundary = secrets.token_hex(16)
         crlf = "\r\n"
-        head = (
-            f"--{boundary}{crlf}"
-            f'Content-Disposition: form-data; name="{field_name}"; filename="{p.name}"{crlf}'
-            f"Content-Type: {ct}{crlf}{crlf}"
-        )
-        tail = f"{crlf}--{boundary}--{crlf}"
-        body = head.encode("utf-8") + raw + tail.encode("utf-8")
+        chunks: list[bytes] = []
+        for key, value in fields.items():
+            chunks.extend(
+                [
+                    f"--{boundary}{crlf}".encode("utf-8"),
+                    f'Content-Disposition: form-data; name="{key}"{crlf}{crlf}'.encode("utf-8"),
+                    str(value).encode("utf-8"),
+                    crlf.encode("utf-8"),
+                ]
+            )
+        for field_name, file_path in files.items():
+            p = Path(file_path)
+            if not p.is_file():
+                return 0, {"detail": f"Файл не найден: {file_path}"}
+            raw = p.read_bytes()
+            ct = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+            chunks.extend(
+                [
+                    f"--{boundary}{crlf}".encode("utf-8"),
+                    (
+                        f'Content-Disposition: form-data; name="{field_name}"; '
+                        f'filename="{p.name}"{crlf}'
+                    ).encode("utf-8"),
+                    f"Content-Type: {ct}{crlf}{crlf}".encode("utf-8"),
+                    raw,
+                    crlf.encode("utf-8"),
+                ]
+            )
+        chunks.append(f"--{boundary}--{crlf}".encode("utf-8"))
+        body = b"".join(chunks)
         url = f"{self.base_url}{path}"
         headers = {
             "Accept": "application/json",
             "Content-Type": f"multipart/form-data; boundary={boundary}",
         }
-        req = Request(url, data=body, method="PATCH", headers=headers)
+        req = Request(url, data=body, method=method.upper(), headers=headers)
         try:
             with self._opener.open(req, timeout=timeout) as resp:
                 out = resp.read().decode("utf-8")
@@ -133,6 +154,37 @@ class CratesApiClient:
             except json.JSONDecodeError:
                 parsed = {"detail": raw_e or str(e)}
             return e.code, parsed
+
+    def patch_multipart_file(
+        self,
+        path: str,
+        field_name: str,
+        file_path: str,
+        timeout: float = 60.0,
+    ) -> tuple[int, Any]:
+        """PATCH multipart/form-data с одним файлом (например avatar_file)."""
+        return self.request_multipart(
+            "PATCH",
+            path,
+            files={field_name: file_path},
+            timeout=timeout,
+        )
+
+    def post_multipart(
+        self,
+        path: str,
+        *,
+        fields: dict[str, str] | None = None,
+        files: dict[str, str] | None = None,
+        timeout: float = 60.0,
+    ) -> tuple[int, Any]:
+        return self.request_multipart(
+            "POST",
+            path,
+            fields=fields,
+            files=files,
+            timeout=timeout,
+        )
 
 
 def api_login(client: CratesApiClient, email: str, password: str) -> tuple[bool, str | None]:

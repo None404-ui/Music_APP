@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import random
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPainter, QPen, QRadialGradient
+from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
 from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 
 
@@ -20,17 +20,20 @@ class AmbientBackground(QWidget):
             (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
             for _ in range(900)
         ]
+        self._cache = QPixmap()
 
-    def paintEvent(self, event) -> None:
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
+    def _rebuild_cache(self) -> None:
         w, h = self.width(), self.height()
         if w < 2 or h < 2:
-            p.end()
+            self._cache = QPixmap()
             return
 
-        p.fillRect(self.rect(), QColor(18, 12, 28))
+        pm = QPixmap(w, h)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        p.fillRect(pm.rect(), QColor(18, 12, 28))
 
         blobs = [
             (w * 0.22, h * 0.35, max(w, h) * 0.55, QColor(255, 120, 40, 55)),
@@ -42,7 +45,9 @@ class AmbientBackground(QWidget):
         for cx, cy, r, col in blobs:
             grad = QRadialGradient(cx, cy, r)
             grad.setColorAt(0.0, col)
-            grad.setColorAt(0.45, QColor(col.red(), col.green(), col.blue(), col.alpha() // 3))
+            grad.setColorAt(
+                0.45, QColor(col.red(), col.green(), col.blue(), col.alpha() // 3)
+            )
             grad.setColorAt(1.0, QColor(0, 0, 0, 0))
             p.setBrush(grad)
             p.setPen(Qt.PenStyle.NoPen)
@@ -69,6 +74,19 @@ class AmbientBackground(QWidget):
                 p.drawRect(x, y, 2, 2)
 
         p.end()
+        self._cache = pm
+
+    def paintEvent(self, event) -> None:
+        del event
+        if self._cache.isNull():
+            return
+        p = QPainter(self)
+        p.drawPixmap(0, 0, self._cache)
+        p.end()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._rebuild_cache()
 
 
 class ContentWithAmbient(QWidget):

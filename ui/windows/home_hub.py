@@ -80,7 +80,7 @@ class HomeHubWidget(QWidget):
             self._btn_reviews.setChecked(False)
         finally:
             self._group.blockSignals(False)
-        animate_stack_fade(self._stack, self._SUB_POPULAR)
+        self._stack.setCurrentIndex(self._SUB_POPULAR)
 
     def current_sub_index(self) -> int:
         return self._stack.currentIndex()

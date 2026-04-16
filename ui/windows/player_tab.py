@@ -7,18 +7,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt, QUrl, QUrlQuery, QByteArray, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
-from PyQt6.QtGui import (
-    QPixmap,
-    QImage,
-    QPainter,
-    QColor,
-    QIcon,
-    QPainterPath,
-    QPen,
-    QFont,
-    QBrush,
-    QLinearGradient,
-)
+from PyQt6.QtGui import QPixmap, QImage, QColor, QIcon
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtWidgets import (
@@ -31,7 +20,6 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QFrame,
     QScrollArea,
-    QGraphicsDropShadowEffect,
 )
 # WebEngine: версии PyQt6 и PyQt6-WebEngine должны совпадать.
 QWebEngineView = None  # type: ignore[misc, assignment]
@@ -80,6 +68,7 @@ except (ImportError, OSError):
 
 from ui import playback_settings
 from ui.artist_link_label import ArtistLinkLabel
+from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 from ui.interactive_fx import InteractiveRowFrame, StatefulIconButton
 from backend.api_client import resolve_backend_media_url
@@ -288,75 +277,33 @@ class _TrackRow(InteractiveRowFrame):
         super().mousePressEvent(event)
 
 
-class PlayerArtworkWidget(QWidget):
-    """Обложка трека: скруглённые углы, рамка, картинка по центру без вылезания за границы."""
+class PlayerArtworkWidget(CoverArtWidget):
+    """Обложка трека: квадратная область с маской и рамкой."""
 
-    _RADIUS = 14
+    _RADIUS = 22
     _BORDER = 3
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(
+            radius=self._RADIUS,
+            border_width=self._BORDER,
+            border_color=QColor(49, 41, 56),
+            fill_color=QColor(216, 228, 236),
+            mask_color=QColor("#D4D4A8"),
+            placeholder_text="♪",
+            placeholder_color=QColor(0, 51, 102),
+            placeholder_px=32,
+            top_align_square=True,
+            parent=parent,
+        )
         self.setObjectName("playerArtPanel")
-        self._pm: Optional[QPixmap] = None
-        self.setMinimumHeight(160)
-        self.setMaximumHeight(280)
+        self.setMinimumSize(160, 160)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Maximum,
+            QSizePolicy.Policy.Preferred,
         )
-
-    def set_cover_pixmap(self, pm: Optional[QPixmap]) -> None:
-        self._pm = None if pm is None or pm.isNull() else pm
-        self.update()
-
-    def clear_cover(self) -> None:
-        self._pm = None
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        del event
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        w, h = self.width(), self.height()
-        if w < 8 or h < 8:
-            painter.end()
-            return
-        bw = self._BORDER
-        r = float(self._RADIUS)
-        fr = QRectF(bw / 2, bw / 2, w - bw, h - bw)
-        clip = QPainterPath()
-        clip.addRoundedRect(fr, r, r)
-        painter.setClipPath(clip)
-        if self._pm is not None:
-            tw, th = max(1, int(fr.width())), max(1, int(fr.height()))
-            scaled = self._pm.scaled(
-                tw,
-                th,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            painter.fillRect(fr.toRect(), QColor(216, 228, 236))
-            x = int(fr.x() + (fr.width() - scaled.width()) / 2)
-            y = int(fr.y() + (fr.height() - scaled.height()) / 2)
-            painter.drawPixmap(x, y, scaled)
-        else:
-            grad = QLinearGradient(fr.topLeft(), fr.bottomRight())
-            grad.setColorAt(0, QColor(216, 228, 236))
-            grad.setColorAt(1, QColor(184, 200, 212))
-            painter.fillRect(fr.toRect(), QBrush(grad))
-            painter.setPen(QColor(0, 51, 102))
-            font = QFont("Courier New")
-            font.setPixelSize(max(28, min(56, int(fr.height() * 0.22))))
-            painter.setFont(font)
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "♪")
-        painter.setClipping(False)
-        pen = QPen(QColor(49, 41, 56))
-        pen.setWidth(bw)
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(fr, r, r)
-        painter.end()
+        self.set_placeholder_scale(0.22, min_px=28, max_px=56)
+        self.set_fill_gradient(QColor(216, 228, 236), QColor(184, 200, 212))
 
 
 class PlayerTab(QWidget):
@@ -367,6 +314,7 @@ class PlayerTab(QWidget):
     playback_state_changed = pyqtSignal(bool)
     transport_state_changed = pyqtSignal(bool, bool)
     progress_changed = pyqtSignal(int, int)
+    volume_changed = pyqtSignal(int)
 
     def __init__(
         self,
@@ -419,7 +367,6 @@ class PlayerTab(QWidget):
         self._left_card = QFrame()
         self._left_card.setObjectName("playerLeftCard")
         self._left_card.setMinimumWidth(260)
-        self._left_card.setMaximumWidth(480)
         self._left_card.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Expanding,
@@ -429,7 +376,7 @@ class PlayerTab(QWidget):
         lv.setSpacing(0)
 
         self._art = PlayerArtworkWidget()
-        lv.addWidget(self._art, stretch=1)
+        lv.addWidget(self._art, 0)
 
         band = QFrame()
         band.setObjectName("playerTrackBand")
@@ -673,17 +620,6 @@ class PlayerTab(QWidget):
 
         root.addWidget(self._left_card, stretch=2)
         root.addWidget(self._right_card, stretch=5)
-
-        sh = QGraphicsDropShadowEffect(self._left_card)
-        sh.setBlurRadius(28)
-        sh.setOffset(4, 6)
-        sh.setColor(QColor(0, 0, 0, 90))
-        self._left_card.setGraphicsEffect(sh)
-        sh2 = QGraphicsDropShadowEffect(self._right_card)
-        sh2.setBlurRadius(28)
-        sh2.setOffset(4, 6)
-        sh2.setColor(QColor(0, 0, 0, 90))
-        self._right_card.setGraphicsEffect(sh2)
 
         self._apply_volume()
         self._sync_play_button_icon()
@@ -932,9 +868,29 @@ class PlayerTab(QWidget):
         v = min(v * cap, cap)
         v *= playback_settings.normalization_factor()
         self._audio.setVolume(min(1.0, max(0.0, v)))
+        self.volume_changed.emit(int(self._volume.value()))
+
+    def current_volume_percent(self) -> int:
+        return int(self._volume.value())
+
+    def set_volume_percent(self, value: int) -> None:
+        self._volume.setValue(max(0, min(100, int(value))))
+
+    def cycle_volume_preset(self) -> int:
+        presets = (0, 25, 50, 75, 100)
+        current = self.current_volume_percent()
+        for level in presets:
+            if current < level:
+                self.set_volume_percent(level)
+                return level
+        self.set_volume_percent(presets[0])
+        return presets[0]
 
     def refresh_playback_settings(self) -> None:
         self._apply_volume()
+
+    def open_review_dialog(self) -> None:
+        self._on_review_clicked()
 
     def _on_position_changed(self, pos: int) -> None:
         if self._user_seeking:

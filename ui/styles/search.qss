@@ -1,7 +1,5 @@
 /* ============================================================
-   search.qss — Search tab styles (Retro 70s + teal accent)
-   Teal accent:  #2A7A8C  (blue-teal heading / active highlight)
-   Dark navy:    #0A1E2C  (search button bg)
+   search.qss — Search tab styles (retro palette standard)
    ============================================================ */
 
 QWidget#searchPage {
@@ -19,32 +17,32 @@ QScrollArea#searchPageScroll > QWidget > QWidget {
 /* Компактная строка поиска (без широкой горизонтальной градиентной полосы) */
 QLineEdit#searchInput {
     background-color: #D4CFA0;
-    border: 2px solid #2A7A8C;
+    border: 2px solid #89A194;
     border-radius: 10px;
-    color: #0A1E2C;
+    color: #312938;
     font-family: "Courier New";
     font-size: 15px;
     font-weight: bold;
     letter-spacing: 1px;
     padding: 10px 14px;
-    selection-background-color: #1A5A6A;
-    selection-color: #8DD0C8;
+    selection-background-color: #CB883A;
+    selection-color: #312938;
 }
 QLineEdit#searchInput[placeholderText] {
-    color: rgba(10, 30, 44, 0.55);
+    color: rgba(49, 41, 56, 0.55);
 }
 
 QPushButton#btnSearchCompact {
-    background-color: #0A1E2C;
+    background-color: #A14016;
     border: none;
     border-radius: 10px;
     padding: 0;
 }
 QPushButton#btnSearchCompact:hover {
-    background-color: #1A3A50;
+    background-color: #CB883A;
 }
 QPushButton#btnSearchCompact:pressed {
-    background-color: #2A7A8C;
+    background-color: #312938;
 }
 
 /* ---- Filter buttons: dark pills ---- */
@@ -63,8 +61,8 @@ QPushButton#btnFilter:hover {
     background-color: #4a3a54;
 }
 QPushButton#btnFilter:checked {
-    background-color: #2A7A8C;
-    color: #CFC89A;
+    background-color: #CB883A;
+    color: #312938;
 }
 
 /* ---- Подзаголовки секций: недавние треки / результаты (одинаковые) ---- */
@@ -116,21 +114,26 @@ QLabel#searchEmptyLabel {
 }
 
 QFrame#searchListRow {
-    background-color: rgba(217, 211, 168, 0.72);
+    background-color: #D4CFA0;
     border: 1px solid #89A194;
     border-radius: 8px;
 }
+QFrame#searchListRow:hover {
+    background-color: #D9D3A8;
+    border: 1px solid #CB883A;
+}
+
 QLabel#searchRowTitle {
     font-family: "Courier New", monospace;
     font-size: 13px;
-    color: #312938;
+    color: #A14016;
 }
 QLabel#searchRowArtist {
     font-family: "Courier New", monospace;
     font-size: 11px;
-    color: #004766;
+    color: #2A7A8C;
     text-decoration: underline;
 }
 QLabel#searchRowArtist:hover {
-    color: #A14016;
+    color: #CB883A;
 }

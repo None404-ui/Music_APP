@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from ui.interactive_fx import InteractiveRowFrame
+from ui.interactive_fx import InteractiveRowFrame, animate_stack_fade
 from ui.track_like_review import TrackLikeReviewBar
 
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -14,12 +15,15 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
     QGraphicsDropShadowEffect,
+    QPushButton,
+    QStackedWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
+from ui.windows.upload_music_dialog import UploadMusicDialog
 
 OnPlayTrack = Callable[[dict], None]
 OnOpenAlbum = Callable[[list, dict], None]
@@ -40,6 +44,28 @@ def _owner_id(collection: dict):
     if isinstance(o, dict):
         return o.get("id")
     return o
+
+
+def _review_title(review: dict) -> str:
+    mi = review.get("music_item")
+    if isinstance(mi, dict):
+        return mi.get("title") or "Рецензия"
+    if mi is not None:
+        return f"Трек #{mi}"
+    collection = review.get("collection")
+    if isinstance(collection, dict):
+        return collection.get("title") or "Подборка"
+    if collection is not None:
+        return f"Подборка #{collection}"
+    return "Рецензия"
+
+
+def _review_excerpt(review: dict, limit: int = 120) -> str:
+    full = str(review.get("text") or "")
+    text = full[:limit]
+    if len(full) > limit:
+        text += "…"
+    return text or "—"
 
 
 class _ClickableTitle(QLabel):
@@ -114,7 +140,6 @@ class _FavTrackRow(InteractiveRowFrame):
     ):
         super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
         self.setObjectName("selectedRow")
-        self._mi = mi
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
         lay.setSpacing(4)
@@ -187,7 +212,10 @@ class _ClickableRow(InteractiveRowFrame):
 
 
 class SelectedTab(QWidget):
-    """Избранное, подборки и рецензии — данные подгружаются с сервера при открытии вкладки."""
+    """Две внутренние страницы: избранное и загруженный пользователем контент."""
+
+    _SUB_FAVORITES = 0
+    _SUB_UPLOADS = 1
 
     def __init__(
         self,
@@ -222,151 +250,371 @@ class SelectedTab(QWidget):
         title.setGraphicsEffect(sh)
         self._outer.addWidget(title)
 
-        self._scroll = QScrollArea()
-        self._scroll.setObjectName("selectedScroll")
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self._outer.addWidget(self._scroll, stretch=1)
+        toggle_row = QHBoxLayout()
+        toggle_row.setSpacing(8)
+
+        self._btn_favorites = QPushButton("избранное")
+        self._btn_favorites.setObjectName("btnNav")
+        self._btn_favorites.setCheckable(True)
+
+        self._btn_uploads = QPushButton("мои загрузки")
+        self._btn_uploads.setObjectName("btnNav")
+        self._btn_uploads.setCheckable(True)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        self._group.addButton(self._btn_favorites, self._SUB_FAVORITES)
+        self._group.addButton(self._btn_uploads, self._SUB_UPLOADS)
+
+        toggle_row.addWidget(self._btn_favorites)
+        toggle_row.addWidget(self._btn_uploads)
+        toggle_row.addStretch()
+        self._outer.addLayout(toggle_row)
+
+        self._stack = QStackedWidget()
+        self._favorites_scroll = self._create_scroll()
+        self._uploads_scroll = self._create_scroll()
+        self._stack.addWidget(self._favorites_scroll)
+        self._stack.addWidget(self._uploads_scroll)
+        self._outer.addWidget(self._stack, stretch=1)
+
+        self._btn_favorites.clicked.connect(self._sync_stack_from_buttons)
+        self._btn_uploads.clicked.connect(self._sync_stack_from_buttons)
+        self.reset_to_favorites()
 
         self.reload_content()
 
     def reload_content(self) -> None:
-        """Перечитать списки с API (после лайка / рецензии / входа на вкладку)."""
+        """Перечитать списки с API для обеих внутренних страниц."""
+        (
+            st_fav,
+            fav_tracks,
+            fav_albums,
+            fav_playlists,
+        ) = self._load_favorites()
+        st_review_fav, favorite_reviews = self._load_favorite_reviews()
+        st_own_tracks, own_tracks = self._load_user_music("track")
+        st_own_albums, own_albums = self._load_user_music("album")
+        st_col, own_collections = self._load_own_collections()
+        st_rev, own_reviews = self._load_own_reviews()
+
+        self._set_scroll_content(
+            self._favorites_scroll,
+            self._build_favorites_page(
+                st_fav,
+                fav_tracks,
+                fav_albums,
+                fav_playlists,
+                st_review_fav,
+                favorite_reviews,
+            ),
+        )
+        self._set_scroll_content(
+            self._uploads_scroll,
+            self._build_uploads_page(
+                st_own_tracks,
+                own_tracks,
+                st_own_albums,
+                own_albums,
+                st_rev,
+                own_reviews,
+                st_col,
+                own_collections,
+            ),
+        )
+
+    def reset_to_favorites(self) -> None:
+        self._group.blockSignals(True)
+        try:
+            self._btn_favorites.setChecked(True)
+            self._btn_uploads.setChecked(False)
+        finally:
+            self._group.blockSignals(False)
+        self._stack.setCurrentIndex(self._SUB_FAVORITES)
+
+    def _sync_stack_from_buttons(self) -> None:
+        if self._btn_favorites.isChecked():
+            animate_stack_fade(self._stack, self._SUB_FAVORITES)
+        elif self._btn_uploads.isChecked():
+            animate_stack_fade(self._stack, self._SUB_UPLOADS)
+
+    def _create_scroll(self) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setObjectName("selectedScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        return scroll
+
+    def _set_scroll_content(self, scroll: QScrollArea, container: QWidget) -> None:
+        scroll.takeWidget()
+        scroll.setWidget(container)
+
+    def _load_favorites(self) -> tuple[int, list[dict], list[dict], list[dict]]:
+        st_fav, fav_body = self._client.get_json("/api/favorites/")
+        favs = _response_list(fav_body) if st_fav == 200 else []
+        fav_tracks: list[dict] = []
+        fav_albums: list[dict] = []
+        fav_playlists: list[dict] = []
+        for row in favs:
+            mi = row.get("music_item")
+            if not isinstance(mi, dict) or mi.get("id") is None:
+                continue
+            kind = (mi.get("kind") or "").strip().lower()
+            if kind == "album":
+                fav_albums.append(mi)
+            elif kind == "playlist":
+                fav_playlists.append(mi)
+            else:
+                row_mi = dict(mi)
+                row_mi["user_favorited"] = True
+                fav_tracks.append(row_mi)
+        return st_fav, fav_tracks, fav_albums, fav_playlists
+
+    def _load_favorite_reviews(self) -> tuple[int, list[dict]]:
+        st_fav, body = self._client.get_json("/api/review-favorites/")
+        if st_fav != 200:
+            return st_fav, []
+        rows = _response_list(body)
+        reviews: list[dict] = []
+        for row in rows:
+            review_id = row.get("review")
+            try:
+                rid = int(review_id)
+            except (TypeError, ValueError):
+                continue
+            st_review, review_body = self._client.get_json(f"/api/reviews/{rid}/")
+            if st_review == 200 and isinstance(review_body, dict):
+                reviews.append(review_body)
+        return st_fav, reviews
+
+    def _load_user_music(self, kind: str) -> tuple[int, list[dict]]:
+        st, body = self._client.get_json(
+            f"/api/music-items/?artist_user_id={self._session.user_id}&kind={kind}"
+        )
+        items = _response_list(body) if st == 200 else []
+        out = [
+            dict(item)
+            for item in items
+            if isinstance(item, dict) and item.get("id") is not None
+        ]
+        return st, out
+
+    def _load_own_collections(self) -> tuple[int, list[dict]]:
+        st_col, col_body = self._client.get_json("/api/collections/")
+        collections = _response_list(col_body) if st_col == 200 else []
+        uid = self._session.user_id
+        own = [c for c in collections if _owner_id(c) == uid]
+        return st_col, own
+
+    def _load_own_reviews(self) -> tuple[int, list[dict]]:
+        st_rev, rev_body = self._client.get_json(
+            f"/api/reviews/?author_id={self._session.user_id}"
+        )
+        reviews = _response_list(rev_body) if st_rev == 200 else []
+        return st_rev, [r for r in reviews if isinstance(r, dict)]
+
+    def _build_favorites_page(
+        self,
+        st_fav: int,
+        fav_tracks: list[dict],
+        fav_albums: list[dict],
+        fav_playlists: list[dict],
+        st_review_fav: int,
+        favorite_reviews: list[dict],
+    ) -> QWidget:
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         col = QVBoxLayout(container)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
 
-        st_fav, fav_body = self._client.get_json("/api/favorites/")
-        favs = _response_list(fav_body) if st_fav == 200 else []
-
-        fav_tracks: list[dict] = []
-        fav_albums: list[dict] = []
-        for row in favs:
-            mi = row.get("music_item")
-            if not isinstance(mi, dict) or mi.get("id") is None:
-                continue
-            k = (mi.get("kind") or "").strip().lower()
-            if k in ("album", "playlist"):
-                fav_albums.append(mi)
-            else:
-                fav_tracks.append(mi)
-
         if st_fav != 200:
             col.addWidget(self._section_label("ИЗБРАННОЕ"))
             col.addWidget(self._empty("Не удалось загрузить избранное с сервера."))
         else:
-            col.addWidget(self._section_label("ИЗБРАННЫЕ АЛЬБОМЫ И ПЛЕЙЛИСТЫ"))
-            if fav_albums:
-                for mi in fav_albums:
-                    title_t = mi.get("title") or "—"
-                    artist_raw = (mi.get("artist") or "").strip()
-                    sub = (
-                        "Альбом"
-                        if (mi.get("kind") or "").strip().lower() == "album"
-                        else "Плейлист"
-                    )
-                    open_cb = None
-                    if self._on_open_album:
-                        open_cb = lambda m=mi: self._open_favorite_album(m)
-                    col.addWidget(
-                        _FavAlbumRow(
-                            str(title_t),
-                            sub,
-                            artist_raw,
-                            open_cb,
-                            self._on_open_artist,
-                        )
-                    )
-            else:
-                col.addWidget(
-                    self._empty(
-                        "Пока нет. Во время воспроизведения альбома нажмите ♥ — "
-                        "в избранное сохранится альбом."
-                    )
+            col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
+            self._add_track_rows(
+                col,
+                fav_tracks,
+                "Пока нет. ♥ для одного трека (поиск / не из очереди альбома).",
+            )
+
+            col.addWidget(self._section_label("ИЗБРАННЫЕ АЛЬБОМЫ"))
+            self._add_album_rows(
+                col,
+                fav_albums,
+                "Пока нет. Во время воспроизведения альбома нажмите ♥.",
+                item_kind="album",
+            )
+
+            if fav_playlists:
+                col.addWidget(self._section_label("ИЗБРАННЫЕ ПЛЕЙЛИСТЫ"))
+                self._add_album_rows(
+                    col,
+                    fav_playlists,
+                    "Пока нет.",
+                    item_kind="playlist",
                 )
 
-            col.addWidget(self._section_label("ИЗБРАННЫЕ ТРЕКИ"))
-            if fav_tracks:
-                for mi in fav_tracks:
-                    row_mi = dict(mi)
-                    row_mi["user_favorited"] = True
-                    play_cb = None
-                    if self._on_play_track:
-                        play_cb = lambda m=row_mi: self._on_play_track(m)
-                    col.addWidget(
-                        _FavTrackRow(
-                            row_mi,
-                            play_cb,
-                            self._on_open_artist,
-                            self._session,
-                            self.reload_content,
-                        )
-                    )
-            else:
-                col.addWidget(
-                    self._empty(
-                        "Пока нет. ♥ для одного трека (поиск / не из очереди альбома)."
-                    )
-                )
+        col.addWidget(self._section_label("ИЗБРАННЫЕ РЕЦЕНЗИИ"))
+        if st_review_fav != 200:
+            col.addWidget(self._empty("Не удалось загрузить избранные рецензии."))
+        elif favorite_reviews:
+            self._add_review_rows(col, favorite_reviews)
+        else:
+            col.addWidget(
+                self._empty("Пока нет. Отмечайте понравившиеся рецензии сердцем.")
+            )
+
+        col.addStretch()
+        return container
+
+    def _build_uploads_page(
+        self,
+        st_own_tracks: int,
+        own_tracks: list[dict],
+        st_own_albums: int,
+        own_albums: list[dict],
+        st_rev: int,
+        own_reviews: list[dict],
+        st_col: int,
+        own_collections: list[dict],
+    ) -> QWidget:
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        col = QVBoxLayout(container)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(6)
+
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 0, 0, 4)
+        actions.setSpacing(8)
+        btn_upload_track = QPushButton("загрузить трек")
+        btn_upload_track.setObjectName("btnPrimary")
+        btn_upload_track.clicked.connect(lambda: self._open_upload_dialog("track"))
+        btn_upload_album = QPushButton("загрузить альбом")
+        btn_upload_album.setObjectName("btnPrimary")
+        btn_upload_album.clicked.connect(lambda: self._open_upload_dialog("album"))
+        btn_upload_track.setMinimumWidth(160)
+        btn_upload_album.setMinimumWidth(160)
+        actions.addWidget(btn_upload_track)
+        actions.addWidget(btn_upload_album)
+        actions.addStretch(1)
+        col.addLayout(actions)
+
+        col.addWidget(self._section_label("МОИ ТРЕКИ"))
+        if st_own_tracks != 200:
+            col.addWidget(self._empty("Не удалось загрузить ваши треки."))
+        else:
+            self._add_track_rows(col, own_tracks, "Вы пока не загружали треки.")
+
+        col.addWidget(self._section_label("МОИ АЛЬБОМЫ"))
+        if st_own_albums != 200:
+            col.addWidget(self._empty("Не удалось загрузить ваши альбомы."))
+        else:
+            self._add_album_rows(
+                col,
+                own_albums,
+                "Вы пока не загружали альбомы.",
+                item_kind="album",
+            )
+
+        col.addWidget(self._section_label("МОИ РЕЦЕНЗИИ"))
+        if st_rev != 200:
+            col.addWidget(self._empty("Не удалось загрузить рецензии."))
+        elif own_reviews:
+            self._add_review_rows(col, own_reviews)
+        else:
+            col.addWidget(self._empty("Рецензий пока нет. Добавьте из плеера."))
 
         col.addWidget(self._section_label("МОИ ПОДБОРКИ"))
-        st_col, col_body = self._client.get_json("/api/collections/")
-        collections = _response_list(col_body) if st_col == 200 else []
-        uid = self._session.user_id
-        own = [c for c in collections if _owner_id(c) == uid]
-        if own:
-            for c in own:
+        if st_col != 200:
+            col.addWidget(self._empty("Не удалось загрузить подборки."))
+        elif own_collections:
+            for collection in own_collections:
                 col.addWidget(
                     _ClickableRow(
-                        c.get("title") or "—",
-                        (c.get("description") or "").strip(),
+                        collection.get("title") or "—",
+                        (collection.get("description") or "").strip(),
                         None,
                     )
                 )
         else:
-            msg = (
-                "Не удалось загрузить подборки."
-                if st_col != 200
-                else "Подборок пока нет."
-            )
-            col.addWidget(self._empty(msg))
-
-        col.addWidget(self._section_label("МОИ РЕЦЕНЗИИ"))
-        st_rev, rev_body = self._client.get_json(
-            f"/api/reviews/?author_id={self._session.user_id}"
-        )
-        reviews = _response_list(rev_body) if st_rev == 200 else []
-        if reviews:
-            for r in reviews[:20]:
-                full = r.get("text") or ""
-                text = full[:120]
-                if len(full) > 120:
-                    text += "…"
-                mi = r.get("music_item")
-                if isinstance(mi, dict):
-                    row_title = mi.get("title") or "Рецензия"
-                elif mi is not None:
-                    row_title = f"Трек #{mi}"
-                else:
-                    row_title = "Рецензия"
-                rev_cb = None
-                if self._on_open_review:
-                    rev_cb = lambda rev=r: self._on_open_review(rev)
-                col.addWidget(_ClickableRow(row_title, text or "—", rev_cb))
-        else:
-            msg = (
-                "Не удалось загрузить рецензии."
-                if st_rev != 200
-                else "Рецензий пока нет. Добавьте из плеера."
-            )
-            col.addWidget(self._empty(msg))
+            col.addWidget(self._empty("Подборок пока нет."))
 
         col.addStretch()
-        self._scroll.takeWidget()
-        self._scroll.setWidget(container)
+        return container
+
+    def _open_upload_dialog(self, kind: str) -> None:
+        dlg = UploadMusicDialog(self._session, kind, self)
+        if dlg.exec():
+            self._btn_uploads.setChecked(True)
+            self._sync_stack_from_buttons()
+            self.reload_content()
+
+    def _add_track_rows(
+        self,
+        layout: QVBoxLayout,
+        items: list[dict],
+        empty_text: str,
+    ) -> None:
+        if not items:
+            layout.addWidget(self._empty(empty_text))
+            return
+        for item in items:
+            row_mi = dict(item)
+            play_cb = None
+            if self._on_play_track:
+                play_cb = lambda m=row_mi: self._on_play_track(m)
+            layout.addWidget(
+                _FavTrackRow(
+                    row_mi,
+                    play_cb,
+                    self._on_open_artist,
+                    self._session,
+                    self.reload_content,
+                )
+            )
+
+    def _add_album_rows(
+        self,
+        layout: QVBoxLayout,
+        items: list[dict],
+        empty_text: str,
+        *,
+        item_kind: str,
+    ) -> None:
+        if not items:
+            layout.addWidget(self._empty(empty_text))
+            return
+        sub = "Альбом" if item_kind == "album" else "Плейлист"
+        for item in items:
+            open_cb = None
+            if self._on_open_album:
+                open_cb = lambda m=item: self._open_favorite_album(m)
+            layout.addWidget(
+                _FavAlbumRow(
+                    str(item.get("title") or "—"),
+                    sub,
+                    (item.get("artist") or "").strip(),
+                    open_cb,
+                    self._on_open_artist,
+                )
+            )
+
+    def _add_review_rows(self, layout: QVBoxLayout, reviews: list[dict]) -> None:
+        for review in reviews:
+            rev_cb = None
+            if self._on_open_review:
+                rev_cb = lambda rev=review: self._on_open_review(rev)
+            layout.addWidget(
+                _ClickableRow(
+                    _review_title(review),
+                    _review_excerpt(review),
+                    rev_cb,
+                )
+            )
 
     def _open_favorite_album(self, mi: dict) -> None:
         if not self._on_open_album:

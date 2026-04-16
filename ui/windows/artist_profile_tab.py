@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
+from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 from ui.interactive_fx import InteractiveRowFrame
 from ui.track_like_review import TrackLikeReviewBar
@@ -125,11 +126,23 @@ class _ArtistHeroTrackRow(InteractiveRowFrame):
         lay.setContentsMargins(10, 4, 10, 4)
         lay.setSpacing(10)
 
-        self._thumb = QLabel()
+        self._thumb = CoverArtWidget(
+            radius=6,
+            border_width=1,
+            border_color=QColor("#89A194"),
+            fill_color=QColor(49, 41, 56, 90),
+            mask_color=QColor("#5c5748"),
+            placeholder_text="♪",
+            placeholder_color=QColor("#A14016"),
+            placeholder_px=16,
+        )
         self._thumb.setObjectName("trackRowThumb")
         self._thumb.setFixedSize(self._THUMB, self._THUMB)
-        self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._thumb.setScaledContents(False)
+        self._thumb_normal_border = QColor("#89A194")
+        self._thumb_hover_border = QColor("#CB883A")
+        self._thumb_normal_mask = QColor("#5c5748")
+        self._thumb_hover_mask = QColor("#6d6756")
+        self._apply_thumb_style(False)
         self._apply_thumb_placeholder()
         url = (item.get("artwork_url") or "").strip()
         if url.startswith(("http://", "https://")):
@@ -163,12 +176,19 @@ class _ArtistHeroTrackRow(InteractiveRowFrame):
         self.install_interaction_filters()
 
     def _apply_thumb_placeholder(self) -> None:
-        self._thumb.clear()
-        self._thumb.setPixmap(QPixmap())
-        self._thumb.setText("♪")
-        self._thumb.setStyleSheet(
-            "font-size: 16px; color: #A14016; font-family: 'Courier New';"
-        )
+        self._thumb.clear_cover()
+
+    def _apply_thumb_style(self, hovered: bool) -> None:
+        if hovered:
+            self._thumb.set_style_colors(
+                border_color=self._thumb_hover_border,
+                mask_color=self._thumb_hover_mask,
+            )
+        else:
+            self._thumb.set_style_colors(
+                border_color=self._thumb_normal_border,
+                mask_color=self._thumb_normal_mask,
+            )
 
     def _on_thumb_finished(self) -> None:
         reply = self.sender()
@@ -187,16 +207,7 @@ class _ArtistHeroTrackRow(InteractiveRowFrame):
             if not img.loadFromData(data):
                 self._apply_thumb_placeholder()
                 return
-            s = self._THUMB
-            pix = QPixmap.fromImage(img).scaled(
-                s,
-                s,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._thumb.setPixmap(pix)
-            self._thumb.setText("")
-            self._thumb.setStyleSheet("")
+            self._thumb.set_cover_pixmap(QPixmap.fromImage(img))
         finally:
             reply.deleteLater()
 
@@ -208,6 +219,14 @@ class _ArtistHeroTrackRow(InteractiveRowFrame):
             if self._on_play:
                 self._on_play(self._item)
         super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event) -> None:
+        self._apply_thumb_style(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._apply_thumb_style(False)
+        super().leaveEvent(event)
 
 
 class ArtistProfileTab(QWidget):
@@ -268,15 +287,18 @@ class ArtistProfileTab(QWidget):
         hero_lay.setContentsMargins(0, 0, 0, 0)
         hero_lay.setSpacing(16)
 
-        self._avatar = QLabel()
-        self._avatar.setObjectName("albumCover")
-        self._avatar.setFixedSize(_HERO_AVATAR, _HERO_AVATAR)
-        self._avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._avatar.setScaledContents(False)
-        self._avatar.setText("♫")
-        self._avatar.setStyleSheet(
-            "font-size: 56px; color: #A14016; font-family: 'Courier New';"
+        self._avatar = CoverArtWidget(
+            radius=8,
+            border_width=2,
+            border_color=QColor("#89A194"),
+            fill_color=QColor("#BDB685"),
+            mask_color=QColor(18, 12, 28),
+            placeholder_text="♫",
+            placeholder_color=QColor("#A14016"),
+            placeholder_px=56,
         )
+        self._avatar.setObjectName("artistHeroCover")
+        self._avatar.setFixedSize(_HERO_AVATAR, _HERO_AVATAR)
         hero_lay.addWidget(self._avatar, 0, Qt.AlignmentFlag.AlignTop)
 
         right = QWidget()
@@ -455,15 +477,7 @@ class ArtistProfileTab(QWidget):
             img = QImage()
             if not img.loadFromData(QByteArray(data)):
                 return
-            pix = QPixmap.fromImage(img).scaled(
-                _HERO_AVATAR,
-                _HERO_AVATAR,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._avatar.setPixmap(pix)
-            self._avatar.setText("")
-            self._avatar.setStyleSheet("")
+            self._avatar.set_cover_pixmap(QPixmap.fromImage(img))
         finally:
             reply.deleteLater()
 
@@ -489,12 +503,7 @@ class ArtistProfileTab(QWidget):
         self._playlist_carousel.show()
         self._rebuild_track_rows()
         self._abort_avatar()
-        self._avatar.clear()
-        self._avatar.setPixmap(QPixmap())
-        self._avatar.setText("♫")
-        self._avatar.setStyleSheet(
-            "font-size: 56px; color: #A14016; font-family: 'Courier New';"
-        )
+        self._avatar.clear_cover()
         QTimer.singleShot(0, self._fetch)
 
     def _fetch(self) -> None:
@@ -556,12 +565,7 @@ class ArtistProfileTab(QWidget):
         if resolved.startswith(("http://", "https://")):
             self._apply_avatar_url(resolved)
         else:
-            self._avatar.clear()
-            self._avatar.setPixmap(QPixmap())
-            self._avatar.setText("♫")
-            self._avatar.setStyleSheet(
-                "font-size: 56px; color: #A14016; font-family: 'Courier New';"
-            )
+            self._avatar.clear_cover()
 
         self._arrow.setVisible(len(self._norm_tracks) > self._max_visible_preview)
         self._tracks_expanded = False

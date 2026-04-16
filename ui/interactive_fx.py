@@ -340,8 +340,11 @@ class InteractiveRowFrame(QFrame):
         p.end()
 
 
-def animate_stack_fade(stack: QStackedWidget, index: int, duration: int = 170) -> None:
+def animate_stack_fade(stack: QStackedWidget, index: int, duration: int = 0) -> None:
     if stack.currentIndex() == index:
+        return
+    if duration <= 0:
+        stack.setCurrentIndex(index)
         return
     stack.setCurrentIndex(index)
     page = stack.currentWidget()

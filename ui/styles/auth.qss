@@ -1,18 +1,18 @@
 /* Auth dialog — retro CRATES palette */
 
 QDialog#authDialog {
-    background-color: #5C4033;
+    background-color: #312938;
     border-radius: 12px;
 }
 
 QFrame#authChrome {
-    background-color: #F5E6C8;
-    border: 3px solid #4A3428;
+    background-color: #CFC89A;
+    border: 3px solid #A14016;
     border-radius: 10px;
 }
 
 QFrame#authHeaderBar {
-    background-color: #4A3428;
+    background-color: #312938;
     border: none;
     border-top-left-radius: 7px;
     border-top-right-radius: 7px;
@@ -21,7 +21,7 @@ QFrame#authHeaderBar {
 }
 
 QLabel#authTitle {
-    color: #1E4D5C;
+    color: #A14016;
     font-size: 22px;
     font-weight: bold;
     letter-spacing: 2px;
@@ -36,8 +36,8 @@ QLabel#authError {
 }
 
 QLineEdit#authField {
-    background-color: #FFFCF5;
-    border: 1px solid #8A7A6A;
+    background-color: #D4CFA0;
+    border: 1px solid #89A194;
     border-radius: 4px;
     padding: 10px 12px;
     font-size: 13px;
@@ -50,9 +50,9 @@ QLineEdit#authField:focus {
 }
 
 QPushButton#authBtnPrimary {
-    background-color: #E8893A;
-    color: #FFFFFF;
-    border: 2px solid #C45F1A;
+    background-color: #A14016;
+    color: #CFC89A;
+    border: 2px solid #312938;
     border-radius: 4px;
     padding: 12px 16px;
     font-size: 13px;
@@ -62,17 +62,19 @@ QPushButton#authBtnPrimary {
 }
 
 QPushButton#authBtnPrimary:hover {
-    background-color: #F59A4A;
+    background-color: #CB883A;
+    color: #312938;
 }
 
 QPushButton#authBtnPrimary:pressed {
-    background-color: #CB883A;
+    background-color: #312938;
+    color: #CFC89A;
 }
 
 QPushButton#authBtnSecondary {
-    background-color: #FFFCF5;
-    color: #E8893A;
-    border: 2px solid #B8A896;
+    background-color: transparent;
+    color: #A14016;
+    border: 2px solid #A14016;
     border-radius: 4px;
     padding: 12px 16px;
     font-size: 12px;
@@ -82,14 +84,14 @@ QPushButton#authBtnSecondary {
 }
 
 QPushButton#authBtnSecondary:hover {
-    background-color: #FFF8E8;
+    background-color: rgba(161, 64, 22, 0.12);
     border-color: #CB883A;
 }
 
 QPushButton#authBtnLink {
     background: transparent;
     border: none;
-    color: #1E4D5C;
+    color: #2A7A8C;
     font-size: 11px;
     text-decoration: underline;
     font-family: "Courier New", monospace;
@@ -119,14 +121,14 @@ QCheckBox#authRememberCheck {
 QCheckBox#authRememberCheck::indicator {
     width: 18px;
     height: 18px;
-    border: 2px solid #8A7A6A;
+    border: 2px solid #89A194;
     border-radius: 3px;
-    background-color: #FFFCF5;
+    background-color: #D4CFA0;
 }
 QCheckBox#authRememberCheck::indicator:hover {
     border-color: #CB883A;
 }
 QCheckBox#authRememberCheck::indicator:checked {
-    background-color: #E8893A;
-    border: 2px solid #C45F1A;
+    background-color: #CB883A;
+    border: 2px solid #A14016;
 }

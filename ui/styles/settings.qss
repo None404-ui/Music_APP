@@ -50,7 +50,7 @@ QLabel#profileAvatar {
     color: #A14016;
 }
 
-/* Имя — как albumTitle (#CFC89A); строка под ним (email) — как albumArtist (#89A194) */
+/* Имя профиля — контрастный основной текст на тёмной карточке; строка под ним — вторичный текст */
 QLabel#profileName {
     font-family: "Courier New";
     font-size: 14px;
@@ -75,7 +75,7 @@ QPushButton#settingsLogoutBtn {
     font-weight: bold;
     color: #CFC89A;
     background-color: #312938;
-    border: 3px solid #0A1E2C;
+    border: 3px solid #89A194;
     border-radius: 0px;
     padding: 8px 10px;
     margin-top: 0px;
@@ -88,8 +88,8 @@ QPushButton#settingsLogoutBtn:hover {
     border: 3px solid #312938;
 }
 QPushButton#settingsLogoutBtn:pressed {
-    background-color: #0A1E2C;
-    color: #89A194;
+    background-color: #312938;
+    color: #CB883A;
     border: 3px solid #A14016;
 }
 
@@ -107,7 +107,7 @@ QLabel#settingsSectionLabel {
 QLabel#settingsHint {
     font-family: "Courier New";
     font-size: 10px;
-    color: #5a6a78;
+    color: #312938;
     padding: 0 4px 8px 4px;
 }
 
@@ -126,7 +126,7 @@ QFrame#settingsRow:hover {
 QLabel#settingsRowLabel {
     font-family: "Courier New";
     font-size: 13px;
-    color: #89A194 !important;
+    color: #312938 !important;
     letter-spacing: 1px;
 }
 
@@ -135,13 +135,13 @@ QWidget#settingsPage QLabel#settingsRowValue,
 QFrame#settingsRow QLabel#settingsRowValue {
     font-family: "Courier New";
     font-size: 13px;
-    color: #CFC89A !important;
+    color: #312938 !important;
 }
 
 /* Combo box for sound quality */
 QComboBox#settingsCombo {
     background-color: #D4CFA0;
-    color: #CFC89A;
+    color: #312938;
     border: 1px solid #89A194;
     border-radius: 6px;
     padding: 4px 12px;

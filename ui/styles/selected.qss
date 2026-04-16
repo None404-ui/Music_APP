@@ -8,9 +8,13 @@ QWidget#selectedPage QLabel#sectionHeading {
     font-family: "Courier New";
     font-size: 28px;
     font-weight: bold;
-    color: #2A7A8C;
+    color: #A14016;
     letter-spacing: 5px;
     margin-bottom: 4px;
+}
+
+QWidget#selectedPage QPushButton#btnNav {
+    min-width: 132px;
 }
 
 QLabel#selectedSectionLabel {
@@ -24,26 +28,26 @@ QLabel#selectedSectionLabel {
 }
 
 QFrame#selectedRow {
-    background-color: rgba(212, 207, 160, 0.75);
+    background-color: #D4CFA0;
     border: 1px solid #89A194;
     border-radius: 8px;
 }
 QFrame#selectedRow:hover {
     border: 1px solid #CB883A;
-    background-color: rgba(217, 211, 168, 0.9);
+    background-color: #D9D3A8;
 }
 
 QLabel#selectedRowTitle {
     font-family: "Courier New";
     font-size: 13px;
     font-weight: bold;
-    color: #312938;
+    color: #A14016;
 }
 
 QLabel#selectedRowSub {
     font-family: "Courier New";
     font-size: 11px;
-    color: #89A194;
+    color: #312938;
 }
 
 QLabel#selectedRowArtist {
@@ -53,13 +57,13 @@ QLabel#selectedRowArtist {
     text-decoration: underline;
 }
 QLabel#selectedRowArtist:hover {
-    color: #A14016;
+    color: #CB883A;
 }
 
 QLabel#selectedEmpty {
     font-family: "Courier New";
     font-size: 11px;
-    color: #89A194;
+    color: #312938;
     font-style: italic;
     padding: 8px 4px;
 }

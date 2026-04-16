@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QSize, pyqtSignal
-from PyQt6.QtGui import QCloseEvent, QIcon
+from PyQt6.QtCore import QRectF, QSize, pyqtSignal
+from PyQt6.QtGui import QColor, QCloseEvent, QIcon, QPainter, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
@@ -30,6 +31,80 @@ _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
 
 
+def _render_tinted_svg(icon_path: Path, color: QColor, size: QSize) -> QIcon:
+    renderer = QSvgRenderer(str(icon_path))
+    pixmap = QPixmap(size)
+    pixmap.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(pixmap)
+    view_box = renderer.viewBoxF()
+    if view_box.isEmpty():
+        view_box = QRectF(0, 0, float(size.width()), float(size.height()))
+    target = QRectF(0, 0, float(size.width()), float(size.height()))
+    scale = min(
+        target.width() / max(1.0, view_box.width()),
+        target.height() / max(1.0, view_box.height()),
+    )
+    draw_w = view_box.width() * scale
+    draw_h = view_box.height() * scale
+    draw_rect = QRectF(
+        (target.width() - draw_w) / 2.0,
+        (target.height() - draw_h) / 2.0,
+        draw_w,
+        draw_h,
+    )
+    renderer.render(painter, draw_rect)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(pixmap.rect(), color)
+    painter.end()
+    return QIcon(pixmap)
+
+
+class SideNavButton(QPushButton):
+    _COLOR_IDLE = QColor("#89A194")
+    _COLOR_HOVER = QColor("#A14016")
+    _COLOR_ACTIVE = QColor("#CB883A")
+    _COLOR_PRESSED = QColor("#CFC89A")
+
+    def __init__(self, icon_path: Path, parent=None):
+        super().__init__(parent)
+        self._icon_path = icon_path
+        self._hovered = False
+        self.setObjectName("sideNavButton")
+        self.setCheckable(True)
+        self.setIconSize(_SIDENAV_ICON_SIZE)
+        self.setFixedSize(40, 40)
+        self.setFlat(True)
+        self.toggled.connect(lambda _checked: self._refresh_icon())
+        self._refresh_icon()
+
+    def enterEvent(self, event) -> None:
+        self._hovered = True
+        self._refresh_icon()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._hovered = False
+        self._refresh_icon()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        self.setIcon(_render_tinted_svg(self._icon_path, self._COLOR_PRESSED, self.iconSize()))
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        super().mouseReleaseEvent(event)
+        self._refresh_icon()
+
+    def _refresh_icon(self) -> None:
+        if self.isChecked():
+            color = self._COLOR_ACTIVE
+        elif self._hovered:
+            color = self._COLOR_HOVER
+        else:
+            color = self._COLOR_IDLE
+        self.setIcon(_render_tinted_svg(self._icon_path, color, self.iconSize()))
+
+
 class SideNavBar(QWidget):
     page_selected = pyqtSignal(int)
 
@@ -53,13 +128,7 @@ class SideNavBar(QWidget):
         ]
         self._buttons: list[QPushButton] = []
         for i, path in enumerate(icon_paths):
-            btn = QPushButton()
-            btn.setObjectName("sideNavButton")
-            btn.setCheckable(True)
-            btn.setIcon(QIcon(str(path)))
-            btn.setIconSize(_SIDENAV_ICON_SIZE)
-            btn.setFixedSize(40, 40)
-            btn.setFlat(True)
+            btn = SideNavButton(path)
             btn.toggled.connect(
                 lambda c, b=btn: self._ensure_one_checked(c, b),
             )
@@ -181,6 +250,7 @@ class MainWindow(QMainWindow):
         self._mini_player = MiniPlayerBar(
             self._player,
             on_open_player=self._open_main_player_from_mini,
+            on_open_artist=self._open_artist_profile,
         )
         self._ambient_host.set_overlay_widget(self._mini_player, height=94, margin=14)
 
@@ -303,6 +373,7 @@ class MainWindow(QMainWindow):
             self._home_hub.reset_to_popular()
             self._popular_tab.reload_content()
         elif index == self._SELECTED_PAGE_INDEX:
+            self._selected_tab.reset_to_favorites()
             self._selected_tab.reload_content()
 
     def _on_home_sub_changed(self, sub: int) -> None:

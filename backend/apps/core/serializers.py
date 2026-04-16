@@ -106,6 +106,8 @@ class MusicItemSerializer(serializers.ModelSerializer):
     listens_count = serializers.SerializerMethodField()
     listen_time_total_sec = serializers.SerializerMethodField()
     user_favorited = serializers.SerializerMethodField()
+    audio_file = serializers.FileField(write_only=True, required=False, allow_null=True)
+    artwork_file = serializers.FileField(write_only=True, required=False, allow_null=True)
 
     @staticmethod
     def effective_playback_ref(instance, request):
@@ -166,6 +168,18 @@ class MusicItemSerializer(serializers.ModelSerializer):
                 request.build_absolute_uri(rel) if request else rel
             )
         ds = data.get("duration_sec")
+        if ds is None or (isinstance(ds, (int, float, str)) and str(ds).strip() in ("", "0")):
+            try:
+                from .audio_duration import duration_from_filefield
+
+                sec = duration_from_filefield(getattr(instance, "audio_file", None))
+            except Exception:
+                sec = None
+            if sec is not None and sec > 0:
+                data["duration_sec"] = sec
+                if getattr(instance, "duration_sec", None) != sec and getattr(instance, "pk", None):
+                    type(instance).objects.filter(pk=instance.pk).update(duration_sec=sec)
+        ds = data.get("duration_sec")
         if ds is None or (isinstance(ds, (int, float)) and int(ds) <= 0):
             alt = self._duration_sec_from_meta(data.get("meta_json"))
             if alt is not None:
@@ -190,8 +204,10 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "artist_user_id",
             "artist_user",
             "artwork_url",
+            "artwork_file",
             "duration_sec",
             "playback_ref",
+            "audio_file",
             "meta_json",
             "updated_at",
             "reviews_count",
@@ -200,7 +216,41 @@ class MusicItemSerializer(serializers.ModelSerializer):
             "listen_time_total_sec",
             "user_favorited",
         ]
-        read_only_fields = ["id", "updated_at", "duration_sec"]
+        read_only_fields = [
+            "id",
+            "provider",
+            "external_id",
+            "updated_at",
+            "duration_sec",
+            "artist",
+            "artist_user_id",
+            "artist_user",
+        ]
+        extra_kwargs = {
+            "playback_ref": {"required": False, "allow_blank": True},
+            "meta_json": {"required": False, "allow_blank": True},
+        }
+        # `provider` и `external_id` заполняются сервером в `perform_create`.
+        # Иначе DRF добавляет auto-validator по unique constraint и делает их
+        # обязательными ещё до сохранения.
+        validators = []
+
+    def validate(self, attrs):
+        current_kind = getattr(self.instance, "kind", "") if self.instance else ""
+        current_ref = getattr(self.instance, "playback_ref", "") if self.instance else ""
+        current_audio = getattr(self.instance, "audio_file", None) if self.instance else None
+        kind = (attrs.get("kind") or current_kind or "").strip().lower()
+        playback_ref = (attrs.get("playback_ref") or current_ref or "").strip()
+        audio_file = attrs.get("audio_file", current_audio)
+        if kind == MusicItem.Kind.TRACK.value and not playback_ref and not audio_file:
+            raise serializers.ValidationError(
+                "Для трека выберите аудиофайл."
+            )
+        if kind == MusicItem.Kind.ALBUM.value and not playback_ref:
+            raise serializers.ValidationError(
+                "Для альбома укажите ссылку или путь к папке с треками."
+            )
+        return attrs
 
     def _ann(self, obj, name: str):
         v = getattr(obj, name, None)

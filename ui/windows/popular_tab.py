@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QImage, QMouseEvent, QPixmap
+from PyQt6.QtGui import QColor, QImage, QMouseEvent, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
+from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame, animate_scrollbar_to
 from ui.track_like_review import TrackLikeReviewBar
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
@@ -26,10 +27,14 @@ def _album_cover_network() -> QNetworkAccessManager:
 
 
 class AlbumCard(QFrame):
+    _CARD_SIZE = 140
+    _CARD_PAD = 2
+    _COVER_SIZE = _CARD_SIZE - _CARD_PAD * 2
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("albumCard")
-        self.setFixedSize(140, 198)
+        self.setFixedSize(self._CARD_SIZE, 210)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cover_reply: QNetworkReply | None = None
         self._on_open = None
@@ -37,15 +42,30 @@ class AlbumCard(QFrame):
         self._payload: dict = {}
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 4)
+        layout.setContentsMargins(self._CARD_PAD, self._CARD_PAD, self._CARD_PAD, 4)
         layout.setSpacing(2)
 
-        self._cover = QLabel()
-        self._cover.setFixedSize(140, 128)
+        self._cover_normal_border = QColor("#89A194")
+        self._cover_normal_fill = QColor("#BDB685")
+        self._cover_normal_mask = QColor("#5c5748")
+        self._cover_hover_border = QColor("#CB883A")
+        self._cover_hover_fill = QColor("#d1c996")
+        self._cover_hover_mask = QColor("#6d6756")
+
+        self._cover = CoverArtWidget(
+            radius=8,
+            border_width=1,
+            border_color=self._cover_normal_border,
+            fill_color=self._cover_normal_fill,
+            mask_color=self._cover_normal_mask,
+            placeholder_text="♪",
+            placeholder_color=QColor("#A14016"),
+            placeholder_px=32,
+        )
+        self._cover.setFixedSize(self._COVER_SIZE, self._COVER_SIZE)
         self._cover.setObjectName("albumCover")
-        self._cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._cover.setScaledContents(False)
         self._cover.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._apply_cover_style(False)
         self._apply_cover_placeholder()
 
         self._artist = ArtistLinkLabel()
@@ -60,7 +80,7 @@ class AlbumCard(QFrame):
 
         self._artist.artist_clicked.connect(self._on_artist_clicked)
 
-        layout.addWidget(self._cover)
+        layout.addWidget(self._cover, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self._artist)
         layout.addWidget(self._name)
 
@@ -72,13 +92,22 @@ class AlbumCard(QFrame):
         reply.abort()
 
     def _apply_cover_placeholder(self) -> None:
-        self._cover.clear()
-        self._cover.setPixmap(QPixmap())
-        self._cover.setText("♪")
+        self._cover.clear_cover()
         self._cover.setToolTip("Обложка не указана")
-        self._cover.setStyleSheet(
-            "font-size: 32px; color: #A14016; font-family: 'Courier New';"
-        )
+
+    def _apply_cover_style(self, hovered: bool) -> None:
+        if hovered:
+            self._cover.set_style_colors(
+                border_color=self._cover_hover_border,
+                fill_color=self._cover_hover_fill,
+                mask_color=self._cover_hover_mask,
+            )
+        else:
+            self._cover.set_style_colors(
+                border_color=self._cover_normal_border,
+                fill_color=self._cover_normal_fill,
+                mask_color=self._cover_normal_mask,
+            )
 
     def _on_cover_finished(self) -> None:
         reply = self.sender()
@@ -97,14 +126,7 @@ class AlbumCard(QFrame):
             if not img.loadFromData(data):
                 self._apply_cover_placeholder()
                 return
-            pix = QPixmap.fromImage(img).scaled(
-                140,
-                128,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._cover.setPixmap(pix)
-            self._cover.setText("")
+            self._cover.set_cover_pixmap(QPixmap.fromImage(img))
             self._cover.setToolTip("")
         finally:
             reply.deleteLater()
@@ -136,6 +158,14 @@ class AlbumCard(QFrame):
         if event.button() == Qt.MouseButton.LeftButton and self._on_open:
             self._on_open(self._payload)
         super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event) -> None:
+        self._apply_cover_style(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._apply_cover_style(False)
+        super().leaveEvent(event)
 
 
 class ArtistWidget(QWidget):
@@ -206,7 +236,7 @@ class CarouselSection(QWidget):
         hl.setSpacing(8)
 
         tl = QLabel(title)
-        tl.setObjectName("sectionHeading")
+        tl.setObjectName("subSectionHeading")
         hl.addWidget(tl, 0, Qt.AlignmentFlag.AlignVCenter)
         hl.addStretch(1)
 
@@ -346,12 +376,24 @@ class TrackRow(InteractiveRowFrame):
         num.setAlignment(Qt.AlignmentFlag.AlignCenter)
         num.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        self._thumb = QLabel()
+        self._thumb = CoverArtWidget(
+            radius=6,
+            border_width=1,
+            border_color=QColor("#89A194"),
+            fill_color=QColor(49, 41, 56, 90),
+            mask_color=QColor("#5c5748"),
+            placeholder_text="♪",
+            placeholder_color=QColor("#A14016"),
+            placeholder_px=18,
+        )
         self._thumb.setObjectName("trackRowThumb")
         self._thumb.setFixedSize(self._THUMB_SIZE, self._THUMB_SIZE)
-        self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._thumb.setScaledContents(False)
         self._thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._thumb_normal_border = QColor("#89A194")
+        self._thumb_hover_border = QColor("#CB883A")
+        self._thumb_normal_mask = QColor("#5c5748")
+        self._thumb_hover_mask = QColor("#6d6756")
+        self._apply_thumb_style(False)
         self._apply_thumb_placeholder()
         url = (item.get("artwork_url") or "").strip()
         if url.startswith(("http://", "https://")):
@@ -411,13 +453,20 @@ class TrackRow(InteractiveRowFrame):
         self.install_interaction_filters()
 
     def _apply_thumb_placeholder(self) -> None:
-        self._thumb.clear()
-        self._thumb.setPixmap(QPixmap())
-        self._thumb.setText("♪")
+        self._thumb.clear_cover()
         self._thumb.setToolTip("Обложка не указана")
-        self._thumb.setStyleSheet(
-            "font-size: 18px; color: #A14016; font-family: 'Courier New';"
-        )
+
+    def _apply_thumb_style(self, hovered: bool) -> None:
+        if hovered:
+            self._thumb.set_style_colors(
+                border_color=self._thumb_hover_border,
+                mask_color=self._thumb_hover_mask,
+            )
+        else:
+            self._thumb.set_style_colors(
+                border_color=self._thumb_normal_border,
+                mask_color=self._thumb_normal_mask,
+            )
 
     def _on_thumb_finished(self) -> None:
         reply = self.sender()
@@ -436,17 +485,8 @@ class TrackRow(InteractiveRowFrame):
             if not img.loadFromData(data):
                 self._apply_thumb_placeholder()
                 return
-            s = self._THUMB_SIZE
-            pix = QPixmap.fromImage(img).scaled(
-                s,
-                s,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._thumb.setPixmap(pix)
-            self._thumb.setText("")
+            self._thumb.set_cover_pixmap(QPixmap.fromImage(img))
             self._thumb.setToolTip("")
-            self._thumb.setStyleSheet("")
         finally:
             reply.deleteLater()
 
@@ -459,6 +499,14 @@ class TrackRow(InteractiveRowFrame):
                 return
             self._on_play(self._item)
         super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event) -> None:
+        self._apply_thumb_style(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._apply_thumb_style(False)
+        super().leaveEvent(event)
 
 
 class PopularTab(QWidget):
@@ -494,6 +542,10 @@ class PopularTab(QWidget):
         root.setContentsMargins(24, 16, 24, 24)
         root.setSpacing(10)
 
+        page_title = QLabel("ПОПУЛЯРНОЕ")
+        page_title.setObjectName("sectionHeading")
+        root.addWidget(page_title)
+
         self._status = QLabel(inner)
         self._status.setObjectName("popularLoadStatus")
         self._status.hide()
@@ -508,7 +560,7 @@ class PopularTab(QWidget):
         root.addSpacing(8)
 
         tracks_title = QLabel("ТРЕКИ")
-        tracks_title.setObjectName("sectionHeading")
+        tracks_title.setObjectName("subSectionHeading")
         root.addWidget(tracks_title)
 
         self._tracks_wrap = QWidget()

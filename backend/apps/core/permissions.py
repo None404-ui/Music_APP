@@ -12,6 +12,33 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         return bool(request.user and request.user.is_staff)
 
 
+class IsMusicUploaderOrAdminReadOnly(permissions.BasePermission):
+    """
+    MusicItem:
+    - чтение: всем
+    - создание: любому авторизованному пользователю
+    - изменение/удаление: staff или автор своей загрузки
+    """
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if request.method == "POST":
+            return bool(request.user and request.user.is_authenticated)
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if request.user and request.user.is_staff:
+            return True
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and getattr(obj, "artist_user_id", None) == request.user.id
+        )
+
+
 class IsOwnerOrReadOnly(permissions.BasePermission):
     owner_field = "owner"
 

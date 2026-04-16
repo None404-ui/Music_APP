@@ -6,20 +6,18 @@ QWidget#playerPage {
 
 QFrame#playerLeftCard,
 QFrame#playerRightCard {
-    background-color: #D4D4A8;
+    background-color: #D4CFA0;
     border-radius: 22px;
-    border: 2px solid rgba(0, 51, 102, 0.25);
+    border: 2px solid rgba(137, 161, 148, 0.55);
 }
 
-/* Обложка: скругление и рамка рисуются в PlayerArtworkWidget (paintEvent) */
+/* Обложка: маска и рамка рисуются в CoverArtWidget */
 QWidget#playerArtPanel {
     background: transparent;
-    min-height: 160px;
-    max-height: 280px;
 }
 
 QFrame#playerTrackBand {
-    background-color: #C8C89A;
+    background-color: #CFC89A;
     border-bottom-left-radius: 20px;
     border-bottom-right-radius: 20px;
 }
@@ -28,7 +26,7 @@ QLabel#playerTrekLabel {
     font-family: "Segoe UI", "Arial", sans-serif;
     font-size: 15px;
     font-weight: bold;
-    color: #003366;
+    color: #A14016;
     letter-spacing: 4px;
 }
 
@@ -36,17 +34,17 @@ QLabel#playerNowTitle {
     font-family: "Courier New", monospace;
     font-size: 12px;
     font-weight: bold;
-    color: #003366;
+    color: #312938;
 }
 
 QLabel#playerNowArtist {
     font-family: "Courier New", monospace;
     font-size: 11px;
-    color: #003366;
+    color: #2A7A8C;
+    text-decoration: underline;
 }
 QLabel#playerNowArtist:hover {
-    color: #A14016;
-    text-decoration: underline;
+    color: #CB883A;
 }
 
 /* Прогресс: пиксельный ретро-ползунок */
@@ -84,7 +82,7 @@ QLabel#playerTimeElapsed,
 QLabel#playerTimeRemain {
     font-family: "Courier New", monospace;
     font-size: 11px;
-    color: #003366;
+    color: #89A194;
     min-height: 20px;
     padding-top: 4px;
     padding-bottom: 2px;
@@ -142,8 +140,8 @@ QSlider#playerVolume::handle:horizontal {
     margin: -6px 0;
 }
 QSlider#playerVolume::handle:horizontal:hover {
-    background-color: #004766;
-    border-color: #A14016;
+    background-color: #CB883A;
+    border-color: #312938;
 }
 
 QPushButton#playerVolumeIcon {
@@ -159,7 +157,7 @@ QPushButton#playerVolumeIcon:focus {
 }
 
 QFrame#playerAlbumTab {
-    background-color: #B8B88A;
+    background-color: #C8C18F;
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
     min-height: 48px;
@@ -169,35 +167,35 @@ QLabel#playerAlbumTitle {
     font-family: "Segoe UI", "Arial", sans-serif;
     font-size: 16px;
     font-weight: bold;
-    color: #003366;
+    color: #312938;
     letter-spacing: 2px;
 }
 
 QFrame#playerTrackInfoPanel {
-    background-color: rgba(255, 255, 255, 0.2);
-    border-bottom: 1px solid rgba(0, 51, 102, 0.15);
+    background-color: rgba(207, 200, 154, 0.45);
+    border-bottom: 1px solid rgba(137, 161, 148, 0.35);
 }
 
 QLabel#playerInfoTitleLine {
     font-family: "Courier New", monospace;
     font-size: 10px;
-    color: #003366;
+    color: #312938;
 }
 
 QLabel#playerInfoArtistLine {
     font-family: "Courier New", monospace;
     font-size: 10px;
-    color: #003366;
+    color: #2A7A8C;
     text-decoration: underline;
 }
 QLabel#playerInfoArtistLine:hover {
-    color: #A14016;
+    color: #CB883A;
 }
 
 QLabel#playerInfoStats {
     font-family: "Courier New", monospace;
     font-size: 10px;
-    color: #312938;
+    color: #89A194;
 }
 
 QPushButton#playerLikeBtn {
@@ -227,18 +225,18 @@ QPushButton#playerReviewBtn {
     border-radius: 8px;
 }
 QPushButton#playerReviewBtn:hover {
-    background-color: rgba(42, 122, 140, 0.10);
-    color: #004766;
+    background-color: rgba(203, 136, 58, 0.10);
+    color: #CB883A;
 }
 QPushButton#playerReviewBtn:pressed {
-    background-color: rgba(42, 122, 140, 0.18);
-    color: #2A7A8C;
+    background-color: rgba(203, 136, 58, 0.18);
+    color: #A14016;
 }
 
 QLabel#playerTrackMeta {
     font-family: "Courier New", monospace;
     font-size: 9px;
-    color: #5a6a78;
+    color: #89A194;
 }
 
 QScrollArea#playerAlbumScroll {
@@ -253,49 +251,41 @@ QFrame#playerRightCard QScrollArea {
 
 QFrame#playerTrackRow,
 QFrame#playerTrackRowActive {
-    background-color: rgba(255, 255, 255, 0.25);
+    background-color: rgba(207, 200, 154, 0.35);
     border-radius: 8px;
-    border: 1px solid rgba(0, 51, 102, 0.12);
+    border: 1px solid rgba(137, 161, 148, 0.55);
 }
 
 QFrame#playerTrackRowActive {
-    background-color: rgba(224, 112, 32, 0.35);
-    border: 1px solid #E07020;
+    background-color: rgba(203, 136, 58, 0.22);
+    border: 1px solid #CB883A;
 }
 
 QLabel#playerTrackThumb {
-    background-color: #9aa0a8;
+    background-color: #BDB685;
     border-radius: 4px;
 }
 
 QLabel#playerTrackTitle {
     font-family: "Courier New", monospace;
     font-size: 12px;
-    color: #003366;
+    color: #312938;
 }
 
 QLabel#playerTrackArtist {
     font-family: "Courier New", monospace;
     font-size: 10px;
-    color: #003366;
+    color: #2A7A8C;
+    text-decoration: underline;
 }
 QLabel#playerTrackArtist:hover {
-    color: #A14016;
-    text-decoration: underline;
+    color: #CB883A;
 }
 
 QFrame#miniPlayerBar {
     background-color: rgba(36, 33, 24, 0.94);
     border: 2px solid rgba(203, 136, 58, 0.55);
     border-radius: 14px;
-}
-
-QLabel#miniPlayerCover {
-    background-color: #BDB685;
-    border-radius: 8px;
-    border: 1px solid #CB883A;
-    color: #A14016;
-    font-size: 20px;
 }
 
 QLabel#miniPlayerTitle {
@@ -308,7 +298,11 @@ QLabel#miniPlayerTitle {
 QLabel#miniPlayerArtist {
     font-family: "Courier New", monospace;
     font-size: 11px;
-    color: #89A194;
+    color: #2A7A8C;
+    text-decoration: underline;
+}
+QLabel#miniPlayerArtist:hover {
+    color: #CB883A;
 }
 
 QPushButton#miniPlayerBtn,
@@ -327,15 +321,16 @@ QPushButton#miniPlayerLikeBtn:pressed {
 }
 
 QPushButton#miniPlayerPlayBtn {
-    background-color: #F4E81A;
+    background-color: #CB883A;
     border: 2px solid #312938;
     border-radius: 21px;
 }
 QPushButton#miniPlayerPlayBtn:hover {
-    background-color: #fff463;
+    background-color: #A14016;
 }
 QPushButton#miniPlayerPlayBtn:pressed {
-    background-color: #CB883A;
+    background-color: #312938;
+    border: 2px solid #A14016;
 }
 
 QProgressBar#miniPlayerProgress {
@@ -346,4 +341,48 @@ QProgressBar#miniPlayerProgress {
 QProgressBar#miniPlayerProgress::chunk {
     background-color: #CB883A;
     border-radius: 2px;
+}
+
+QFrame#miniPlayerVolumePopup {
+    background-color: rgba(36, 33, 24, 0.98);
+    border: 2px solid #CB883A;
+    border-radius: 6px;
+}
+
+QLabel#miniPlayerVolumePopupLabel {
+    font-family: "Courier New", monospace;
+    font-size: 9px;
+    font-weight: bold;
+    color: #F0E7B8;
+    letter-spacing: 2px;
+    background: transparent;
+}
+
+QSlider#miniPlayerVolumeSlider::groove:vertical {
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    width: 8px;
+    border-radius: 0px;
+}
+QSlider#miniPlayerVolumeSlider::sub-page:vertical {
+    background-color: #CFC89A;
+    border: 2px solid #312938;
+    border-radius: 0px;
+}
+QSlider#miniPlayerVolumeSlider::add-page:vertical {
+    background-color: #89A194;
+    border: 2px solid #312938;
+    border-radius: 0px;
+}
+QSlider#miniPlayerVolumeSlider::handle:vertical {
+    background-color: #312938;
+    border: 2px solid #CB883A;
+    width: 14px;
+    height: 12px;
+    border-radius: 0px;
+    margin: 0 -5px;
+}
+QSlider#miniPlayerVolumeSlider::handle:vertical:hover {
+    background-color: #CB883A;
+    border-color: #312938;
 }

@@ -1,11 +1,12 @@
 /* ============================================================
    buttons.qss — global: window, top bar, tab bar, shared buttons
-   Retro 70s Palette:
-     #312938  Dark purple-black  — app chrome, primary text
-     #89A194  Sage green         — secondary, muted, borders
-     #CFC89A  Warm beige         — page backgrounds, light surfaces
-     #CB883A  Amber              — accent, active, selected
-     #A14016  Rust               — buttons, strong accent, headings
+   Retro palette standard:
+     #312938  Primary text / shell
+     #89A194  Secondary text / borders
+     #CFC89A  Light surfaces / text on dark cards
+     #2A7A8C  Artist links / cool accent
+     #A14016  Headings / strong controls
+     #CB883A  Active / hover / selected state
    ============================================================ */
 
 /* --- App shell --- */
@@ -39,20 +40,21 @@ QPushButton#sideNavButton {
     border: none;
     outline: none;
     padding: 0px;
-    color: #004766;
+    border-radius: 12px;
+    color: #89A194;
 }
 QPushButton#sideNavButton:hover:!checked {
-    background: transparent;
-    color: #5a9eb8;
+    background: rgba(161, 64, 22, 0.12);
+    color: #A14016;
 }
 QPushButton#sideNavButton:checked {
-    background: transparent;
-    border: none;
-    color: #E35F31;
+    background: rgba(203, 136, 58, 0.16);
+    border: 1px solid rgba(203, 136, 58, 0.45);
+    color: #CB883A;
 }
 QPushButton#sideNavButton:pressed {
-    background: transparent;
-    color: #c14e28;
+    background: rgba(207, 200, 154, 0.12);
+    color: #CFC89A;
 }
 QPushButton#sideNavButton:focus {
     border: none;
