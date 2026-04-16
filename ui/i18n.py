@@ -137,6 +137,18 @@ _EN: dict[str, str] = {
     "свернуть": "collapse",
     "треков в каталоге:": "Tracks in catalog:",
     "Ошибка:": "Error:",
+    # Смена пароля
+    "Смена пароля": "Change password",
+    "Текущий пароль": "Current password",
+    "Новый пароль": "New password",
+    "Повторите новый пароль": "Confirm new password",
+    "ОТМЕНА": "CANCEL",
+    "СОХРАНИТЬ": "SAVE",
+    "Заполните все поля.": "Fill in all fields.",
+    "Новый пароль и подтверждение не совпадают.": "New password and confirmation do not match.",
+    "Пароль успешно изменён.": "Your password has been changed.",
+    "Не удалось сменить пароль.": "Could not change password.",
+    "Пароль не короче 6 символов.": "Password must be at least 6 characters.",
 }
 
 

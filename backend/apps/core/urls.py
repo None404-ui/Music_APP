@@ -37,6 +37,11 @@ urlpatterns = [
     path("auth/login/", auth_views.LoginView.as_view(), name="auth-login"),
     path("auth/logout/", auth_views.LogoutView.as_view(), name="auth-logout"),
     path("auth/register/", auth_views.RegisterView.as_view(), name="auth-register"),
+    path(
+        "auth/change-password/",
+        auth_views.ChangePasswordView.as_view(),
+        name="auth-change-password",
+    ),
     path("profile/me/", views.MeProfileView.as_view(), name="me-profile"),
     path("feed/", views.FeedView.as_view(), name="feed"),
     path("recommendations/", views.GenreRecommendationsView.as_view(), name="recommendations"),

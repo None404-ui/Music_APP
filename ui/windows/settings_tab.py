@@ -146,6 +146,39 @@ class SettingsRow(QFrame):
             layout.addWidget(val)
 
 
+class ClickableSettingsRow(QFrame):
+    """Строка настроек с переходом (клик по всей полосе)."""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, label: str, parent=None):
+        super().__init__(parent)
+        self.setObjectName("settingsRow")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(52)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(10)
+
+        lbl = QLabel(label)
+        lbl.setObjectName("settingsRowLabel")
+        lbl.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
+        layout.addWidget(lbl, stretch=1)
+
+        val = QLabel("›")
+        val.setObjectName("settingsRowValue")
+        val.setStyleSheet(f"color: {_SETTINGS_ROW_VALUE_COLOR};")
+        val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(val)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
 _INTERFACE_SECTION = "ИНТЕРФЕЙС"
 
 _SECTIONS_OTHER = {
@@ -268,9 +301,10 @@ class SettingsTab(QWidget):
         col.addWidget(
             SettingsRow(i18n.tr("Электронная почта"), mail_row, "text"),
         )
-        col.addWidget(
-            SettingsRow(i18n.tr("Сменить пароль"), "", "text"),
-        )
+        if session is not None:
+            pw_row = ClickableSettingsRow(i18n.tr("Сменить пароль"))
+            pw_row.clicked.connect(self._open_change_password)
+            col.addWidget(pw_row)
 
         for section_name, rows in _SECTIONS_OTHER.items():
             section_lbl = QLabel(i18n.tr(section_name))
@@ -508,6 +542,18 @@ class SettingsTab(QWidget):
                 self._fetch_avatar_from_url(au)
         else:
             self._reload_profile_header()
+
+    def _open_change_password(self) -> None:
+        if not self._session:
+            return
+        from ui.windows.change_password_dialog import ChangePasswordDialog
+
+        dlg = ChangePasswordDialog(
+            self._session.client,
+            self._session.email or "",
+            self,
+        )
+        dlg.exec()
 
     def _emit_playback(self) -> None:
         if self._on_playback_changed:
