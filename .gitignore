@@ -7,3 +7,10 @@ backend/**/__pycache__/
 backend/**/.pytest_cache/
 .python-version
 __pycache__/
+lan_audio_hub
+backend/lan_audio_hub
+backend/lan_hub_client.py
+backend/crates/
+backend/crates/settings.py
+backend/__pycache__/
+ui/__pycache__/
