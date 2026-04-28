@@ -868,9 +868,9 @@ class PlayerTab(QWidget):
             return
         item = self._playlist[self._index]
         title = (item.get("title") or "—").strip()
-        msg = (message or "").strip() or i18n.tr("Не удалось воспроизвести трек с сервера.")
+        msg = i18n.tr("Ошибка воспроизведения трека")
         self._now_title.setText(title)
-        self._now_artist.set_artist(i18n.tr("Ошибка воспроизведения"))
+        self._now_artist.set_artist(msg)
         self._t_elapsed.setText("0:00")
         self._t_total.setText("—")
         self._progress.blockSignals(True)
@@ -882,7 +882,8 @@ class PlayerTab(QWidget):
         self._emit_playback_state()
         self._emit_progress_state()
         self._emit_current_item_changed()
-        self._track_info_subtitle.setText(msg)
+        self._info_line_extra.setText(msg)
+        self._info_stats.setText("")
 
     def _compute_master_linear(self) -> float:
         volume_widget = getattr(self, "_volume", None)

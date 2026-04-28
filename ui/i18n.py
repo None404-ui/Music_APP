@@ -149,6 +149,7 @@ _EN: dict[str, str] = {
     "свернуть": "collapse",
     "треков в каталоге:": "Tracks in catalog:",
     "Ошибка:": "Error:",
+    "Ошибка воспроизведения трека": "Track playback error",
     # Смена пароля
     "Смена пароля": "Change password",
     "Текущий пароль": "Current password",
