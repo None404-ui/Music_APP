@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from urllib.error import URLError
@@ -39,7 +41,7 @@ def _check_json(url: str, timeout: float = 5.0) -> tuple[bool, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Принимает JSON от server-info и печатает команды подключения клиента."
+        description="Принимает JSON от server-info, применяет env и запускает клиент."
     )
     parser.add_argument(
         "payload",
@@ -47,7 +49,11 @@ def main() -> None:
         help="JSON строка или путь к файлу с JSON. Если не задано, читается stdin.",
     )
     parser.add_argument("--check", action="store_true", help="Проверить доступность hub/backend")
-    parser.add_argument("--run-app", action="store_true", help="Показать итоговую команду запуска app")
+    parser.add_argument(
+        "--print-env-only",
+        action="store_true",
+        help="Только распечатать env без запуска клиента",
+    )
     args = parser.parse_args()
 
     raw = _read_input(args.payload).strip()
@@ -62,14 +68,14 @@ def main() -> None:
     if not backend_url or not hub_url:
         raise SystemExit("В JSON должны быть backend_url и hub_url.")
 
-    print("=== CLIENT EXPORTS ===")
-    print(f'export CRATES_BACKEND_URL="{backend_url}"')
-    print(f'export CRATES_LAN_HUB_URL="{hub_url}"')
+    env = os.environ.copy()
+    env["CRATES_BACKEND_URL"] = backend_url
+    env["CRATES_LAN_HUB_URL"] = hub_url
+
+    print("=== CLIENT ENV ===")
+    print(f'CRATES_BACKEND_URL="{backend_url}"')
+    print(f'CRATES_LAN_HUB_URL="{hub_url}"')
     print()
-    if args.run_app:
-        print("=== APP START ===")
-        print(f'cd "{workspace}" && python main.py')
-        print()
 
     if args.check:
         print("=== CONNECTIVITY CHECK ===")
@@ -78,12 +84,22 @@ def main() -> None:
         ok_backend, backend_msg = _check_json(f"{backend_url}/api/music-items/")
         print(f"Backend: {'OK' if ok_backend else 'FAIL'} {backend_msg}")
         print()
+        if not (ok_hub and ok_backend):
+            raise SystemExit("Server connectivity check failed.")
 
-    print("=== WHAT CLIENT SHOULD DO ===")
-    print("1. Export CRATES_BACKEND_URL and CRATES_LAN_HUB_URL.")
-    print("2. Start the app.")
-    print("3. Upload a track from the UI.")
-    print("4. After successful upload, the local source file is no longer needed.")
+    if args.print_env_only:
+        print("=== EXPORT COMMANDS ===")
+        print(f'export CRATES_BACKEND_URL="{backend_url}"')
+        print(f'export CRATES_LAN_HUB_URL="{hub_url}"')
+        return
+
+    print("Starting client app...")
+    subprocess.run(
+        [sys.executable, "main.py"],
+        cwd=workspace,
+        env=env,
+        check=True,
+    )
 
 
 if __name__ == "__main__":
