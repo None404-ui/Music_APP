@@ -97,7 +97,7 @@ class UploadMusicDialog(QDialog):
 
     def _hint_text(self) -> str:
         if self._kind == "track":
-            return "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку."
+            return "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку. Файл будет загружен на сервер и дальше воспроизводиться оттуда."
         return "Для альбома укажите название и при желании добавьте обложку."
 
     @staticmethod
@@ -148,7 +148,7 @@ class UploadMusicDialog(QDialog):
             files["artwork_file"] = cover
 
         status, body = self._session.client.post_multipart(
-            "/api/music-items/",
+            "/api/music-items/upload-via-lan/" if self._kind == "track" else "/api/music-items/",
             fields=fields,
             files=files,
             timeout=120.0,

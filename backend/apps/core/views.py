@@ -24,6 +24,8 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from lan_hub_client import default_lan_hub_url, upload_track as lan_upload_track
+
 from .models import (
     Collection,
     CollectionItem,
@@ -143,6 +145,71 @@ class MusicItemViewSet(viewsets.ModelViewSet):
             provider="upload",
             external_id=str(uuid.uuid4()),
         )
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="upload-via-lan",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_via_lan(self, request):
+        title = (request.data.get("title") or "").strip()
+        kind = (request.data.get("kind") or MusicItem.Kind.TRACK.value).strip().lower()
+        if not title:
+            return Response({"detail": "Введите название."}, status=400)
+        if kind != MusicItem.Kind.TRACK.value:
+            return Response({"detail": "Через LAN upload сейчас поддерживается только трек."}, status=400)
+        audio_file = request.FILES.get("audio_file")
+        if audio_file is None:
+            return Response({"detail": "Для трека выберите аудиофайл."}, status=400)
+
+        hub_url = default_lan_hub_url()
+        if not hub_url:
+            return Response({"detail": "На сервере не задан CRATES_LAN_HUB_URL."}, status=503)
+
+        profile = Profile.objects.filter(user=request.user).first()
+        artist_name = (profile.nickname if profile else "") or request.user.get_username()
+        raw_audio = audio_file.read()
+        status, hub_body = lan_upload_track(
+            hub_url,
+            filename=getattr(audio_file, "name", "track.bin"),
+            raw_bytes=raw_audio,
+            title=title,
+            artist=artist_name,
+            mime_type=getattr(audio_file, "content_type", None),
+        )
+        if status not in (200, 201) or not isinstance(hub_body, dict):
+            detail = hub_body.get("detail") if isinstance(hub_body, dict) else "Не удалось загрузить трек в LAN Hub."
+            return Response({"detail": detail or "Не удалось загрузить трек в LAN Hub."}, status=502)
+
+        hub_track_id = hub_body.get("id")
+        stream_url = (hub_body.get("stream_url") or "").strip()
+        if hub_track_id is None or not stream_url:
+            return Response({"detail": "LAN Hub вернул неполный ответ."}, status=502)
+
+        meta_payload = {
+            "stream_url": stream_url,
+            "hub_track_id": hub_track_id,
+            "mime": hub_body.get("mime") or getattr(audio_file, "content_type", "") or "",
+            "size_bytes": len(raw_audio),
+        }
+        serializer = self.get_serializer(
+            data={
+                "kind": kind,
+                "title": title,
+                "meta_json": json.dumps(meta_payload, ensure_ascii=False),
+            }
+        )
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save(
+            artist_user=request.user,
+            artist=artist_name,
+            provider="lan_hub",
+            external_id=str(hub_track_id),
+            duration_sec=serializer.validated_data.get("duration_sec"),
+            artwork_file=request.FILES.get("artwork_file"),
+        )
+        return Response(self.get_serializer(item).data, status=201)
 
     @action(detail=False, methods=["get"], url_path="popular-feed")
     def popular_feed(self, request):

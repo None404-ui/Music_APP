@@ -864,7 +864,25 @@ class PlayerTab(QWidget):
                 self._player.play()
 
     def _on_player_error(self, error, message: str = "") -> None:
-        pass
+        if not self._playlist or not (0 <= self._index < len(self._playlist)):
+            return
+        item = self._playlist[self._index]
+        title = (item.get("title") or "—").strip()
+        msg = (message or "").strip() or i18n.tr("Не удалось воспроизвести трек с сервера.")
+        self._now_title.setText(title)
+        self._now_artist.set_artist(i18n.tr("Ошибка воспроизведения"))
+        self._t_elapsed.setText("0:00")
+        self._t_total.setText("—")
+        self._progress.blockSignals(True)
+        self._progress.setRange(0, 1000)
+        self._progress.setValue(0)
+        self._progress.blockSignals(False)
+        self._player.stop()
+        self._sync_play_button_icon()
+        self._emit_playback_state()
+        self._emit_progress_state()
+        self._emit_current_item_changed()
+        self._track_info_subtitle.setText(msg)
 
     def _compute_master_linear(self) -> float:
         volume_widget = getattr(self, "_volume", None)

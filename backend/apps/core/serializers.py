@@ -179,10 +179,32 @@ class MusicItemSerializer(serializers.ModelSerializer):
             return None
         return public_artist_user_payload(uid, self.context.get("request"))
 
+    @staticmethod
+    def _stream_url_from_meta(meta_json) -> str:
+        if meta_json is None:
+            return ""
+        raw = meta_json if isinstance(meta_json, str) else str(meta_json)
+        if not raw.strip():
+            return ""
+        try:
+            payload = json.loads(raw)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return ""
+        if not isinstance(payload, dict):
+            return ""
+        for key in ("stream_url", "audio_url", "hub_stream_url"):
+            value = (payload.get(key) or "").strip() if isinstance(payload.get(key), str) else ""
+            if value:
+                return value
+        return ""
+
     def get_audio_url(self, obj):
         audio = getattr(obj, "audio_file", None)
         if audio and getattr(audio, "name", ""):
             return _absolute_media_url(self.context.get("request"), audio.url)
+        stream = self._stream_url_from_meta(getattr(obj, "meta_json", ""))
+        if stream:
+            return _absolute_media_url(self.context.get("request"), stream)
         return ""
 
     class Meta:
@@ -230,9 +252,12 @@ class MusicItemSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         current_kind = getattr(self.instance, "kind", "") if self.instance else ""
         current_audio = getattr(self.instance, "audio_file", None) if self.instance else None
+        current_meta = getattr(self.instance, "meta_json", "") if self.instance else ""
         kind = (attrs.get("kind") or current_kind or "").strip().lower()
         audio_file = attrs.get("audio_file", current_audio)
-        if kind == MusicItem.Kind.TRACK.value and not audio_file:
+        meta_json = attrs.get("meta_json", current_meta)
+        stream_url = self._stream_url_from_meta(meta_json)
+        if kind == MusicItem.Kind.TRACK.value and not audio_file and not stream_url:
             raise serializers.ValidationError(
                 "Для трека выберите аудиофайл."
             )

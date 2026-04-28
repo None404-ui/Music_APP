@@ -90,6 +90,24 @@
 - **201**: созданный `MusicItem`
 - **403**: если пользователь не staff/admin
 
+### POST `/api/music-items/upload-via-lan/`
+Загрузить трек из desktop-клиента в LAN Hub через Django orchestration.
+
+- **Auth**: требуется
+- **Content-Type**: `multipart/form-data`
+- **Body**:
+  - `kind` = `track`
+  - `title` (string)
+  - `audio_file` (binary)
+  - `artwork_file` (binary, optional)
+- **Flow**:
+  - Django принимает локальный файл от клиента;
+  - Django отправляет файл в `CRATES_LAN_HUB_URL`;
+  - LAN Hub сохраняет аудио и возвращает `hub_track_id` + `stream_url`;
+  - Django создаёт обычный `MusicItem` с `provider="lan_hub"` и `external_id=<hub_track_id>`.
+- **201**: созданный `MusicItem`
+- **502/503**: если LAN Hub недоступен или вернул некорректный ответ
+
 ### GET `/api/music-items/{id}/`
 Получить `MusicItem`
 
@@ -107,11 +125,16 @@
   "artist": "Artist",
   "artwork_url": "https://...",
   "duration_sec": 235,
-  "playback_ref": "uri_or_url",
+  "audio_url": "http://server-or-hub/stream",
   "meta_json": "{}",
   "updated_at": "2026-03-18T12:00:00Z"
 }
 ```
+
+#### `audio_url` semantics
+- Для обычного upload (`provider="upload"`) `audio_url` строится из `audio_file.url`.
+- Для LAN upload (`provider="lan_hub"`) `audio_url` строится из `meta_json.stream_url`.
+- После успешного LAN upload локальный исходный файл на клиенте больше не нужен: дальнейшее воспроизведение идёт только с сервера.
 
 ---
 
