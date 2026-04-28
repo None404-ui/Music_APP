@@ -50,9 +50,19 @@ def main() -> None:
     )
     parser.add_argument("--check", action="store_true", help="Проверить доступность hub/backend")
     parser.add_argument(
+        "--workspace",
+        default=str(Path(__file__).resolve().parents[1]),
+        help="Локальный путь к проекту на клиенте. По умолчанию берётся автоматически от расположения скрипта.",
+    )
+    parser.add_argument(
         "--print-env-only",
         action="store_true",
         help="Только распечатать env без запуска клиента",
+    )
+    parser.add_argument(
+        "--emit-shell",
+        action="store_true",
+        help="Вывести только shell export-команды, чтобы можно было сделать eval.",
     )
     args = parser.parse_args()
 
@@ -63,7 +73,7 @@ def main() -> None:
 
     backend_url = str(payload.get("backend_url") or "").strip().rstrip("/")
     hub_url = str(payload.get("hub_url") or "").strip().rstrip("/")
-    workspace = str(payload.get("workspace") or ".").strip()
+    workspace = str(Path(args.workspace).resolve())
 
     if not backend_url or not hub_url:
         raise SystemExit("В JSON должны быть backend_url и hub_url.")
@@ -72,9 +82,15 @@ def main() -> None:
     env["CRATES_BACKEND_URL"] = backend_url
     env["CRATES_LAN_HUB_URL"] = hub_url
 
+    if args.emit_shell:
+        print(f'export CRATES_BACKEND_URL="{backend_url}"')
+        print(f'export CRATES_LAN_HUB_URL="{hub_url}"')
+        return
+
     print("=== CLIENT ENV ===")
     print(f'CRATES_BACKEND_URL="{backend_url}"')
     print(f'CRATES_LAN_HUB_URL="{hub_url}"')
+    print(f'CLIENT_WORKSPACE="{workspace}"')
     print()
 
     if args.check:
@@ -91,6 +107,7 @@ def main() -> None:
         print("=== EXPORT COMMANDS ===")
         print(f'export CRATES_BACKEND_URL="{backend_url}"')
         print(f'export CRATES_LAN_HUB_URL="{hub_url}"')
+        print(f'# local workspace: {workspace}')
         return
 
     print("Starting client app...")
