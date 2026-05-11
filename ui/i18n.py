@@ -135,6 +135,9 @@ _EN: dict[str, str] = {
     "ТОП РЕЦЕНЗИЙ": "TOP REVIEWS",
     "Не удалось загрузить топ рецензий.": "Could not load the top reviews.",
     "Пока нет рецензий.": "No reviews yet.",
+    "Нажмите, чтобы открыть рецензию, комментарии и лайки.": (
+        "Click to open the review, comments, and likes."
+    ),
     # Страница артиста
     "← Назад": "← Back",
     "Не удалось загрузить страницу артиста.": "Could not load the artist page.",
@@ -161,6 +164,51 @@ _EN: dict[str, str] = {
     "Пароль успешно изменён.": "Your password has been changed.",
     "Не удалось сменить пароль.": "Could not change password.",
     "Пароль не короче 6 символов.": "Password must be at least 6 characters.",
+    # Оформление плеера
+    "ПЛЕЕР": "PLAYER",
+    "Оформление плеера": "Player appearance",
+    "Нажмите на левую или правую карточку, чтобы изменить цвет. Фон страницы — кнопка «Фон страницы».": (
+        "Click the left or right card to change its color. Use “Page background” for the page background."
+    ),
+    "ПРЕВЬЮ": "PREVIEW",
+    "Фон страницы…": "Page background…",
+    "SVG бегунка…": "Seek thumb SVG…",
+    "Сохранить": "Save",
+    "Отмена": "Cancel",
+    "По умолчанию": "Restore defaults",
+    "Цвет левой карточки": "Left card color",
+    "Цвет правой карточки": "Right card color",
+    "Цвет фона страницы": "Page background color",
+    "Фоновое изображение": "Background image",
+    "Фоновое изображение…": "Background image…",
+    "Прозрачный фон": "Transparent background",
+    "Цвет фона…": "Background color…",
+    "Векторные изображения (*.svg);;Все файлы (*.*)": "Vector images (*.svg);;All files (*.*)",
+    "SVG бегунка": "Seek thumb SVG",
+    "Макет совпадает с вкладкой плеера (левая колонка уже, правая шире). Цвета задаются кнопками ниже — не по клику на превью.": (
+        "The layout matches the player tab (narrower left column, wider right). "
+        "Use the buttons below to set colors — not by clicking the preview."
+    ),
+    "Цвет левой карточки…": "Left card color…",
+    "Цвет правой карточки…": "Right card color…",
+    "превью текста": "preview text",
+    "активный трек": "active track",
+    "Изменить цвет": "Change color",
+    "Цвет подложки дорожки": "Track groove color",
+    "Цвет заполнения": "Filled portion",
+    "Цвет заполнения дорожки": "Track fill color",
+    "Фон за плеером:": "Page behind player:",
+    "Как в приложении (ambient)": "App default (ambient)",
+    "Свой цвет": "Custom color",
+    "Своё изображение": "Custom image",
+    "Стандартный фон (как в приложении)": "Default background (same as rest of app)",
+    "Прозрачный фон страницы": "Transparent page background",
+    "Прозрачная левая карточка": "Transparent left card",
+    "Прозрачная правая карточка": "Transparent right card",
+    "Цвет подложки громкости": "Volume groove color",
+    "Цвет заполнения громкости": "Volume fill color",
+    "Цвет бегунка громкости": "Volume handle color",
+    "Обводка бегунка громкости": "Volume handle border",
 }
 
 

@@ -47,35 +47,9 @@ QLabel#playerNowArtist:hover {
     color: #CB883A;
 }
 
-/* Прогресс: пиксельный ретро-ползунок */
-QSlider#playerProgressMock::groove:horizontal {
-    background-color: #CFC89A;
-    border: 2px solid #312938;
-    height: 8px;
-    border-radius: 0px;
-}
-QSlider#playerProgressMock::sub-page:horizontal {
-    background-color: #A14016;
-    border: 2px solid #312938;
-    height: 8px;
-    border-radius: 0px;
-}
-QSlider#playerProgressMock::add-page:horizontal {
-    background-color: #CFC89A;
-    border: 2px solid #312938;
-    border-radius: 0px;
-}
-QSlider#playerProgressMock::handle:horizontal {
-    background-color: #312938;
-    border: 2px solid #CB883A;
-    width: 10px;
-    height: 18px;
-    border-radius: 0px;
-    margin: -7px 0;
-}
-QSlider#playerProgressMock::handle:horizontal:hover {
-    background-color: #A14016;
-    border-color: #312938;
+/* Прогресс: отрисовка в SvgSeekSlider (playerProgressSvg) */
+QSlider#playerProgressSvg {
+    min-height: 22px;
 }
 
 QLabel#playerTimeElapsed,
@@ -406,36 +380,9 @@ QPushButton#miniPlayerPlayBtn:pressed {
     border: 2px solid #A14016;
 }
 
-/* Мини-плеер: ползунок перемотки (как на вкладке плеера, компактнее) */
-QSlider#miniPlayerSeekSlider::groove:horizontal {
-    background: rgba(207, 200, 154, 0.18);
-    border: 1px solid rgba(49, 41, 56, 0.85);
-    height: 4px;
-    border-radius: 2px;
-}
-QSlider#miniPlayerSeekSlider::sub-page:horizontal {
-    background-color: #CB883A;
-    border: 1px solid rgba(49, 41, 56, 0.85);
-    height: 4px;
-    border-radius: 2px;
-}
-QSlider#miniPlayerSeekSlider::add-page:horizontal {
-    background: rgba(207, 200, 154, 0.18);
-    border: 1px solid rgba(49, 41, 56, 0.85);
-    height: 4px;
-    border-radius: 2px;
-}
-QSlider#miniPlayerSeekSlider::handle:horizontal {
-    background-color: #312938;
-    border: 1px solid #CB883A;
-    width: 8px;
-    height: 10px;
-    border-radius: 0px;
-    margin: -5px 0;
-}
-QSlider#miniPlayerSeekSlider::handle:horizontal:hover {
-    background-color: #A14016;
-    border-color: #312938;
+/* Мини-плеер: ползунок перемотки — SvgSeekSlider (miniPlayerSeekSvg) */
+QSlider#miniPlayerSeekSvg {
+    min-height: 14px;
 }
 
 QFrame#miniPlayerVolumePopup {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Fat funny cat — light, simple -->
+  <ellipse cx="64" cy="80" rx="50" ry="36" fill="#F5EBDD" stroke="#6B5348" stroke-width="3"/>
+  <ellipse cx="64" cy="84" rx="30" ry="24" fill="#FFF9F2" opacity="0.65"/>
+  <circle cx="64" cy="42" r="34" fill="#F5EBDD" stroke="#6B5348" stroke-width="3"/>
+  <path d="M34 22 L28 6 L46 16 Z" fill="#F5EBDD" stroke="#6B5348" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M94 22 L100 6 L82 16 Z" fill="#F5EBDD" stroke="#6B5348" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M36 10 L33 2 L42 9 Z" fill="#FFAAA0"/>
+  <path d="M92 10 L95 2 L86 9 Z" fill="#FFAAA0"/>
+  <path d="M46 38 Q52 34 58 38" stroke="#6B5348" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M70 38 Q76 34 82 38" stroke="#6B5348" stroke-width="2.8" stroke-linecap="round"/>
+  <ellipse cx="64" cy="48" rx="5" ry="4" fill="#E8A090"/>
+  <path d="M50 56 Q64 72 78 56" stroke="#6B5348" stroke-width="2.8" stroke-linecap="round"/>
+  <ellipse cx="36" cy="108" rx="11" ry="9" fill="#F5EBDD" stroke="#6B5348" stroke-width="2.5"/>
+  <ellipse cx="92" cy="108" rx="11" ry="9" fill="#F5EBDD" stroke="#6B5348" stroke-width="2.5"/>
+  <path d="M110 72 Q122 58 116 42 Q110 30 100 38" stroke="#6B5348" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+</svg>

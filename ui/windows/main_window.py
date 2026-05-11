@@ -25,8 +25,9 @@ from ui.windows.review_detail_dialog import ReviewDetailDialog
 from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
+from ui.windows.player_appearance_page import PlayerAppearancePage
 from ui.windows.settings_tab import SettingsTab
-from ui import i18n, playback_resume
+from ui import i18n, playback_resume, player_appearance_settings
 
 _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
@@ -165,6 +166,7 @@ class MainWindow(QMainWindow):
     _PLAYER_PAGE_INDEX = 3
     _SETTINGS_PAGE_INDEX = 4
     _ARTIST_PAGE_INDEX = 5
+    _PLAYER_APPEARANCE_PAGE_INDEX = 6
 
     def _open_artist_profile(self, artist_name: str) -> None:
         name = (artist_name or "").strip()
@@ -257,19 +259,15 @@ class MainWindow(QMainWindow):
         self._ambient_host.set_overlay_widget(self._mini_player, height=94, margin=14)
 
         def on_open_review_dialog(review: dict) -> None:
-            body = review.get("text") or ""
-            mi = review.get("music_item")
-            if isinstance(mi, dict):
-                album = mi.get("title") or i18n.tr("Трек")
-            elif mi is not None:
-                album = f"{i18n.tr('Трек')} #{mi}"
-            else:
-                album = i18n.tr("Рецензия")
-            headline = body.split("\n")[0].strip() if body else i18n.tr("Рецензия")
-            if len(headline) > 100:
-                headline = headline[:97] + "…"
-            author = (review.get("author_label") or "").strip() or session.email or i18n.tr("Вы")
-            dlg = ReviewDetailDialog(album, headline, author, "—", body, self)
+            if not isinstance(review, dict):
+                return
+            dlg = ReviewDetailDialog(
+                review,
+                session,
+                on_changed=self._reviews_tab.reload_content,
+                on_open_artist=self._open_artist_profile,
+                parent=self,
+            )
             dlg.exec()
 
         self._selected_tab = SelectedTab(
@@ -288,6 +286,12 @@ class MainWindow(QMainWindow):
             on_playback_changed=self._player.refresh_playback_settings,
             on_logout=self._do_logout,
             on_language_changed=self._request_language_restart,
+            on_open_player_appearance=self._open_player_appearance,
+        )
+
+        self._player_appearance = PlayerAppearancePage(
+            on_back=self._close_player_appearance,
+            on_applied=self._apply_player_appearance,
         )
 
         self._popular_tab = PopularTab(
@@ -301,6 +305,7 @@ class MainWindow(QMainWindow):
         self._reviews_tab = ReviewsTab(
             session,
             on_open_artist=self._open_artist_profile,
+            on_open_review=on_open_review_dialog,
         )
 
         self._home_hub = HomeHubWidget(self._popular_tab, self._reviews_tab)
@@ -321,6 +326,7 @@ class MainWindow(QMainWindow):
             self._player,
             self._settings,
             self._artist_profile,
+            self._player_appearance,
         ]
         for page in self._pages:
             page.setSizePolicy(
@@ -331,7 +337,7 @@ class MainWindow(QMainWindow):
 
         self._side_nav.page_selected.connect(self._on_side_nav_clicked)
         self._home_hub.sub_page_changed.connect(self._on_home_sub_changed)
-        self._stack.currentChanged.connect(self._sync_mini_player_visibility)
+        self._stack.currentChanged.connect(self._on_stack_page_changed)
         self._player.current_item_changed.connect(lambda _item: self._sync_mini_player_visibility())
 
         snap = playback_resume.peek_language_restart_snapshot()
@@ -346,6 +352,17 @@ class MainWindow(QMainWindow):
             self._home_hub.reset_to_popular()
         self._popular_tab.reload_content()
         self._sync_mini_player_visibility()
+        self._sync_player_ambient_layer()
+
+    def _on_stack_page_changed(self, _index: int) -> None:
+        self._sync_mini_player_visibility()
+        self._sync_player_ambient_layer()
+
+    def _sync_player_ambient_layer(self) -> None:
+        if self._stack.currentIndex() == self._PLAYER_PAGE_INDEX:
+            self._ambient_host.apply_player_background(player_appearance_settings.load())
+        else:
+            self._ambient_host.clear_player_background()
 
     def consume_logout_restart(self) -> bool:
         v = self._logout_restart
@@ -374,8 +391,24 @@ class MainWindow(QMainWindow):
         animate_stack_fade(self._stack, self._PLAYER_PAGE_INDEX)
         self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
 
+    def _open_player_appearance(self) -> None:
+        animate_stack_fade(self._stack, self._PLAYER_APPEARANCE_PAGE_INDEX)
+
+    def _close_player_appearance(self) -> None:
+        animate_stack_fade(self._stack, self._SETTINGS_PAGE_INDEX)
+        self._side_nav.set_current_index(self._SETTINGS_PAGE_INDEX)
+
+    def _apply_player_appearance(self) -> None:
+        self._player.apply_appearance_settings()
+        self._mini_player.apply_appearance_settings()
+        self._sync_player_ambient_layer()
+
     def _sync_mini_player_visibility(self) -> None:
-        hidden_pages = {self._PLAYER_PAGE_INDEX, self._SETTINGS_PAGE_INDEX}
+        hidden_pages = {
+            self._PLAYER_PAGE_INDEX,
+            self._SETTINGS_PAGE_INDEX,
+            self._PLAYER_APPEARANCE_PAGE_INDEX,
+        }
         should_show = (
             self._stack.currentIndex() not in hidden_pages
             and self._mini_player.has_track()

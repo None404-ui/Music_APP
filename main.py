@@ -16,6 +16,7 @@ _QSS_FILES = [
     "player",
     "auth",
     "review_dialog",
+    "player_appearance",
     "settings",  # последним — стили вкладки «Настройки» не перебиваются
 ]
 

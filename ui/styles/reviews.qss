@@ -78,7 +78,7 @@ QLabel#reviewAlbum {
 QLabel#reviewMeta {
     font-family: "Courier New";
     font-size: 11px;
-    color: #89A194;
+    color: rgba(207, 200, 154, 0.95);
     letter-spacing: 1px;
 }
 

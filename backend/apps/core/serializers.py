@@ -400,18 +400,31 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
+    author_label = serializers.SerializerMethodField()
+
     class Meta:
         model = Comment
         fields = [
             "id",
             "review",
             "author",
+            "author_label",
             "parent",
             "text",
             "deleted_at",
             "created_at",
         ]
-        read_only_fields = ["id", "author", "created_at"]
+        read_only_fields = ["id", "author", "author_label", "created_at"]
+
+    def get_author_label(self, obj):
+        u = obj.author
+        try:
+            prof = u.profile
+        except ObjectDoesNotExist:
+            prof = None
+        if prof is not None and (prof.nickname or "").strip():
+            return prof.nickname.strip()
+        return (getattr(u, "email", None) or u.get_username() or "").strip() or "—"
 
 
 class ReactionSerializer(serializers.ModelSerializer):

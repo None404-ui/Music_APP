@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -53,14 +54,20 @@ class ReviewRow(InteractiveRowFrame):
         session: UserSession,
         on_changed,
         on_open_artist=None,
+        on_open_review=None,
         parent=None,
     ):
         super().__init__(radius=10, hover_alpha=30, press_alpha=48, active_alpha=18, parent=parent)
         self.setObjectName("reviewRow")
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
         self._review = dict(review)
         self._session = session
         self._on_changed = on_changed
+        self._on_open_review = on_open_review
+        if on_open_review is not None:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setToolTip(i18n.tr("Нажмите, чтобы открыть рецензию, комментарии и лайки."))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
@@ -71,22 +78,43 @@ class ReviewRow(InteractiveRowFrame):
         thumb.setFixedSize(70, 70)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb.setText("♪")
+        thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
 
         self._title_lbl = QLabel(_headline(self._review))
         self._title_lbl.setObjectName("reviewAlbum")
+        self._title_lbl.setWordWrap(True)
+        self._title_lbl.setMinimumWidth(0)
+        self._title_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        self._title_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         author = (self._review.get("author_label") or "—").strip()
-        self._meta_lbl = QLabel(author)
+        self._meta_lbl = QLabel(i18n.tr("Автор:") + f" {author}")
         self._meta_lbl.setObjectName("reviewMeta")
+        self._meta_lbl.setWordWrap(True)
+        self._meta_lbl.setMinimumWidth(0)
+        self._meta_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        self._meta_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         body = (self._review.get("text") or "").strip().replace("\n", " ")
-        excerpt = body[:200] + ("…" if len(body) > 200 else "")
+        excerpt = body[:240] + ("…" if len(body) > 240 else "")
         self._body_lbl = QLabel(excerpt or "—")
         self._body_lbl.setObjectName("reviewExcerpt")
         self._body_lbl.setWordWrap(True)
+        self._body_lbl.setMinimumWidth(0)
+        self._body_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        self._body_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         sub = _subtitle(self._review)
         text_col.addWidget(self._title_lbl)
@@ -99,7 +127,13 @@ class ReviewRow(InteractiveRowFrame):
             else:
                 artist_lbl = QLabel(sub)
                 artist_lbl.setObjectName("reviewArtist")
+                artist_lbl.setAttribute(
+                    Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+                )
             text_col.addWidget(artist_lbl)
+            self._artist_lbl = artist_lbl
+        else:
+            self._artist_lbl = None
         text_col.addWidget(self._meta_lbl)
         text_col.addWidget(self._body_lbl)
 
@@ -119,6 +153,9 @@ class ReviewRow(InteractiveRowFrame):
         self._like_count = QLabel(str(likes))
         self._like_count.setObjectName("reviewLikeCount")
         self._like_count.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self._like_count.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
 
         like_col.addWidget(self._like_btn, 0, Qt.AlignmentFlag.AlignHCenter)
         like_col.addWidget(self._like_count, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -127,6 +164,23 @@ class ReviewRow(InteractiveRowFrame):
         layout.addLayout(text_col, stretch=1)
         layout.addLayout(like_col)
         self.install_interaction_filters()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._on_open_review is not None
+            and self.rect().contains(event.position().toPoint())
+        ):
+            if self._like_btn.geometry().contains(event.position().toPoint()):
+                super().mouseReleaseEvent(event)
+                return
+            if self._artist_lbl is not None and isinstance(
+                self._artist_lbl, ArtistLinkLabel
+            ) and self._artist_lbl.geometry().contains(event.position().toPoint()):
+                super().mouseReleaseEvent(event)
+                return
+            self._on_open_review(dict(self._review))
+        super().mouseReleaseEvent(event)
 
     def _toggle_like(self) -> None:
         rid = self._review.get("id")
@@ -153,16 +207,25 @@ class ReviewRow(InteractiveRowFrame):
                 "/api/review-favorites/",
                 {"review": rid},
             )
+        # Отложить перерисовку списка: иначе _load_top удалит этот ReviewRow,
+        # пока Qt ещё обрабатывает mouseRelease (RuntimeError: object deleted).
         if self._on_changed:
-            self._on_changed()
+            QTimer.singleShot(0, self._on_changed)
 
 
 class ReviewsTab(QWidget):
-    def __init__(self, session: UserSession, on_open_artist=None, parent=None):
+    def __init__(
+        self,
+        session: UserSession,
+        on_open_artist=None,
+        on_open_review=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setObjectName("reviewsPage")
         self._session = session
         self._on_open_artist = on_open_artist
+        self._on_open_review = on_open_review
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 16, 24, 24)
@@ -192,9 +255,26 @@ class ReviewsTab(QWidget):
 
         scroll.setWidget(container)
         self._scroll = scroll
+        self._scroll_inner = container
         root.addWidget(scroll, stretch=1)
 
         QTimer.singleShot(0, self._load_top)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_scroll_inner_width()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        QTimer.singleShot(0, self._sync_scroll_inner_width)
+
+    def _sync_scroll_inner_width(self) -> None:
+        inner = getattr(self, "_scroll_inner", None)
+        if inner is None:
+            return
+        w = self._scroll.viewport().width()
+        if w > 0:
+            inner.setFixedWidth(w)
 
     def reload_content(self) -> None:
         self._load_top()
@@ -226,7 +306,9 @@ class ReviewsTab(QWidget):
                         self._session,
                         self._load_top,
                         on_open_artist=self._on_open_artist,
+                        on_open_review=self._on_open_review,
                         parent=self,
                     )
                 )
         self._col.addStretch()
+        self._sync_scroll_inner_width()

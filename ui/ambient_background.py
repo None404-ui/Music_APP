@@ -105,20 +105,51 @@ class AmbientBackground(QWidget):
 
 
 class ContentWithAmbient(QWidget):
-    """Стек вкладок поверх AmbientBackground."""
+    """Стек вкладок поверх AmbientBackground; опционально слой ambientPlayerFill (свой фон вкладки «Плеер»)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._bg = AmbientBackground(self)
+        self._bg_fill = QWidget(self)
+        self._bg_fill.setObjectName("ambientPlayerFill")
+        self._bg_fill.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._bg_fill.hide()
         self.page_stack = QStackedWidget(self)
         self._overlay: QWidget | None = None
         self._overlay_height = 94
         self._overlay_margin = 16
         self.page_stack.setObjectName("pageStack")
+        self.page_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # Иначе под вкладкой «Плеер» виден не ambient/слой фона, а стандартная заливка стека.
+        self.page_stack.setStyleSheet(
+            "QStackedWidget#pageStack { background-color: transparent; }"
+        )
         self.page_stack.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
+
+    def apply_player_background(self, state) -> None:
+        """Подменяет фон за плеером (цвет/картинка) вместо оранжево-синего ambient."""
+        from ui import player_appearance_settings as pas
+
+        if state.page_mode == "default":
+            self._bg_fill.hide()
+            self._bg_fill.setStyleSheet("")
+            self._bg.show()
+            return
+        ss = pas.ambient_player_fill_stylesheet(state)
+        self._bg_fill.setStyleSheet(ss)
+        self._bg_fill.show()
+        # Градиентный ambient остаётся под слоем: при полупрозрачном цвете страницы (по умолчанию)
+        # он снова виден; непрозрачный цвет или картинка на ambientPlayerFill всё равно перекроют его.
+        self._bg.show()
+
+    def clear_player_background(self) -> None:
+        """Снова показывать стандартный ambient (другие вкладки)."""
+        self._bg_fill.hide()
+        self._bg_fill.setStyleSheet("")
+        self._bg.show()
 
     def set_overlay_widget(self, widget: QWidget, *, height: int = 94, margin: int = 16) -> None:
         self._overlay = widget
@@ -146,6 +177,8 @@ class ContentWithAmbient(QWidget):
         super().resizeEvent(event)
         r = self.rect()
         self._bg.setGeometry(r)
+        self._bg_fill.setGeometry(r)
         self.page_stack.setGeometry(r)
+        self._bg_fill.raise_()
         self.page_stack.raise_()
         self._layout_overlay()

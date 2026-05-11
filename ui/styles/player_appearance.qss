@@ -1,0 +1,55 @@
+/* Страница «Оформление плеера» */
+
+QWidget#playerAppearancePage {
+    background-color: rgba(248, 244, 230, 0.96);
+}
+
+QLabel#playerAppearanceTitle {
+    font-family: "Segoe UI", "Arial", sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    color: #312938;
+    letter-spacing: 2px;
+}
+
+QLabel#playerAppearanceHint {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    color: #6B5348;
+}
+
+QPushButton#playerAppearanceToolBtn {
+    font-family: "Courier New";
+    font-size: 9px;
+    font-weight: bold;
+    color: #312938;
+    background-color: #E4DFC8;
+    border: 2px solid #89A194;
+    border-radius: 0px;
+    padding: 6px 10px;
+}
+QPushButton#playerAppearanceToolBtn:hover {
+    background-color: #CFC89A;
+    border-color: #CB883A;
+}
+
+QPushButton#playerAppearanceActionBtn {
+    font-family: "Courier New";
+    font-size: 9px;
+    font-weight: bold;
+    color: #CFC89A;
+    background-color: #312938;
+    border: 3px solid #89A194;
+    border-radius: 0px;
+    padding: 8px 14px;
+    min-width: 100px;
+}
+QPushButton#playerAppearanceActionBtn:hover {
+    background-color: #5c5748;
+    border-color: #CB883A;
+    color: #F0E7B8;
+}
+QPushButton#playerAppearanceActionBtn:pressed {
+    background-color: #A14016;
+    border-color: #312938;
+}

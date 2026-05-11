@@ -30,7 +30,8 @@ from PyQt6.QtWidgets import (
     QScrollArea,
 )
 
-from ui import i18n, equalizer_settings, playback_resume, playback_settings
+from ui import i18n, equalizer_settings, playback_resume, playback_settings, player_appearance_settings
+from ui.widgets.svg_seek_slider import SvgSeekSlider
 from ui.audio_eq import GraphicEQProcessor
 from ui.equalizer_popup import EqualizerPopup
 from ui.artist_link_label import ArtistLinkLabel
@@ -291,12 +292,15 @@ class PlayerTab(QWidget):
         lv.addWidget(band)
 
         ctrl_block = QWidget()
+        ctrl_block.setObjectName("playerCtrlBlock")
+        ctrl_block.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         cvl = QVBoxLayout(ctrl_block)
         cvl.setContentsMargins(16, 14, 16, 16)
         cvl.setSpacing(12)
 
-        self._progress = QSlider(Qt.Orientation.Horizontal)
-        self._progress.setObjectName("playerProgressMock")
+        self._progress = SvgSeekSlider(compact=False)
+        self._progress.setObjectName("playerProgressSvg")
+        self._progress.setMinimumHeight(22)
         self._progress.setRange(0, 1000)
         self._progress.setValue(0)
         self._progress.sliderPressed.connect(lambda: setattr(self, "_user_seeking", True))
@@ -502,6 +506,20 @@ class PlayerTab(QWidget):
         self._apply_volume()
         self._sync_play_button_icon()
         self._rebuild_list()
+        self.apply_appearance_settings()
+
+    def apply_appearance_settings(self) -> None:
+        state = player_appearance_settings.load()
+        self.setStyleSheet(player_appearance_settings.player_tab_widget_stylesheet(state))
+        self._progress.set_thumb_svg_path(player_appearance_settings.resolved_thumb_svg_path(state))
+        groove_border = QColor(49, 41, 56)
+        self._progress.apply_colors(
+            player_appearance_settings.qcolor_tuple(state.progress_groove_rgba),
+            player_appearance_settings.qcolor_tuple(state.progress_filled_rgba),
+            groove_border,
+            player_appearance_settings.qcolor_tuple(state.progress_thumb_fill_rgba),
+            player_appearance_settings.qcolor_tuple(state.progress_thumb_border_rgba),
+        )
 
     def _context_is_album_or_catalog_playlist(self) -> bool:
         if not self._context_stats:

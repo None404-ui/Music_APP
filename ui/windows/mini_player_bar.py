@@ -18,7 +18,8 @@ from PyQt6.QtWidgets import (
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame, StatefulIconButton
-from ui import i18n
+from ui import i18n, player_appearance_settings
+from ui.widgets.svg_seek_slider import SvgSeekSlider
 from ui.equalizer_popup import EqualizerPopup
 
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "icons")
@@ -228,8 +229,8 @@ class MiniPlayerBar(InteractiveRowFrame):
 
         root.addLayout(top)
 
-        self._progress = QSlider(Qt.Orientation.Horizontal)
-        self._progress.setObjectName("miniPlayerSeekSlider")
+        self._progress = SvgSeekSlider(compact=True)
+        self._progress.setObjectName("miniPlayerSeekSvg")
         self._progress.setRange(0, 1000)
         self._progress.setValue(0)
         self._progress.setFixedHeight(14)
@@ -273,6 +274,20 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._player.volume_changed.connect(self._sync_volume_slider)
         self._sync_volume_slider(self._player.current_volume_percent())
         self.update_from_snapshot(self._player.current_item_snapshot())
+        self.apply_appearance_settings()
+
+    def apply_appearance_settings(self) -> None:
+        state = player_appearance_settings.load()
+        self.setStyleSheet(player_appearance_settings.mini_bar_style_fragment(state))
+        self._progress.set_thumb_svg_path(player_appearance_settings.resolved_thumb_svg_path(state))
+        groove_border = QColor(49, 41, 56)
+        self._progress.apply_colors(
+            player_appearance_settings.qcolor_tuple(state.progress_groove_rgba),
+            player_appearance_settings.qcolor_tuple(state.progress_filled_rgba),
+            groove_border,
+            player_appearance_settings.qcolor_tuple(state.progress_thumb_fill_rgba),
+            player_appearance_settings.qcolor_tuple(state.progress_thumb_border_rgba),
+        )
 
     def has_track(self) -> bool:
         return self._has_track

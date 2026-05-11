@@ -198,6 +198,7 @@ class SettingsTab(QWidget):
         on_playback_changed=None,
         on_logout: Optional[Callable[[], None]] = None,
         on_language_changed: Optional[Callable[[], None]] = None,
+        on_open_player_appearance: Optional[Callable[[], None]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -206,6 +207,7 @@ class SettingsTab(QWidget):
         self._on_playback_changed = on_playback_changed
         self._on_logout = on_logout
         self._on_language_changed = on_language_changed
+        self._on_open_player_appearance = on_open_player_appearance
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 24)
@@ -391,6 +393,14 @@ class SettingsTab(QWidget):
         nl.addStretch()
         nl.addWidget(self._norm_toggle)
         col.addWidget(nrow)
+
+        if on_open_player_appearance is not None:
+            player_lbl = QLabel(i18n.tr("ПЛЕЕР"))
+            player_lbl.setObjectName("settingsSectionLabel")
+            col.addWidget(player_lbl)
+            row_app = ClickableSettingsRow(i18n.tr("Оформление плеера"))
+            row_app.clicked.connect(on_open_player_appearance)
+            col.addWidget(row_app)
 
         col.addStretch()
         scroll.setWidget(container)

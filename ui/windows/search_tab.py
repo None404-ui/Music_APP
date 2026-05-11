@@ -4,11 +4,11 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 from PyQt6.QtCore import Qt, QSize, QSettings, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QMouseEvent
+from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPalette
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
-from ui.interactive_fx import InteractiveRowFrame
+from ui.interactive_fx import InteractiveRowFrame, colored_svg_icon
 from ui.track_like_review import TrackLikeReviewBar
 from ui import i18n
 
@@ -279,12 +279,20 @@ class SearchTab(QWidget):
         self._search_input = QLineEdit()
         self._search_input.setObjectName("searchInput")
         self._search_input.setPlaceholderText(i18n.tr("поиск . . . ."))
+        _input_palette = self._search_input.palette()
+        _input_palette.setColor(
+            QPalette.ColorRole.PlaceholderText,
+            QColor(49, 41, 56, 150),
+        )
+        self._search_input.setPalette(_input_palette)
         bar_layout.addWidget(self._search_input, stretch=1)
 
         btn_search = QPushButton()
         btn_search.setObjectName("btnSearchCompact")
         btn_search.setFixedSize(48, 44)
-        btn_search.setIcon(QIcon(_ICON_SEARCH))
+        btn_search.setIcon(
+            colored_svg_icon(_ICON_SEARCH, "#CFC89A", QSize(24, 22))
+        )
         btn_search.setIconSize(QSize(24, 22))
         btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -397,21 +405,34 @@ class SearchTab(QWidget):
 
         self._refresh_recent_list()
 
+    def _list_row_width(self, list_widget: QListWidget) -> int:
+        """Ширина строки, гарантированно помещающаяся в viewport списка."""
+        vp = list_widget.viewport().width() if list_widget is not None else 0
+        if vp < 40:
+            vp = max(200, self.width() - 48)
+        sp = list_widget.spacing() if list_widget is not None else 0
+        fw = 0
+        if list_widget is not None:
+            fw = list_widget.style().pixelMetric(
+                QStyle.PixelMetric.PM_DefaultFrameWidth,
+                None,
+                list_widget,
+            )
+        return max(100, vp - 2 * sp - 2 * fw)
+
     def _history_viewport_width(self) -> int:
-        w = self._history_list.viewport().width()
-        if w >= 40:
-            return w
-        pw = self.width() - 48
-        return max(200, pw)
+        return self._list_row_width(self._history_list)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._refresh_recent_list()
+        self._refresh_results_widths()
         self._resize_results_list_height()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._refresh_recent_list()
+        self._refresh_results_widths()
         self._resize_results_list_height()
 
     def _on_search_text_changed(self, _text: str) -> None:
@@ -481,7 +502,7 @@ class SearchTab(QWidget):
                 dialog_parent=self,
                 parent=self._history_list,
             )
-            row.setFixedWidth(max(vw - 8, 100))
+            row.setMaximumWidth(vw)
             item_h = _row_height(row, _HISTORY_ROW_PX)
             item.setSizeHint(QSize(vw, item_h))
             self._history_list.addItem(item)
@@ -502,11 +523,28 @@ class SearchTab(QWidget):
         self._history_host.updateGeometry()
 
     def _results_viewport_width(self) -> int:
-        w = self._results_list.viewport().width()
-        if w >= 40:
-            return w
-        pw = self.width() - 48
-        return max(200, pw)
+        return self._list_row_width(self._results_list)
+
+    def _refresh_results_widths(self) -> None:
+        row_width = self._results_viewport_width()
+        for idx in range(self._results_list.count()):
+            item = self._results_list.item(idx)
+            if item is None:
+                continue
+            widget = self._results_list.itemWidget(item)
+            if widget is not None:
+                widget.setMaximumWidth(row_width)
+                h = _row_height(widget, _RESULTS_ROW_PX)
+                item.setSizeHint(QSize(row_width, h))
+        for idx in range(self._history_list.count()):
+            item = self._history_list.item(idx)
+            if item is None:
+                continue
+            widget = self._history_list.itemWidget(item)
+            if widget is not None:
+                widget.setMaximumWidth(self._history_viewport_width())
+                h = _row_height(widget, _HISTORY_ROW_PX)
+                item.setSizeHint(QSize(self._history_viewport_width(), h))
 
     def _resize_results_list_height(self) -> None:
         cnt = self._results_list.count()
@@ -644,9 +682,9 @@ class SearchTab(QWidget):
         return results
 
     def _add_result_widget(self, row_widget: QWidget, fallback_height: int = _RESULTS_ROW_PX) -> None:
-        row_width = max(200, self._results_viewport_width(), self.width() - 48)
+        row_width = self._results_viewport_width()
         item = QListWidgetItem()
-        row_widget.setFixedWidth(max(row_width - 8, 100))
+        row_widget.setMaximumWidth(row_width)
         item.setSizeHint(QSize(row_width, _row_height(row_widget, fallback_height)))
         self._results_list.addItem(item)
         self._results_list.setItemWidget(item, row_widget)
