@@ -10,3 +10,5 @@ __pycache__/
 backend/__pycache__/
 ui/__pycache__/
 lan_connection.json
+ui/windows/__pycache__
+scripts/dev_local.sh
