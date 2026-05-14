@@ -290,10 +290,31 @@ class MainWindow(QMainWindow):
             animate_stack_fade(self._stack, self._PLAYER_PAGE_INDEX)
             self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
 
+        def on_play_tracks_queue(
+            tracks: list,
+            start_index: int,
+            source_card: dict | None = None,
+        ) -> None:
+            ctx_id = None
+            if isinstance(source_card, dict):
+                prov = (source_card.get("provider") or "").strip()
+                if prov != "collection":
+                    sid = source_card.get("id")
+                    if sid is not None:
+                        ctx_id = int(sid)
+            self._player.set_queue(
+                tracks,
+                start_index,
+                context_music_item_id=ctx_id,
+                source_card=source_card,
+                force_play=True,
+            )
+            self._sync_mini_player_visibility()
+
         self._artist_profile = ArtistProfileTab(
             session,
             on_back=self._close_artist_profile,
-            on_play_track=on_select_track,
+            on_play_tracks=on_play_tracks_queue,
             on_open_album=on_open_album_queue,
         )
 
@@ -327,7 +348,7 @@ class MainWindow(QMainWindow):
 
         self._selected_tab = SelectedTab(
             session,
-            on_play_track=on_select_track,
+            on_play_tracks=on_play_tracks_queue,
             on_open_album=on_open_album_queue,
             on_open_review=on_open_review_page,
             on_open_artist=self._open_artist_profile,
@@ -352,7 +373,7 @@ class MainWindow(QMainWindow):
 
         self._popular_tab = PopularTab(
             session,
-            on_play_track=on_select_track,
+            on_play_tracks=on_play_tracks_queue,
             on_open_album=on_open_album_queue,
             on_open_artist=self._open_artist_profile,
         )

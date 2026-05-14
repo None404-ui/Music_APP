@@ -16,6 +16,7 @@ from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame, animate_scrollbar_to
 from ui.track_like_review import TrackLikeReviewBar
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
+from ui.windows.selected_tab import OnPlayTrackQueue
 
 _album_cover_nam: QNetworkAccessManager | None = None
 _SOFT_WRAP_AT = 9
@@ -609,7 +610,7 @@ class PopularTab(QWidget):
     def __init__(
         self,
         session: UserSession,
-        on_play_track=None,
+        on_play_tracks: Optional[OnPlayTrackQueue] = None,
         on_open_album=None,
         on_open_artist=None,
         parent=None,
@@ -617,7 +618,8 @@ class PopularTab(QWidget):
         super().__init__(parent)
         self.setObjectName("popularPage")
         self._session = session
-        self._on_play_track = on_play_track
+        self._on_play_tracks = on_play_tracks
+        self._tracks_queue_source: list[dict] = []
         self._on_open_album = on_open_album
         self._on_open_artist = on_open_artist
 
@@ -802,22 +804,28 @@ class PopularTab(QWidget):
             if w is not None:
                 w.deleteLater()
 
+    def _make_popular_play_cb(self, index: int) -> Callable[[dict], None]:
+        def _cb(_item: dict) -> None:
+            if self._on_play_tracks and self._tracks_queue_source:
+                self._on_play_tracks(self._tracks_queue_source, index)
+
+        return _cb
+
     def _fill_tracks(self, tracks: list) -> None:
         self._clear_tracks()
-        for i, it in enumerate(tracks, start=1):
-            if not isinstance(it, dict):
-                continue
+        self._tracks_queue_source = [t for t in tracks if isinstance(t, dict)]
+        for i, it in enumerate(self._tracks_queue_source, start=1):
             row = TrackRow(
                 i,
                 it,
-                self._on_play_track,
+                self._make_popular_play_cb(i - 1),
                 on_open_artist=self._on_open_artist,
                 session=self._session,
                 dialog_parent=self,
                 on_library_changed=lambda: self.library_changed.emit(),
             )
             self._tracks_layout.addWidget(row)
-        if not tracks:
+        if not self._tracks_queue_source:
             empty = QLabel(i18n.tr("Пока нет треков в каталоге."))
             empty.setObjectName("popularEmptyHint")
             self._tracks_layout.addWidget(empty)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Callable
 from urllib.parse import quote
 
 from PyQt6.QtCore import QByteArray, QEasingCurve, QSize, Qt, QTimer, QUrl, QVariantAnimation, pyqtSignal
@@ -25,6 +26,7 @@ from ui.interactive_fx import InteractiveRowFrame
 from ui.track_like_review import TrackLikeReviewBar
 from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.windows.popular_tab import AlbumCard, CarouselSection, _album_cover_network
+from ui.windows.selected_tab import OnPlayTrackQueue
 
 # Высота левой колонки (аватар) = высота правой колонки (имя + «популярное» + список)
 _HERO_AVATAR = 260
@@ -243,7 +245,7 @@ class ArtistProfileTab(QWidget):
         session: UserSession,
         *,
         on_back,
-        on_play_track=None,
+        on_play_tracks: OnPlayTrackQueue | None = None,
         on_open_album=None,
         parent=None,
     ):
@@ -251,7 +253,7 @@ class ArtistProfileTab(QWidget):
         self.setObjectName("popularPage")
         self._session = session
         self._on_back = on_back
-        self._on_play_track = on_play_track
+        self._on_play_tracks = on_play_tracks
         self._on_open_album = on_open_album
         self._artist_name = ""
         self._norm_tracks: list[dict] = []
@@ -423,6 +425,13 @@ class ArtistProfileTab(QWidget):
         self._scroll_tracks.setMaximumHeight(h)
         self._scroll_tracks.setFixedHeight(h)
 
+    def _make_artist_play_cb(self, index: int) -> Callable[[dict], None]:
+        def _cb(_item: dict) -> None:
+            if self._on_play_tracks and self._norm_tracks:
+                self._on_play_tracks(self._norm_tracks, index)
+
+        return _cb
+
     def _rebuild_track_rows(self) -> None:
         while self._tracks_layout.count():
             it = self._tracks_layout.takeAt(0)
@@ -435,15 +444,14 @@ class ArtistProfileTab(QWidget):
             empty.setObjectName("popularEmptyHint")
             self._tracks_layout.addWidget(empty)
             return
-        if self._tracks_expanded:
-            slice_ = self._norm_tracks
-        else:
-            slice_ = self._norm_tracks[: self._max_visible_preview]
-        for it in slice_:
+        n = len(self._norm_tracks)
+        cap = n if self._tracks_expanded else min(n, self._max_visible_preview)
+        for idx in range(cap):
+            it = self._norm_tracks[idx]
             row = _ArtistHeroTrackRow(
                 it,
                 self._session,
-                self._on_play_track,
+                self._make_artist_play_cb(idx),
                 self._on_favorite_changed,
                 self,
             )

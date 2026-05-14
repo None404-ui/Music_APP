@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.session import UserSession
+from ui import i18n
 
 
 class UploadMusicDialog(QDialog):
@@ -24,14 +25,16 @@ class UploadMusicDialog(QDialog):
         self.created_item: dict | None = None
 
         self.setObjectName("uploadMusicDialog")
-        self.setWindowTitle("Загрузка трека" if kind == "track" else "Загрузка альбома")
+        self.setWindowTitle(
+            i18n.tr("Загрузка трека") if kind == "track" else i18n.tr("Загрузка альбома")
+        )
         self.resize(520, 320)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(12)
 
-        head = QLabel("Загрузить трек" if kind == "track" else "Загрузить альбом")
+        head = QLabel(i18n.tr("Загрузить трек") if kind == "track" else i18n.tr("Загрузить альбом"))
         head.setObjectName("uploadMusicHead")
         root.addWidget(head)
 
@@ -48,7 +51,7 @@ class UploadMusicDialog(QDialog):
 
         self._title_edit = QLineEdit()
         self._title_edit.setObjectName("authField")
-        form.addRow("Название", self._title_edit)
+        form.addRow(i18n.tr("Название"), self._title_edit)
 
         self._audio_edit = QLineEdit()
         self._audio_edit.setObjectName("authField")
@@ -57,12 +60,12 @@ class UploadMusicDialog(QDialog):
         audio_row.setContentsMargins(0, 0, 0, 0)
         audio_row.setSpacing(8)
         audio_row.addWidget(self._audio_edit, 1)
-        self._audio_btn = QPushButton("Файл")
+        self._audio_btn = QPushButton(i18n.tr("Файл"))
         self._audio_btn.setObjectName("btnSecondary")
         self._audio_btn.clicked.connect(self._pick_audio_file)
         audio_row.addWidget(self._audio_btn)
         if self._kind == "track":
-            form.addRow("Аудиофайл", self._wrap(audio_row))
+            form.addRow(i18n.tr("Аудиофайл"), self._wrap(audio_row))
 
         self._cover_edit = QLineEdit()
         self._cover_edit.setObjectName("authField")
@@ -71,11 +74,11 @@ class UploadMusicDialog(QDialog):
         cover_row.setContentsMargins(0, 0, 0, 0)
         cover_row.setSpacing(8)
         cover_row.addWidget(self._cover_edit, 1)
-        self._cover_btn = QPushButton("Обложка")
+        self._cover_btn = QPushButton(i18n.tr("Обложка"))
         self._cover_btn.setObjectName("btnSecondary")
         self._cover_btn.clicked.connect(self._pick_cover_file)
         cover_row.addWidget(self._cover_btn)
-        form.addRow("Обложка", self._wrap(cover_row))
+        form.addRow(i18n.tr("Обложка"), self._wrap(cover_row))
 
         self._error = QLabel("")
         self._error.setObjectName("uploadMusicError")
@@ -85,10 +88,10 @@ class UploadMusicDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        cancel_btn = QPushButton("Отмена")
+        cancel_btn = QPushButton(i18n.tr("Отмена"))
         cancel_btn.setObjectName("btnSecondary")
         cancel_btn.clicked.connect(self.reject)
-        submit_btn = QPushButton("Сохранить")
+        submit_btn = QPushButton(i18n.tr("Сохранить"))
         submit_btn.setObjectName("btnPrimary")
         submit_btn.clicked.connect(self._submit)
         buttons.addWidget(cancel_btn)
@@ -97,8 +100,11 @@ class UploadMusicDialog(QDialog):
 
     def _hint_text(self) -> str:
         if self._kind == "track":
-            return "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку. Файл будет загружен на сервер и дальше воспроизводиться оттуда."
-        return "Для альбома укажите название и при желании добавьте обложку."
+            return i18n.tr(
+                "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку. "
+                "Файл будет загружен на сервер и дальше воспроизводиться оттуда."
+            )
+        return i18n.tr("Для альбома укажите название и при желании добавьте обложку.")
 
     @staticmethod
     def _wrap(layout: QHBoxLayout) -> QWidget:
@@ -109,9 +115,9 @@ class UploadMusicDialog(QDialog):
     def _pick_audio_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Файл трека",
+            i18n.tr("Файл трека"),
             "",
-            "Аудио (*.mp3 *.wav *.flac *.ogg *.m4a *.aac);;Все файлы (*.*)",
+            i18n.tr("Аудио (*.mp3 *.wav *.flac *.ogg *.m4a *.aac);;Все файлы (*.*)"),
         )
         if path:
             self._audio_edit.setText(path)
@@ -119,9 +125,9 @@ class UploadMusicDialog(QDialog):
     def _pick_cover_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Обложка",
+            i18n.tr("Обложка"),
             "",
-            "Изображения (*.png *.jpg *.jpeg *.webp *.bmp);;Все файлы (*.*)",
+            i18n.tr("Изображения (*.png *.jpg *.jpeg *.webp *.bmp);;Все файлы (*.*)"),
         )
         if path:
             self._cover_edit.setText(path)
@@ -131,10 +137,10 @@ class UploadMusicDialog(QDialog):
         audio = self._audio_edit.text().strip()
         cover = self._cover_edit.text().strip()
         if not title:
-            self._show_error("Введите название.")
+            self._show_error(i18n.tr("Введите название."))
             return
         if self._kind == "track" and not audio:
-            self._show_error("Для трека выберите аудиофайл.")
+            self._show_error(i18n.tr("Для трека выберите аудиофайл."))
             return
 
         fields = {
@@ -158,7 +164,7 @@ class UploadMusicDialog(QDialog):
             self.accept()
             return
 
-        detail = "Не удалось сохранить запись."
+        detail = i18n.tr("Не удалось сохранить запись.")
         if isinstance(body, dict):
             detail = str(body.get("detail") or body)
         self._show_error(detail)
@@ -166,4 +172,4 @@ class UploadMusicDialog(QDialog):
     def _show_error(self, text: str) -> None:
         self._error.setText(text)
         self._error.show()
-        QMessageBox.warning(self, "Ошибка", text)
+        QMessageBox.warning(self, i18n.tr("Ошибка"), text)

@@ -27,7 +27,7 @@ from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.artist_link_label import ArtistLinkLabel
 from ui.windows.upload_music_dialog import UploadMusicDialog
 
-OnPlayTrack = Callable[[dict], None]
+OnPlayTrackQueue = Callable[[list[dict], int], None]
 OnOpenAlbum = Callable[[list, dict], None]
 OnOpenReview = Callable[[dict], None]
 OnOpenArtist = Callable[[str], None]
@@ -236,7 +236,7 @@ class SelectedTab(QWidget):
         self,
         session: UserSession,
         *,
-        on_play_track: Optional[OnPlayTrack] = None,
+        on_play_tracks: Optional[OnPlayTrackQueue] = None,
         on_open_album: Optional[OnOpenAlbum] = None,
         on_open_review: Optional[OnOpenReview] = None,
         on_open_artist: Optional[OnOpenArtist] = None,
@@ -247,7 +247,7 @@ class SelectedTab(QWidget):
         self.setAutoFillBackground(True)
         self._session = session
         self._client = session.client
-        self._on_play_track = on_play_track
+        self._on_play_tracks = on_play_tracks
         self._on_open_album = on_open_album
         self._on_open_review = on_open_review
         self._on_open_artist = on_open_artist
@@ -581,11 +581,18 @@ class SelectedTab(QWidget):
         if not items:
             layout.addWidget(self._empty(empty_text))
             return
-        for item in items:
+        for idx, item in enumerate(items):
             row_mi = dict(item)
             play_cb = None
-            if self._on_play_track:
-                play_cb = lambda m=row_mi: self._on_play_track(m)
+            if self._on_play_tracks:
+
+                def _make_fav_play_cb(ix: int):
+                    def _cb(_m: dict) -> None:
+                        self._on_play_tracks(items, ix)
+
+                    return _cb
+
+                play_cb = _make_fav_play_cb(idx)
             layout.addWidget(
                 _FavTrackRow(
                     row_mi,

@@ -1700,6 +1700,8 @@ class PlayerTab(QWidget):
         start_index: int = 0,
         context_music_item_id: Optional[int] = None,
         source_card: Optional[dict] = None,
+        *,
+        force_play: bool = False,
     ) -> None:
         """Очередь из нескольких треков (карточка альбома / подборка на «Популярное»)."""
         self._flush_listen_session()
@@ -1736,7 +1738,7 @@ class PlayerTab(QWidget):
                 0,
                 lambda m=context_music_item_id: self._pull_context_stats(m),
             )
-        if playback_settings.autoplay():
+        if force_play or playback_settings.autoplay():
             self._player.play()
         else:
             self._player.stop()

@@ -205,6 +205,31 @@ _EN: dict[str, str] = {
     "Прозрачный фон страницы": "Transparent page background",
     "Прозрачная левая карточка": "Transparent left card",
     "Прозрачная правая карточка": "Transparent right card",
+    "Загрузить картинку…": "Upload image…",
+    # Диалог загрузки трека/альбома
+    "Загрузка трека": "Track upload",
+    "Загрузка альбома": "Album upload",
+    "Загрузить трек": "Upload track",
+    "Загрузить альбом": "Upload album",
+    "Для трека укажите название, выберите аудиофайл и при желании добавьте обложку. Файл будет загружен на сервер и дальше воспроизводиться оттуда.": (
+        "For a track, enter a title, choose an audio file, and optionally add cover art. "
+        "The file will be uploaded to the server and played from there."
+    ),
+    "Для альбома укажите название и при желании добавьте обложку.": (
+        "For an album, enter a title and optionally add cover art."
+    ),
+    "Название": "Title",
+    "Аудиофайл": "Audio file",
+    "Обложка": "Cover",
+    "Файл": "File",
+    "Файл трека": "Track file",
+    "Аудио (*.mp3 *.wav *.flac *.ogg *.m4a *.aac);;Все файлы (*.*)": (
+        "Audio (*.mp3 *.wav *.flac *.ogg *.m4a *.aac);;All files (*.*)"
+    ),
+    "Введите название.": "Enter a title.",
+    "Для трека выберите аудиофайл.": "For a track, choose an audio file.",
+    "Не удалось сохранить запись.": "Could not save the item.",
+    "Ошибка": "Error",
     "Цвет подложки громкости": "Volume groove color",
     "Цвет заполнения громкости": "Volume fill color",
     "Цвет бегунка громкости": "Volume handle color",

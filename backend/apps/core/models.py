@@ -180,10 +180,10 @@ class Review(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reviews"
     )
     music_item = models.ForeignKey(
-        MusicItem, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviews"
+        MusicItem, null=True, blank=True, on_delete=models.CASCADE, related_name="reviews"
     )
     collection = models.ForeignKey(
-        Collection, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviews"
+        Collection, null=True, blank=True, on_delete=models.CASCADE, related_name="reviews"
     )
 
     text = models.TextField()
