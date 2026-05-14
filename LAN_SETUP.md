@@ -73,3 +73,4 @@ Then upload a track from the app UI. The track will be stored on the server and 
 - Client must use real server LAN IP (`192.168.x.x` etc.).
 - If connection fails, check firewall and that both laptops are in the same network.
 - After successful upload the original local file on the client is no longer required for playback.
+- **Audio quality (Medium/Low)** in the desktop app adds `?crates_abr=…` to stream URLs. The Django `/media/…` handler and LAN Hub `/tracks/{id}/stream` then re-encode to MP3 with **ffmpeg** (`libmp3lame`). Install `ffmpeg` on the machines that serve those URLs; if ffmpeg is missing, the server falls back to the original file.

@@ -399,6 +399,9 @@ class PlayerTab(QWidget):
 
         self._playlist: list[dict] = []
         self._index = 0
+        self._stream_quality_signature: str = playback_settings.stream_quality_signature()
+        self._resume_after_load_ms: Optional[int] = None
+        self._resume_after_load_play: bool = False
         self._context_music_item_id: Optional[int] = None
         self._context_stats: dict = {}
         self._listen_accum_ms = 0
@@ -1069,6 +1072,13 @@ class PlayerTab(QWidget):
         self._emit_progress_state()
 
     def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
+        if self._resume_after_load_ms is not None:
+            if status == QMediaPlayer.MediaStatus.BufferedMedia:
+                self._apply_resume_after_load()
+            elif status == QMediaPlayer.MediaStatus.LoadedMedia:
+                dur = int(self._player.duration())
+                if dur > 0:
+                    self._apply_resume_after_load()
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             self._flush_listen_session()
             if self._index + 1 < len(self._playlist):
@@ -1085,6 +1095,8 @@ class PlayerTab(QWidget):
                 self._player.play()
 
     def _on_player_error(self, error, message: str = "") -> None:
+        self._resume_after_load_ms = None
+        self._resume_after_load_play = False
         if not self._playlist or not (0 <= self._index < len(self._playlist)):
             return
         item = self._playlist[self._index]
@@ -1110,8 +1122,6 @@ class PlayerTab(QWidget):
         volume_widget = getattr(self, "_volume", None)
         volume_percent = int(volume_widget.value()) if volume_widget is not None else 75
         v = volume_percent / 100.0
-        cap = playback_settings.quality_volume_cap()
-        v = min(v * cap, cap)
         cur = (
             self._playlist[self._index]
             if self._playlist and 0 <= self._index < len(self._playlist)
@@ -1145,6 +1155,18 @@ class PlayerTab(QWidget):
         return presets[0]
 
     def refresh_playback_settings(self) -> None:
+        sig = playback_settings.stream_quality_signature()
+        if sig != self._stream_quality_signature:
+            self._stream_quality_signature = sig
+            if self._playlist:
+                was_playing = (
+                    self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+                )
+                pos_ms = int(self._player.position())
+                self._load_current(
+                    resume_position_ms=pos_ms,
+                    resume_playing=was_playing,
+                )
         self._apply_volume()
 
     def _equalizer_is_active(self) -> bool:
@@ -1317,6 +1339,34 @@ class PlayerTab(QWidget):
         self._t_total.setText(_fmt_ms(dur_ms) if dur_ms > 0 else "—")
         self._emit_progress_state()
 
+    def _apply_resume_after_load(self) -> None:
+        if self._resume_after_load_ms is None:
+            return
+        pos_ms = int(self._resume_after_load_ms)
+        want_play = self._resume_after_load_play
+        self._resume_after_load_ms = None
+        self._resume_after_load_play = False
+        dur = int(self._player.duration())
+        if dur > 0:
+            pos_ms = min(pos_ms, max(0, dur - 1))
+        self._player.setPosition(pos_ms)
+        if want_play:
+            self._player.play()
+        self._refresh_progress_time_labels(pos_ms)
+
+    def _resume_after_load_fallback(self) -> None:
+        if self._resume_after_load_ms is None:
+            return
+        st = self._player.mediaStatus()
+        if st in (
+            QMediaPlayer.MediaStatus.NoMedia,
+            QMediaPlayer.MediaStatus.InvalidMedia,
+        ):
+            self._resume_after_load_ms = None
+            self._resume_after_load_play = False
+            return
+        self._apply_resume_after_load()
+
     def _artwork_url_for_current(self, item: dict) -> Optional[str]:
         base = self._session.client.base_url if self._session else ""
         for raw in (
@@ -1330,15 +1380,23 @@ class PlayerTab(QWidget):
                 return u
         return None
 
-    def _load_current(self) -> None:
+    def _load_current(
+        self,
+        *,
+        resume_position_ms: Optional[int] = None,
+        resume_playing: bool = False,
+    ) -> None:
         if not self._playlist:
             return
+        self._resume_after_load_ms = None
+        self._resume_after_load_play = False
         self._listen_accum_ms = 0
         self._listen_last_pos_ms = None
         item = self._playlist[self._index]
         self._sync_now_playing_labels(item)
         base = self._session.client.base_url if self._session else ""
         ref = resolve_backend_media_url(base, (item.get("audio_url") or "").strip())
+        ref = playback_settings.append_stream_quality_query(ref)
         if not ref:
             self._player.stop()
             self._load_artwork(None)
@@ -1352,6 +1410,10 @@ class PlayerTab(QWidget):
         QCoreApplication.processEvents()
         url = _media_url_from_audio_url(ref)
         self._player.setSource(url)
+        if resume_position_ms is not None:
+            self._resume_after_load_ms = max(0, int(resume_position_ms))
+            self._resume_after_load_play = bool(resume_playing)
+            QTimer.singleShot(1500, self._resume_after_load_fallback)
         self._load_artwork(self._artwork_url_for_current(item))
         self._refresh_track_sidebar()
         self._refresh_progress_time_labels(0)

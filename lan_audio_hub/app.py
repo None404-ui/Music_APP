@@ -2,18 +2,101 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import shutil
+import subprocess
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from lan_audio_hub import db as hub_db
 
 DEFAULT_DATA = Path(__file__).resolve().parent / "_data"
+
+_STREAM_BITRATE_QUERY = "crates_abr"
+_AUDIO_SUFFIXES = frozenset(
+    {".mp3", ".m4a", ".aac", ".ogg", ".opus", ".flac", ".wav", ".webm"}
+)
+
+
+def _parse_stream_bitrate_kbps(raw: str | None) -> int | None:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        v = int(s)
+    except ValueError:
+        return None
+    if 64 <= v <= 320:
+        return v
+    return None
+
+
+def _try_transcoded_mp3_stream(path: Path, bitrate_kbps: int) -> StreamingResponse | None:
+    if path.suffix.lower() not in _AUDIO_SUFFIXES:
+        return None
+    if not shutil.which("ffmpeg"):
+        return None
+    full = str(path)
+    proc = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-i",
+            full,
+            "-vn",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            f"{int(bitrate_kbps)}k",
+            "-f",
+            "mp3",
+            "pipe:1",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout = proc.stdout
+    if stdout is None:
+        proc.wait(timeout=5)
+        return None
+    first = stdout.read(8192)
+    if not first:
+        if proc.stderr:
+            proc.stderr.close()
+        stdout.close()
+        proc.kill()
+        proc.wait(timeout=5)
+        return None
+
+    def body() -> Iterator[bytes]:
+        yield first
+        try:
+            while True:
+                chunk = stdout.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
+            proc.wait(timeout=120)
+
+    return StreamingResponse(
+        body(),
+        media_type="audio/mpeg",
+        headers={"Accept-Ranges": "none", "Cache-Control": "no-store"},
+    )
 
 
 def _data_dir() -> Path:
@@ -73,8 +156,8 @@ def list_tracks(request: Request) -> JSONResponse:
     return JSONResponse(out)
 
 
-@app.get("/tracks/{track_id}/stream")
-def stream_track(track_id: int, request: Request) -> FileResponse:
+@app.get("/tracks/{track_id}/stream", response_model=None)
+def stream_track(track_id: int, request: Request) -> Response:
     conn = request.app.state.hub_conn
     root: Path = request.app.state.hub_tracks_dir
     path = hub_db.abs_path_for_track(conn, track_id, root)
@@ -82,6 +165,11 @@ def stream_track(track_id: int, request: Request) -> FileResponse:
         raise HTTPException(status_code=404, detail="track not found")
     row = hub_db.get_track(conn, track_id)
     mime = (row or {}).get("mime") or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    abr = _parse_stream_bitrate_kbps(request.query_params.get(_STREAM_BITRATE_QUERY))
+    if abr is not None:
+        transcoded = _try_transcoded_mp3_stream(path, abr)
+        if transcoded is not None:
+            return transcoded
     return FileResponse(
         path,
         media_type=mime,

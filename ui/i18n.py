@@ -17,9 +17,6 @@ _EN: dict[str, str] = {
     "Язык": "Language",
     "ВОСПРОИЗВЕДЕНИЕ": "PLAYBACK",
     "Качество звука": "Audio quality",
-    "Меняет максимальную громкость: «Низкое» тише, «Высокое» — полный уровень ползунка.": (
-        "Sets the maximum volume: “Low” is quieter, “High” is the full slider range."
-    ),
     "Автовоспроизведение": "Autoplay",
     "Нормализация громкости": "Volume normalization",
     "Изображение для аватара": "Profile image",
@@ -32,9 +29,6 @@ _EN: dict[str, str] = {
     "Низкое": "Low",
     "Русский": "Russian",
     "English": "English",
-    "При смене языка главное окно пересоздаётся (сессия сохраняется).": (
-        "Changing the language recreates the main window (your session is kept)."
-    ),
     "популярное": "popular",
     "рецензии": "reviews",
     "CRATES": "CRATES",

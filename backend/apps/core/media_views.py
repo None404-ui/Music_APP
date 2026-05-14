@@ -1,11 +1,96 @@
 import mimetypes
 import os
+import shutil
+import subprocess
+from pathlib import Path
 from typing import Iterator
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.utils._os import safe_join
+
+# Совпадает с ui.playback_settings.STREAM_QUALITY_QUERY_PARAM
+_STREAM_BITRATE_QUERY = "crates_abr"
+_AUDIO_SUFFIXES = frozenset(
+    {".mp3", ".m4a", ".aac", ".ogg", ".opus", ".flac", ".wav", ".webm"}
+)
+
+
+def _parse_stream_bitrate_kbps(raw: str | None) -> int | None:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        v = int(s)
+    except ValueError:
+        return None
+    if 64 <= v <= 320:
+        return v
+    return None
+
+
+def _is_probably_audio_file(full_path: str) -> bool:
+    return Path(full_path).suffix.lower() in _AUDIO_SUFFIXES
+
+
+def _try_transcoded_mp3_response(full_path: str, bitrate_kbps: int) -> StreamingHttpResponse | None:
+    if not shutil.which("ffmpeg"):
+        return None
+    proc = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-i",
+            full_path,
+            "-vn",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            f"{int(bitrate_kbps)}k",
+            "-f",
+            "mp3",
+            "pipe:1",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout = proc.stdout
+    if stdout is None:
+        proc.wait(timeout=5)
+        return None
+    first = stdout.read(8192)
+    if not first:
+        if proc.stderr:
+            proc.stderr.close()
+        stdout.close()
+        proc.kill()
+        proc.wait(timeout=5)
+        return None
+
+    def combined() -> Iterator[bytes]:
+        yield first
+        try:
+            while True:
+                chunk = stdout.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
+            proc.wait(timeout=120)
+
+    resp = StreamingHttpResponse(combined(), content_type="audio/mpeg")
+    resp["Accept-Ranges"] = "none"
+    resp["Cache-Control"] = "no-store"
+    return resp
 
 
 def _parse_range_header(raw_range: str, file_size: int) -> tuple[int, int] | None:
@@ -68,6 +153,12 @@ def serve_media(request, path: str):
     content_type, _ = mimetypes.guess_type(full_path)
     content_type = content_type or "application/octet-stream"
     range_header = request.headers.get("Range") or request.META.get("HTTP_RANGE") or ""
+
+    abr = _parse_stream_bitrate_kbps(request.GET.get(_STREAM_BITRATE_QUERY))
+    if abr and _is_probably_audio_file(full_path):
+        transcoded = _try_transcoded_mp3_response(full_path, abr)
+        if transcoded is not None:
+            return transcoded
 
     if not range_header:
         response = FileResponse(open(full_path, "rb"), content_type=content_type)

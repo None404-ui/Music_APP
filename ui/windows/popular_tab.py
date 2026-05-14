@@ -43,11 +43,12 @@ class AlbumCard(QFrame):
     _CARD_SIZE = 140
     _CARD_PAD = 2
     _COVER_SIZE = _CARD_SIZE - _CARD_PAD * 2
+    _CARD_HEIGHT = 252
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("albumCard")
-        self.setFixedSize(self._CARD_SIZE, 210)
+        self.setFixedSize(self._CARD_SIZE, self._CARD_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cover_reply: QNetworkReply | None = None
         self._on_open = None
@@ -81,21 +82,32 @@ class AlbumCard(QFrame):
         self._apply_cover_style(False)
         self._apply_cover_placeholder()
 
-        self._artist = ArtistLinkLabel()
-        self._artist.setObjectName("albumArtist")
-        self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self._name = QLabel("—")
         self._name.setObjectName("albumTitle")
         self._name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._name.setWordWrap(True)
+        self._name.setMaximumWidth(self._COVER_SIZE)
+        self._name.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Preferred,
+        )
         self._name.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self._artist = ArtistLinkLabel()
+        self._artist.setObjectName("albumArtist")
+        self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._artist.setWordWrap(True)
+        self._artist.setMaximumWidth(self._COVER_SIZE)
+        self._artist.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Preferred,
+        )
 
         self._artist.artist_clicked.connect(self._on_artist_clicked)
 
         layout.addWidget(self._cover, 0, Qt.AlignmentFlag.AlignHCenter)
-        layout.addWidget(self._artist)
-        layout.addWidget(self._name)
+        layout.addWidget(self._name, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self._artist, 0, Qt.AlignmentFlag.AlignHCenter)
 
     def _abort_cover_load(self) -> None:
         if self._cover_reply is None:
@@ -148,7 +160,7 @@ class AlbumCard(QFrame):
         self._abort_cover_load()
         self._payload = dict(item) if isinstance(item, dict) else {}
         title = (item.get("title") or "").strip() or i18n.tr("Без названия")
-        self._name.setText(title)
+        self._name.setText(_soft_wrap_long_words(title))
         artist = (item.get("artist") or "").strip()
         self._artist.set_artist(artist)
         url = (item.get("artwork_url") or "").strip()

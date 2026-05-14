@@ -321,14 +321,6 @@ class SettingsTab(QWidget):
                 )
             if section_name == _INTERFACE_SECTION:
                 col.addWidget(self._build_language_row())
-                lang_hint = QLabel(
-                    i18n.tr(
-                        "При смене языка главное окно пересоздаётся (сессия сохраняется)."
-                    )
-                )
-                lang_hint.setObjectName("settingsHint")
-                lang_hint.setWordWrap(True)
-                col.addWidget(lang_hint)
 
         pb_lbl = QLabel(i18n.tr("ВОСПРОИЗВЕДЕНИЕ"))
         pb_lbl.setObjectName("settingsSectionLabel")
@@ -355,14 +347,6 @@ class SettingsTab(QWidget):
         self._quality_combo.blockSignals(False)
         self._quality_combo.currentIndexChanged.connect(self._on_quality_index_changed)
         col.addWidget(qrow)
-        q_hint = QLabel(
-            i18n.tr(
-                "Меняет максимальную громкость: «Низкое» тише, «Высокое» — полный уровень ползунка."
-            )
-        )
-        q_hint.setObjectName("settingsHint")
-        q_hint.setWordWrap(True)
-        col.addWidget(q_hint)
 
         self._autoplay_toggle = ToggleSwitch()
         self._autoplay_toggle.setChecked(playback_settings.autoplay())

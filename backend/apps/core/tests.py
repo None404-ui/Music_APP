@@ -1,4 +1,8 @@
 from pathlib import Path
+import shutil
+import struct
+import unittest
+import wave
 from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
@@ -44,6 +48,39 @@ class MediaStreamingTests(TestCase):
         )
         self.assertEqual(response["Content-Length"], "5")
         self.assertEqual(b"".join(response.streaming_content), self.payload[5:10])
+
+    def test_media_invalid_abr_ignored(self) -> None:
+        with override_settings(MEDIA_ROOT=self.media_root):
+            response = self.client.get("/media/music/tracks/sample.mp3?crates_abr=9999")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), self.payload)
+
+    def test_media_transcode_fallback_on_bad_source(self) -> None:
+        """Невалидный «mp3»: ffmpeg не даёт данных — отдаём оригинал."""
+        with override_settings(MEDIA_ROOT=self.media_root):
+            response = self.client.get("/media/music/tracks/sample.mp3?crates_abr=128")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), self.payload)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_media_transcode_wav_returns_mpeg(self) -> None:
+        wav_path = self.media_root / "music" / "tracks" / "tone.wav"
+        with wave.open(str(wav_path), "w") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(8000)
+            wf.writeframes(struct.pack("<h", 0) * 800)
+
+        with override_settings(MEDIA_ROOT=self.media_root):
+            response = self.client.get("/media/music/tracks/tone.wav?crates_abr=128")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "audio/mpeg")
+        body = b"".join(response.streaming_content)
+        self.assertGreater(len(body), 400)
+        self.assertTrue(body.startswith(b"ID3") or body[:2] == b"\xff\xfb")
 
 
 @override_settings(DEBUG=True)
