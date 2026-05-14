@@ -13,6 +13,7 @@ _APP = "CRATES"
 
 _QUALITY_KEY = "playback/quality_key"
 _LEGACY_QUALITY = "playback/quality"
+_scope_prefix = ""
 
 _QUALITY_AUTO = "auto"
 _QUALITY_HIGH = "high"
@@ -38,19 +39,27 @@ def _s() -> QSettings:
     return QSettings(QSettings.Scope.UserScope, _ORG, _APP)
 
 
+def set_user_scope(user_id: int | None) -> None:
+    global _scope_prefix
+    _scope_prefix = f"users/{int(user_id)}/" if user_id else ""
+
+
+def _key(name: str) -> str:
+    return f"{_scope_prefix}{name}"
+
+
 def _migrate_legacy_quality() -> None:
     s = _s()
-    if s.contains(_QUALITY_KEY):
+    if s.contains(_key(_QUALITY_KEY)):
         return
     label = s.value(_LEGACY_QUALITY, "Авто", str)
     key = _LEGACY_LABEL_TO_KEY.get((label or "").strip(), _QUALITY_AUTO)
-    s.setValue(_QUALITY_KEY, key)
-    s.remove(_LEGACY_QUALITY)
+    s.setValue(_key(_QUALITY_KEY), key)
 
 
 def quality_key() -> str:
     _migrate_legacy_quality()
-    raw = _s().value(_QUALITY_KEY, _QUALITY_AUTO, str)
+    raw = _s().value(_key(_QUALITY_KEY), _QUALITY_AUTO, str)
     if raw in (_QUALITY_AUTO, _QUALITY_HIGH, _QUALITY_MEDIUM, _QUALITY_LOW):
         return raw
     return _QUALITY_AUTO
@@ -59,7 +68,7 @@ def quality_key() -> str:
 def set_quality_key(key: str) -> None:
     if key not in (_QUALITY_AUTO, _QUALITY_HIGH, _QUALITY_MEDIUM, _QUALITY_LOW):
         key = _QUALITY_AUTO
-    _s().setValue(_QUALITY_KEY, key)
+    _s().setValue(_key(_QUALITY_KEY), key)
 
 
 def quality_label() -> str:
@@ -81,19 +90,19 @@ def _key_to_ru_label(key: str) -> str:
 
 
 def autoplay() -> bool:
-    return _s().value("playback/autoplay", False, bool)
+    return _s().value(_key("playback/autoplay"), False, bool)
 
 
 def set_autoplay(v: bool) -> None:
-    _s().setValue("playback/autoplay", v)
+    _s().setValue(_key("playback/autoplay"), v)
 
 
 def normalization() -> bool:
-    return _s().value("playback/normalization", False, bool)
+    return _s().value(_key("playback/normalization"), False, bool)
 
 
 def set_normalization(v: bool) -> None:
-    _s().setValue("playback/normalization", v)
+    _s().setValue(_key("playback/normalization"), v)
 
 
 # Нормализация: множитель к выходной громкости (после ползунка и quality cap).

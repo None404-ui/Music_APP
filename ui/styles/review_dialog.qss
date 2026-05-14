@@ -1,9 +1,30 @@
-/* Диалог полной рецензии (открывается с «Популярного») */
+/* Страница полной рецензии */
 
-QDialog#reviewDetailDialog {
+QWidget#reviewDetailPage {
     background-color: #EDE6CC;
-    border: 3px solid #4A3428;
-    border-radius: 10px;
+}
+
+QLabel#reviewDetailPageTitle {
+    font-family: "Courier New";
+    font-size: 16px;
+    font-weight: bold;
+    color: #A14016;
+    letter-spacing: 3px;
+}
+
+QPushButton#reviewDetailBackBtn {
+    background-color: transparent;
+    color: #312938;
+    border: 2px solid #312938;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+}
+QPushButton#reviewDetailBackBtn:hover {
+    background-color: #CB883A;
+    color: #312938;
 }
 
 QLabel#reviewDetailAlbum {
@@ -169,22 +190,6 @@ QWidget#reviewDetailScrollBody {
 
 QWidget#reviewCommentsHost {
     background: transparent;
-}
-
-QPushButton#reviewDetailCloseBtn {
-    background-color: #A14016;
-    color: #F5E6C8;
-    border: 2px solid #312938;
-    border-radius: 8px;
-    padding: 10px 24px;
-    font-family: "Courier New";
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 2px;
-}
-QPushButton#reviewDetailCloseBtn:hover {
-    background-color: #CB883A;
-    color: #312938;
 }
 
 /* Диалог написания рецензии на трек (плеер) */

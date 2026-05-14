@@ -60,11 +60,36 @@ class MusicItemAdminForm(forms.ModelForm):
         return cleaned
 
 
+class AdUnitAdminForm(forms.ModelForm):
+    placement = forms.ChoiceField(
+        choices=(
+            ("app_top_banner", "Верхний баннер приложения"),
+            ("feed_banner", "Баннер ленты"),
+        ),
+        help_text=(
+            "Для баннера сверху во всём приложении выберите "
+            "«Верхний баннер приложения». Техническое значение: app_top_banner."
+        ),
+    )
+
+    class Meta:
+        model = AdUnit
+        fields = "__all__"
+
+
 @admin.register(Profile, site=crates_admin_site)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "nickname", "is_premium", "premium_until", "updated_at")
+    list_display = (
+        "id",
+        "user",
+        "nickname",
+        "user_role",
+        "is_premium",
+        "premium_until",
+        "updated_at",
+    )
     search_fields = ("nickname", "user__username", "user__email")
-    list_filter = ("is_premium",)
+    list_filter = ("is_premium", "user__is_staff", "user__is_superuser")
     fieldsets = (
         ("Пользователь", {"fields": ("user",)}),
         ("Профиль", {"fields": ("nickname", "avatar_url", "avatar_file", "bio")}),
@@ -90,6 +115,17 @@ class ProfileAdmin(admin.ModelAdmin):
         ),
     )
     readonly_fields = ("created_at", "updated_at")
+
+    @admin.display(description="Роль")
+    def user_role(self, obj) -> str:
+        user = obj.user
+        if user.is_superuser:
+            return "superuser"
+        if user.is_staff:
+            return "admin/staff"
+        if obj.is_premium:
+            return "premium"
+        return "user"
 
 
 @admin.register(MusicItem, site=crates_admin_site)
@@ -235,14 +271,25 @@ class ReportAdmin(admin.ModelAdmin):
 
 @admin.register(AdUnit, site=crates_admin_site)
 class AdUnitAdmin(admin.ModelAdmin):
-    list_display = ("id", "placement", "is_active", "updated_at")
+    form = AdUnitAdminForm
+    list_display = ("id", "placement", "is_active", "has_banner_image", "updated_at")
     search_fields = ("placement",)
     list_filter = ("is_active",)
     fieldsets = (
-        ("Реклама", {"fields": ("placement", "is_active", "config_json")}),
+        ("Реклама", {"fields": ("placement", "is_active", "banner_image", "config_json")}),
         ("Служебное", {"fields": ("created_at", "updated_at")}),
     )
     readonly_fields = ("created_at", "updated_at")
+
+    def get_changeform_initial_data(self, request):
+        data = super().get_changeform_initial_data(request)
+        data.setdefault("placement", "app_top_banner")
+        data.setdefault("config_json", "{}")
+        return data
+
+    @admin.display(boolean=True, description="Картинка")
+    def has_banner_image(self, obj) -> bool:
+        return bool(getattr(obj.banner_image, "name", ""))
 
 
 @admin.register(Conversation, site=crates_admin_site)

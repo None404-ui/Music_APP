@@ -1119,6 +1119,9 @@ class AdsView(APIView):
         placement = request.query_params.get("placement") or "feed_banner"
         limit = int(request.query_params.get("limit") or 3)
 
+        if request.user.is_authenticated and request.user.is_staff:
+            return Response({"ads": []})
+
         is_premium = False
         if request.user.is_authenticated:
             profile = Profile.objects.filter(user=request.user).first()
@@ -1139,14 +1142,19 @@ class AdsView(APIView):
         items = []
         for ad in ads:
             try:
-                cfg = json.loads(ad.config_json)
+                cfg = json.loads(ad.config_json or "{}")
             except Exception:
                 cfg = ad.config_json
+            image_url = ""
+            image = getattr(ad, "banner_image", None)
+            if image and getattr(image, "name", ""):
+                image_url = request.build_absolute_uri(image.url)
             items.append(
                 {
                     "id": ad.id,
                     "placement": ad.placement,
                     "config": cfg,
+                    "image_url": image_url,
                 }
             )
 

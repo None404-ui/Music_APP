@@ -250,6 +250,7 @@ class SearchTab(QWidget):
             "users": [],
         }
         self._active_filter = "all"
+        self._has_started_search = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -264,8 +265,9 @@ class SearchTab(QWidget):
         )
 
         inner = QWidget()
-        inner.setStyleSheet("background: transparent;")
+        inner.setObjectName("searchInner")
         inner_layout = QVBoxLayout(inner)
+        self._inner_layout = inner_layout
         inner_layout.setContentsMargins(24, 20, 24, 24)
         inner_layout.setSpacing(14)
 
@@ -280,10 +282,21 @@ class SearchTab(QWidget):
         self._search_input.setObjectName("searchInput")
         self._search_input.setPlaceholderText(i18n.tr("поиск . . . ."))
         _input_palette = self._search_input.palette()
-        _input_palette.setColor(
-            QPalette.ColorRole.PlaceholderText,
-            QColor(49, 41, 56, 150),
-        )
+        _accent = QColor("#CB883A")
+        _text = QColor("#CFC89A")
+        _highlight_text = QColor("#312938")
+        for _group in (
+            QPalette.ColorGroup.Active,
+            QPalette.ColorGroup.Inactive,
+            QPalette.ColorGroup.Disabled,
+        ):
+            _input_palette.setColor(
+                _group, QPalette.ColorRole.PlaceholderText, _text
+            )
+            _input_palette.setColor(_group, QPalette.ColorRole.Highlight, _accent)
+            _input_palette.setColor(
+                _group, QPalette.ColorRole.HighlightedText, _highlight_text
+            )
         self._search_input.setPalette(_input_palette)
         bar_layout.addWidget(self._search_input, stretch=1)
 
@@ -344,9 +357,23 @@ class SearchTab(QWidget):
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(8)
 
-        history_label = QLabel(i18n.tr("недавние треки"))
+        history_header = QWidget()
+        history_header.setObjectName("searchHistoryHeader")
+        history_header_lay = QHBoxLayout(history_header)
+        history_header_lay.setContentsMargins(0, 0, 0, 0)
+        history_header_lay.setSpacing(8)
+
+        history_label = QLabel(i18n.tr("недавние запросы"))
         history_label.setObjectName("searchSectionLabel")
-        hl.addWidget(history_label)
+        history_header_lay.addWidget(history_label)
+        history_header_lay.addStretch()
+
+        self._history_clear_btn = QPushButton(i18n.tr("очистить"))
+        self._history_clear_btn.setObjectName("btnHistoryClear")
+        self._history_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._history_clear_btn.clicked.connect(self._clear_recent_results)
+        history_header_lay.addWidget(self._history_clear_btn)
+        hl.addWidget(history_header)
 
         self._history_list = QListWidget()
         self._history_list.setObjectName("searchHistory")
@@ -371,14 +398,25 @@ class SearchTab(QWidget):
         hl.addWidget(self._history_list)
         inner_layout.addWidget(self._history_host)
 
-        # --- Search results ---
-        inner_layout.addSpacing(10)
+        # --- Search results (в layout только после запуска поиска — иначе резервирует место) ---
+        self._results_host = QWidget(inner)
+        self._results_host.setObjectName("searchResultsHost")
+        self._results_host.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
+        self._results_host.hide()
+        rl = QVBoxLayout(self._results_host)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(8)
+        rl.addSpacing(10)
+
         results_label = QLabel(i18n.tr("результаты"))
         results_label.setObjectName("searchSectionLabel")
         results_label.setMinimumHeight(
             max(22, results_label.sizeHint().height() + 4)
         )
-        inner_layout.addWidget(results_label)
+        rl.addWidget(results_label)
 
         self._results_list = QListWidget()
         self._results_list.setObjectName("searchResults")
@@ -396,7 +434,11 @@ class SearchTab(QWidget):
         self._results_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        inner_layout.addWidget(self._results_list)
+        self._results_list.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        rl.addWidget(self._results_list)
 
         inner_layout.addStretch()
 
@@ -404,6 +446,29 @@ class SearchTab(QWidget):
         root.addWidget(page_scroll, stretch=1)
 
         self._refresh_recent_list()
+        self._sync_results_section_visibility()
+
+    def _sync_results_section_visibility(self) -> None:
+        should_show = self._has_started_search and bool(
+            self._search_input.text().strip()
+        )
+        lay = self._inner_layout
+        idx = lay.indexOf(self._results_host)
+        if should_show:
+            if idx < 0:
+                insert_at = lay.indexOf(self._history_host)
+                if insert_at < 0:
+                    insert_at = max(0, lay.count() - 1)
+                lay.insertWidget(insert_at, self._results_host)
+            self._results_host.show()
+            self._refresh_results_widths()
+            self._resize_results_list_height()
+            self._results_host.updateGeometry()
+        else:
+            if idx >= 0:
+                lay.removeWidget(self._results_host)
+            self._results_host.hide()
+            self._results_host.updateGeometry()
 
     def _list_row_width(self, list_widget: QListWidget) -> int:
         """Ширина строки, гарантированно помещающаяся в viewport списка."""
@@ -426,16 +491,15 @@ class SearchTab(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._refresh_recent_list()
-        self._refresh_results_widths()
-        self._resize_results_list_height()
+        self._sync_results_section_visibility()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._refresh_recent_list()
-        self._refresh_results_widths()
-        self._resize_results_list_height()
+        self._sync_results_section_visibility()
 
     def _on_search_text_changed(self, _text: str) -> None:
+        self._has_started_search = False
         if not self._search_input.text().strip():
             self._search_cache = {
                 "albums": [],
@@ -444,9 +508,9 @@ class SearchTab(QWidget):
                 "users": [],
             }
             self._results_list.clear()
-            self._resize_results_list_height()
         self._debounce.stop()
         self._debounce.start()
+        self._sync_results_section_visibility()
 
     def _run_search_now(self) -> None:
         self._debounce.stop()
@@ -456,50 +520,77 @@ class SearchTab(QWidget):
         sender = self.sender()
         if isinstance(sender, QPushButton):
             self._active_filter = str(sender.property("filterKey") or "all")
-        if not self._search_input.text().strip():
+        self._refresh_recent_list()
+        if not self._search_input.text().strip() or not self._has_started_search:
             self._results_list.clear()
-            self._resize_results_list_height()
+            self._sync_results_section_visibility()
             return
         self._render_search_results()
 
-    def _load_recent_tracks(self) -> list[dict]:
+    def _load_recent_results(self) -> list[dict]:
         raw = _settings().value(_RECENT_KEY, "[]", str)
         if not isinstance(raw, str):
             raw = "[]"
         try:
             data = json.loads(raw)
-            return data if isinstance(data, list) else []
+            if not isinstance(data, list):
+                return []
+            rows: list[dict] = []
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if isinstance(row.get("payload"), dict):
+                    rows.append(
+                        {
+                            "kind": str(row.get("kind") or "track"),
+                            "payload": dict(row["payload"]),
+                        }
+                    )
+                else:
+                    rows.append({"kind": "track", "payload": dict(row)})
+            return rows
         except json.JSONDecodeError:
             return []
 
-    def _save_recent_tracks(self, items: list[dict]) -> None:
-        _settings().setValue(_RECENT_KEY, json.dumps(items, ensure_ascii=False))
+    def _save_recent_results(self, items: list[dict]) -> None:
+        settings = _settings()
+        settings.setValue(_RECENT_KEY, json.dumps(items, ensure_ascii=False))
+        settings.sync()
+
+    def _clear_recent_results(self) -> None:
+        self._save_recent_results([])
+        self._refresh_recent_list()
 
     def _play_track_item(self, music_item: dict) -> None:
-        if not self._on_select_track:
-            return
-        self._push_recent_track(music_item)
-        self._on_select_track(music_item)
+        self._push_recent_result("track", music_item)
+        if self._on_select_track:
+            self._on_select_track(music_item)
 
     def _row_library_cb(self):
         if self._session is not None:
             return lambda: self.library_changed.emit()
         return None
 
+    def _kind_matches_active_filter(self, kind: str) -> bool:
+        return self._active_filter == "all" or self._active_filter == f"{kind}s"
+
+    def _visible_recent_results(self) -> list[tuple[str, dict]]:
+        rows: list[tuple[str, dict]] = []
+        for entry in self._load_recent_results():
+            kind = str(entry.get("kind") or "track")
+            payload = entry.get("payload")
+            if isinstance(payload, dict) and self._kind_matches_active_filter(kind):
+                rows.append((kind, payload))
+        return rows
+
     def _refresh_recent_list(self) -> None:
         self._history_list.clear()
         vw = self._history_viewport_width()
-        for it in self._load_recent_tracks():
-            if not isinstance(it, dict):
-                continue
+        for kind, payload in self._visible_recent_results():
             item = QListWidgetItem()
-            row = _SearchTrackRow(
-                it,
-                self._play_track_item,
-                self._on_open_artist,
-                session=self._session,
-                on_library_changed=self._row_library_cb(),
-                dialog_parent=self,
+            row = self._build_result_widget(
+                kind,
+                payload,
                 parent=self._history_list,
             )
             row.setMaximumWidth(vw)
@@ -507,20 +598,10 @@ class SearchTab(QWidget):
             item.setSizeHint(QSize(vw, item_h))
             self._history_list.addItem(item)
             self._history_list.setItemWidget(item, row)
-        cnt = self._history_list.count()
-        sp = self._history_list.spacing()
-        fw = self._history_list.style().pixelMetric(
-            QStyle.PixelMetric.PM_DefaultFrameWidth,
-            None,
-            self._history_list,
-        )
-        if cnt == 0:
-            self._history_list.setFixedHeight(_LIST_ROW_MIN + 16)
-            self._history_host.updateGeometry()
-            return
-        h = cnt * _HISTORY_ROW_PX + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
-        self._history_list.setFixedHeight(h)
+        self._fit_list_height(self._history_list)
         self._history_host.updateGeometry()
+        self._history_list.viewport().update()
+        self._history_list.updateGeometry()
 
     def _results_viewport_width(self) -> int:
         return self._list_row_width(self._results_list)
@@ -545,38 +626,70 @@ class SearchTab(QWidget):
                 widget.setMaximumWidth(self._history_viewport_width())
                 h = _row_height(widget, _HISTORY_ROW_PX)
                 item.setSizeHint(QSize(self._history_viewport_width(), h))
+        self._fit_list_height(self._history_list)
 
     def _resize_results_list_height(self) -> None:
-        cnt = self._results_list.count()
-        sp = self._results_list.spacing()
-        fw = self._results_list.style().pixelMetric(
+        if not self._results_host.isVisible():
+            return
+        self._fit_list_height(self._results_list)
+
+    def _fit_list_height(self, list_widget: QListWidget) -> None:
+        cnt = list_widget.count()
+        sp = list_widget.spacing()
+        fw = list_widget.style().pixelMetric(
             QStyle.PixelMetric.PM_DefaultFrameWidth,
             None,
-            self._results_list,
+            list_widget,
         )
         if cnt == 0:
-            self._results_list.setFixedHeight(_LIST_ROW_MIN + 16)
+            list_widget.setFixedHeight(_LIST_ROW_MIN + 22)
             return
         rows_h = 0
         for idx in range(cnt):
-            item = self._results_list.item(idx)
-            rows_h += item.sizeHint().height() if item is not None else _RESULTS_ROW_PX
-        h = rows_h + max(0, cnt - 1) * sp + max(8, 2 * fw + 6)
-        self._results_list.setFixedHeight(h)
+            item = list_widget.item(idx)
+            widget = list_widget.itemWidget(item) if item is not None else None
+            item_h = item.sizeHint().height() if item is not None else 0
+            widget_h = widget.sizeHint().height() + 16 if widget is not None else 0
+            rows_h += max(item_h, widget_h, _LIST_ROW_MIN)
+        h = rows_h + max(0, cnt - 1) * sp + max(18, 2 * fw + 16)
+        list_widget.setFixedHeight(h)
 
-    def _push_recent_track(self, music_item: dict) -> None:
+    def _push_recent_result(self, kind: str, payload: dict) -> None:
+        if kind not in {"album", "track", "review", "user"} or not isinstance(payload, dict):
+            return
+        entry = {"kind": kind, "payload": dict(payload)}
+
         def _same(a: dict, b: dict) -> bool:
-            if a.get("id") is not None and a.get("id") == b.get("id"):
+            if a.get("kind") != b.get("kind"):
+                return False
+            ap = a.get("payload") if isinstance(a.get("payload"), dict) else {}
+            bp = b.get("payload") if isinstance(b.get("payload"), dict) else {}
+            if ap.get("id") is not None and ap.get("id") == bp.get("id"):
                 return True
+            if kind == "track":
+                return (
+                    (ap.get("audio_url") or "") == (bp.get("audio_url") or "")
+                    and (ap.get("title") or "") == (bp.get("title") or "")
+                )
+            if kind == "user":
+                return (ap.get("nickname") or "").casefold() == (
+                    bp.get("nickname") or ""
+                ).casefold()
+            if kind == "review":
+                return (
+                    (ap.get("text") or "") == (bp.get("text") or "")
+                    and _review_title(ap) == _review_title(bp)
+                )
             return (
-                (a.get("audio_url") or "") == (b.get("audio_url") or "")
-                and (a.get("title") or "") == (b.get("title") or "")
+                (ap.get("title") or "") == (bp.get("title") or "")
+                and (ap.get("artist") or "") == (bp.get("artist") or "")
+                and (ap.get("external_id") or "") == (bp.get("external_id") or "")
             )
 
-        items = [x for x in self._load_recent_tracks() if isinstance(x, dict)]
-        items = [x for x in items if not _same(x, music_item)]
-        items.insert(0, dict(music_item))
-        self._save_recent_tracks(items[:_RECENT_MAX])
+        items = self._load_recent_results()
+        items = [row for row in items if not _same(row, entry)]
+        items.insert(0, entry)
+        self._save_recent_results(items[:_RECENT_MAX])
         self._refresh_recent_list()
 
     def _get_json(self, path: str):
@@ -658,12 +771,24 @@ class SearchTab(QWidget):
         return self._normalize_music_items(tracks if isinstance(tracks, list) else [])
 
     def _open_album_result(self, music_item: dict) -> None:
+        self._push_recent_result("album", music_item)
         if self._on_open_album is None:
             return
         tracks = self._fetch_album_queue(music_item)
         if not tracks:
             return
         self._on_open_album(tracks, music_item)
+
+    def _open_review_result(self, review: dict) -> None:
+        self._push_recent_result("review", review)
+        if self._on_open_review is not None:
+            self._on_open_review(review)
+
+    def _open_user_result(self, user: dict) -> None:
+        self._push_recent_result("user", user)
+        nickname = (user.get("nickname") or "").strip()
+        if nickname and self._on_open_artist is not None:
+            self._on_open_artist(nickname)
 
     def _visible_results(self) -> list[tuple[str, dict]]:
         if self._active_filter == "albums":
@@ -689,7 +814,57 @@ class SearchTab(QWidget):
         self._results_list.addItem(item)
         self._results_list.setItemWidget(item, row_widget)
 
+    def _build_result_widget(self, kind: str, payload: dict, *, parent: QWidget) -> QWidget:
+        if kind == "track":
+            return _SearchTrackRow(
+                payload,
+                self._play_track_item,
+                self._on_open_artist,
+                session=self._session,
+                on_library_changed=self._row_library_cb(),
+                dialog_parent=self,
+                parent=parent,
+            )
+        if kind == "album":
+            artist = (payload.get("artist") or "").strip()
+            meta = i18n.tr("Альбом")
+            if artist:
+                meta = f"{meta} · {artist}"
+            return _SearchEntityRow(
+                (payload.get("title") or i18n.tr("Без названия")).strip(),
+                meta=meta,
+                body=i18n.tr("Открыть альбом"),
+                on_activate=lambda item=payload: self._open_album_result(item),
+                parent=parent,
+            )
+        if kind == "review":
+            author = (payload.get("author_label") or "—").strip()
+            artist = _review_artist(payload)
+            meta = f"{i18n.tr('Рецензия')} · {author}"
+            if artist:
+                meta = f"{meta} · {artist}"
+            return _SearchEntityRow(
+                _review_title(payload),
+                meta=meta,
+                body=_review_excerpt(payload),
+                on_activate=lambda review=payload: self._open_review_result(review),
+                parent=parent,
+            )
+
+        items_count = int(payload.get("items_count") or 0)
+        body = i18n.tr("Найдено релизов:") + f" {items_count}"
+        return _SearchEntityRow(
+            (payload.get("nickname") or "—").strip(),
+            meta=i18n.tr("Пользователь"),
+            body=body,
+            on_activate=lambda user=payload: self._open_user_result(user),
+            parent=parent,
+        )
+
     def _render_search_results(self) -> None:
+        if not self._search_input.text().strip() or not self._has_started_search:
+            return
+        self._sync_results_section_visibility()
         self._results_list.clear()
         results = self._visible_results()
         if not results:
@@ -701,65 +876,18 @@ class SearchTab(QWidget):
             return
 
         for kind, payload in results:
-            if kind == "track":
-                row_widget = _SearchTrackRow(
-                    payload,
-                    self._play_track_item,
-                    self._on_open_artist,
-                    session=self._session,
-                    on_library_changed=self._row_library_cb(),
-                    dialog_parent=self,
-                    parent=self._results_list,
-                )
-            elif kind == "album":
-                artist = (payload.get("artist") or "").strip()
-                meta = i18n.tr("Альбом")
-                if artist:
-                    meta = f"{meta} · {artist}"
-                row_widget = _SearchEntityRow(
-                    (payload.get("title") or i18n.tr("Без названия")).strip(),
-                    meta=meta,
-                    body=i18n.tr("Открыть альбом"),
-                    on_activate=lambda item=payload: self._open_album_result(item),
-                    parent=self._results_list,
-                )
-            elif kind == "review":
-                author = (payload.get("author_label") or "—").strip()
-                artist = _review_artist(payload)
-                meta = f"{i18n.tr('Рецензия')} · {author}"
-                if artist:
-                    meta = f"{meta} · {artist}"
-                row_widget = _SearchEntityRow(
-                    _review_title(payload),
-                    meta=meta,
-                    body=_review_excerpt(payload),
-                    on_activate=(
-                        (lambda review=payload: self._on_open_review(review))
-                        if self._on_open_review is not None
-                        else None
-                    ),
-                    parent=self._results_list,
-                )
-            else:
-                items_count = int(payload.get("items_count") or 0)
-                body = i18n.tr("Найдено релизов:") + f" {items_count}"
-                row_widget = _SearchEntityRow(
-                    (payload.get("nickname") or "—").strip(),
-                    meta=i18n.tr("Пользователь"),
-                    body=body,
-                    on_activate=(
-                        (lambda nickname=(payload.get("nickname") or "").strip(): self._on_open_artist(nickname))
-                        if self._on_open_artist is not None
-                        else None
-                    ),
-                    parent=self._results_list,
-                )
+            row_widget = self._build_result_widget(
+                kind,
+                payload,
+                parent=self._results_list,
+            )
             self._add_result_widget(row_widget)
         self._resize_results_list_height()
 
     def _do_search(self) -> None:
         q = self._search_input.text().strip()
         if not q:
+            self._has_started_search = False
             self._search_cache = {
                 "albums": [],
                 "tracks": [],
@@ -767,8 +895,9 @@ class SearchTab(QWidget):
                 "users": [],
             }
             self._results_list.clear()
-            self._resize_results_list_height()
+            self._sync_results_section_visibility()
             return
+        self._has_started_search = True
         status_items, body_items = self._get_json(f"/api/music-items/?q={quote_plus(q)}")
         music_items = (
             self._normalize_music_items(

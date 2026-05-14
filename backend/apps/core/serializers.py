@@ -73,6 +73,9 @@ def public_artist_user_payload(user_id: int, request) -> dict | None:
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    is_staff = serializers.BooleanField(source="user.is_staff", read_only=True)
+    is_superuser = serializers.BooleanField(source="user.is_superuser", read_only=True)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("avatar_file", None)
@@ -92,6 +95,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             "avatar_file",
             "bio",
             "is_premium",
+            "is_staff",
+            "is_superuser",
             "premium_until",
             "favorite_genres",
             "ui_theme_color",
@@ -511,10 +516,29 @@ class ReportSerializer(serializers.ModelSerializer):
 
 
 class AdUnitSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    def get_image_url(self, obj) -> str:
+        request = self.context.get("request")
+        image = getattr(obj, "banner_image", None)
+        if image and getattr(image, "name", ""):
+            return _absolute_media_url(request, image.url)
+        return ""
+
     class Meta:
         model = AdUnit
-        fields = ["id", "placement", "is_active", "config_json", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "placement",
+            "is_active",
+            "banner_image",
+            "image_url",
+            "config_json",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {"banner_image": {"required": False, "allow_null": True}}
 
 
 class FollowSerializer(serializers.ModelSerializer):

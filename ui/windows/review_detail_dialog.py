@@ -1,13 +1,13 @@
-"""Диалог детальной рецензии: шапка с треком/альбомом и автором, текст,
-лайк и настоящие комментарии пользователей (GET/POST /api/comments/)."""
+"""Страница подробной рецензии с реальными комментариями через API."""
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QTextOption
 from PyQt6.QtWidgets import (
-    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -25,6 +25,9 @@ from ui.artist_link_label import ArtistLinkLabel
 from ui.interactive_fx import fade_in_widget
 
 
+_LONG_RUN_RE = re.compile(r"(\S{36})")
+
+
 def _fmt_date(raw: str) -> str:
     if not raw:
         return ""
@@ -37,7 +40,6 @@ def _fmt_date(raw: str) -> str:
 
 
 def _headline_track(review: dict) -> tuple[str, str]:
-    """Возвращает (заголовок трека/альбома, имя исполнителя)."""
     mi = review.get("music_item")
     if isinstance(mi, dict):
         return (
@@ -50,10 +52,16 @@ def _headline_track(review: dict) -> tuple[str, str]:
     return (i18n.tr("Рецензия"), "")
 
 
+def _soft_wrap(text: str) -> str:
+    """Позволяет QLabel переносить длинные строки без пробелов."""
+    return _LONG_RUN_RE.sub(lambda m: m.group(1) + "\u200b", text or "")
+
+
 class _CommentRow(QFrame):
     def __init__(self, comment: dict, parent=None):
         super().__init__(parent)
         self.setObjectName("reviewCommentRow")
+        self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
 
         lay = QVBoxLayout(self)
@@ -65,58 +73,80 @@ class _CommentRow(QFrame):
         head.setSpacing(8)
 
         author = (comment.get("author_label") or "—").strip()
-        author_lbl = QLabel(author)
+        author_lbl = QLabel(_soft_wrap(author))
         author_lbl.setObjectName("reviewCommentAuthor")
+        author_lbl.setMinimumWidth(0)
+        author_lbl.setWordWrap(True)
+        author_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         date_lbl = QLabel(_fmt_date(str(comment.get("created_at") or "")))
         date_lbl.setObjectName("reviewCommentDate")
         date_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        head.addWidget(author_lbl)
-        head.addStretch()
-        head.addWidget(date_lbl)
+        head.addWidget(author_lbl, stretch=1)
+        head.addWidget(date_lbl, stretch=0)
         lay.addLayout(head)
 
-        body = QLabel((comment.get("text") or "").strip())
+        body = QLabel(_soft_wrap((comment.get("text") or "").strip()))
         body.setObjectName("reviewCommentBody")
+        body.setMinimumWidth(0)
         body.setWordWrap(True)
         body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lay.addWidget(body)
 
 
-class ReviewDetailDialog(QDialog):
-    """Полная страница рецензии: трек/альбом, автор, текст, лайк и комментарии."""
+class ReviewDetailPage(QWidget):
+    """Полная страница рецензии внутри основного стека приложения."""
 
     def __init__(
         self,
-        review: dict,
         session,
+        on_back=None,
         on_changed=None,
         on_open_artist=None,
         parent=None,
     ):
         super().__init__(parent)
-        self.setObjectName("reviewDetailDialog")
-        self.setWindowTitle(i18n.tr("Рецензия — CRATES"))
-        self.setModal(True)
-        self.setMinimumSize(520, 520)
-        self.resize(620, 620)
+        self.setObjectName("reviewDetailPage")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        self._review = dict(review or {})
+        self._review: dict = {}
         self._session = session
+        self._on_back = on_back
         self._on_changed = on_changed
         self._on_open_artist = on_open_artist
 
-        self._review_id = self._review.get("id")
-        self._favorites_count = int(self._review.get("favorites_count") or 0)
-        self._user_favorited = bool(self._review.get("user_favorited"))
+        self._return_index = 0
+        self._review_id = None
+        self._favorites_count = 0
+        self._user_favorited = False
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 18, 20, 18)
+        root.setContentsMargins(20, 16, 20, 18)
         root.setSpacing(12)
 
-        # --- Шапка: трек/альбом, исполнитель, автор, дата ---
+        nav_row = QHBoxLayout()
+        nav_row.setContentsMargins(0, 0, 0, 0)
+        nav_row.setSpacing(12)
+
+        self._back_btn = QPushButton(i18n.tr("← назад"))
+        self._back_btn.setObjectName("reviewDetailBackBtn")
+        self._back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._back_btn.clicked.connect(self._go_back)
+        nav_row.addWidget(self._back_btn, 0, Qt.AlignmentFlag.AlignLeft)
+
+        page_title = QLabel(i18n.tr("Рецензия"))
+        page_title.setObjectName("reviewDetailPageTitle")
+        page_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        nav_row.addWidget(page_title, stretch=1)
+        nav_row.addSpacing(self._back_btn.sizeHint().width())
+        root.addLayout(nav_row)
+
         self._kind_lbl = QLabel()
         self._kind_lbl.setObjectName("reviewDetailKind")
         self._kind_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -124,8 +154,13 @@ class ReviewDetailDialog(QDialog):
 
         self._head_lbl = QLabel()
         self._head_lbl.setObjectName("reviewDetailHeadline")
+        self._head_lbl.setMinimumWidth(0)
         self._head_lbl.setWordWrap(True)
         self._head_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._head_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         root.addWidget(self._head_lbl)
 
         self._artist_wrap = QWidget()
@@ -141,19 +176,30 @@ class ReviewDetailDialog(QDialog):
             self._artist_lbl = QLabel()
             self._artist_lbl.setObjectName("reviewDetailArtist")
             self._artist_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._artist_lbl.setMinimumWidth(0)
+        self._artist_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         awl.addWidget(self._artist_lbl)
         root.addWidget(self._artist_wrap)
 
         meta_row = QHBoxLayout()
-        author = (self._review.get("author_label") or "—").strip()
-        self._author_lbl = QLabel(i18n.tr("Автор:") + f" {author}")
+        meta_row.setContentsMargins(0, 0, 0, 0)
+        meta_row.setSpacing(8)
+        self._author_lbl = QLabel()
         self._author_lbl.setObjectName("reviewDetailMeta")
-        self._date_lbl = QLabel(_fmt_date(str(self._review.get("created_at") or "")))
+        self._author_lbl.setMinimumWidth(0)
+        self._author_lbl.setWordWrap(True)
+        self._author_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        self._date_lbl = QLabel()
         self._date_lbl.setObjectName("reviewDetailMeta")
         self._date_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        meta_row.addWidget(self._author_lbl)
-        meta_row.addStretch()
-        meta_row.addWidget(self._date_lbl)
+        meta_row.addWidget(self._author_lbl, stretch=1)
+        meta_row.addWidget(self._date_lbl, stretch=0)
         root.addLayout(meta_row)
 
         line = QFrame()
@@ -162,49 +208,61 @@ class ReviewDetailDialog(QDialog):
         line.setFixedHeight(2)
         root.addWidget(line)
 
-        # --- Скроллируемая область: текст рецензии + комментарии ---
-        scroll = QScrollArea()
-        scroll.setObjectName("reviewDetailScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll = QScrollArea()
+        self._scroll.setObjectName("reviewDetailScroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        body_w = QWidget()
-        body_w.setObjectName("reviewDetailScrollBody")
-        bl = QVBoxLayout(body_w)
+        self._body_w = QWidget()
+        self._body_w.setObjectName("reviewDetailScrollBody")
+        self._body_w.setMinimumWidth(0)
+        self._body_w.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        bl = QVBoxLayout(self._body_w)
         bl.setContentsMargins(4, 4, 4, 4)
         bl.setSpacing(14)
 
         self._body_lbl = QLabel()
         self._body_lbl.setObjectName("reviewDetailBody")
+        self._body_lbl.setMinimumWidth(0)
         self._body_lbl.setWordWrap(True)
         self._body_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._body_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._body_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         bl.addWidget(self._body_lbl)
 
-        # Действия: ♥ лайк (работает для любых рецензий)
         actions_row = QHBoxLayout()
         actions_row.setContentsMargins(0, 0, 0, 0)
         actions_row.setSpacing(8)
-        self._like_btn = QPushButton("♥" if self._user_favorited else "♡")
+        self._like_btn = QPushButton("♡")
         self._like_btn.setObjectName("reviewDetailLikeBtn")
         self._like_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._like_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._like_btn.clicked.connect(self._toggle_like)
-        self._like_count_lbl = QLabel(str(self._favorites_count))
+        self._like_count_lbl = QLabel("0")
         self._like_count_lbl.setObjectName("reviewDetailLikeCount")
         actions_row.addWidget(self._like_btn)
         actions_row.addWidget(self._like_count_lbl)
         actions_row.addStretch()
         bl.addLayout(actions_row)
 
-        # --- Комментарии ---
         comments_head = QLabel(i18n.tr("Комментарии"))
         comments_head.setObjectName("reviewDetailCommentsHead")
         bl.addWidget(comments_head)
 
         self._comments_col_host = QWidget()
         self._comments_col_host.setObjectName("reviewCommentsHost")
+        self._comments_col_host.setMinimumWidth(0)
+        self._comments_col_host.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         self._comments_col = QVBoxLayout(self._comments_col_host)
         self._comments_col.setContentsMargins(0, 0, 0, 0)
         self._comments_col.setSpacing(8)
@@ -212,15 +270,22 @@ class ReviewDetailDialog(QDialog):
 
         self._comments_hint = QLabel("")
         self._comments_hint.setObjectName("reviewDetailEmptyHint")
+        self._comments_hint.setMinimumWidth(0)
         self._comments_hint.setWordWrap(True)
         self._comments_hint.hide()
         bl.addWidget(self._comments_hint)
 
-        # --- Компоновка текстового поля ---
         self._compose = QTextEdit()
         self._compose.setObjectName("reviewCommentCompose")
         self._compose.setPlaceholderText(i18n.tr("Написать комментарий…"))
         self._compose.setFixedHeight(86)
+        self._compose.setMinimumWidth(0)
+        self._compose.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        self._compose.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self._compose.setWordWrapMode(QTextOption.WrapMode.WrapAnywhere)
         if session is None or getattr(session, "user_id", None) is None:
             self._compose.setEnabled(False)
             self._compose.setPlaceholderText(
@@ -240,25 +305,47 @@ class ReviewDetailDialog(QDialog):
         bl.addLayout(compose_row)
 
         bl.addStretch()
-        scroll.setWidget(body_w)
-        root.addWidget(scroll, stretch=1)
+        self._scroll.setWidget(self._body_w)
+        root.addWidget(self._scroll, stretch=1)
 
-        close_btn = QPushButton(i18n.tr("ЗАКРЫТЬ"))
-        close_btn.setObjectName("reviewDetailCloseBtn")
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.clicked.connect(self.accept)
-        root.addWidget(close_btn)
-
+    def load_review(self, review: dict, return_index: int = 0) -> None:
+        self._review = dict(review or {})
+        self._return_index = return_index
+        self._review_id = self._review.get("id")
+        self._favorites_count = int(self._review.get("favorites_count") or 0)
+        self._user_favorited = bool(self._review.get("user_favorited"))
+        self._compose.clear()
         self._apply_review_to_ui()
-        QTimer.singleShot(0, self._after_show)
+        self._sync_scroll_inner_width()
+        QTimer.singleShot(0, self._after_load)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_scroll_inner_width()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._sync_scroll_inner_width()
+        fade_in_widget(self)
+
+    def _sync_scroll_inner_width(self) -> None:
+        if not hasattr(self, "_scroll") or not hasattr(self, "_body_w"):
+            return
+        w = self._scroll.viewport().width()
+        if w > 0:
+            self._body_w.setFixedWidth(w)
+
+    def _go_back(self) -> None:
+        if self._on_back:
+            self._on_back(self._return_index)
 
     def _handle_artist_click(self, name: str) -> None:
         if self._on_open_artist is None or not (name or "").strip():
             return
-        self.accept()
         self._on_open_artist(name)
 
-    def _after_show(self) -> None:
+    def _after_load(self) -> None:
+        self._sync_scroll_inner_width()
         self._hydrate_review_from_api()
         self._reload_comments()
 
@@ -268,23 +355,23 @@ class ReviewDetailDialog(QDialog):
         self._kind_lbl.setText(i18n.tr("Альбом") if is_album else i18n.tr("Трек"))
 
         title, artist = _headline_track(self._review)
-        self._head_lbl.setText(title)
+        self._head_lbl.setText(_soft_wrap(title))
         art = (artist or "").strip()
         if art:
             self._artist_wrap.show()
             if isinstance(self._artist_lbl, ArtistLinkLabel):
                 self._artist_lbl.set_artist(art)
             else:
-                self._artist_lbl.setText(art)
+                self._artist_lbl.setText(_soft_wrap(art))
         else:
             self._artist_wrap.hide()
 
         author = (self._review.get("author_label") or "—").strip()
-        self._author_lbl.setText(i18n.tr("Автор:") + f" {author}")
+        self._author_lbl.setText(_soft_wrap(i18n.tr("Автор:") + f" {author}"))
         self._date_lbl.setText(_fmt_date(str(self._review.get("created_at") or "")))
 
         body_txt = (self._review.get("text") or "").strip() or "—"
-        self._body_lbl.setText(body_txt)
+        self._body_lbl.setText(_soft_wrap(body_txt))
 
         self._like_btn.setText("♥" if self._user_favorited else "♡")
         self._like_count_lbl.setText(str(self._favorites_count))
@@ -305,8 +392,6 @@ class ReviewDetailDialog(QDialog):
             self._favorites_count = int(self._review.get("favorites_count") or 0)
             self._user_favorited = bool(self._review.get("user_favorited"))
             self._apply_review_to_ui()
-
-    # --------- API ---------
 
     def _client(self):
         return self._session.client if self._session is not None else None
@@ -381,6 +466,7 @@ class ReviewDetailDialog(QDialog):
 
         for c in rows:
             self._comments_col.addWidget(_CommentRow(c, parent=self._comments_col_host))
+        self._sync_scroll_inner_width()
 
     def _submit_comment(self) -> None:
         if self._client() is None or self._review_id is None:
@@ -409,7 +495,3 @@ class ReviewDetailDialog(QDialog):
             i18n.tr("Не удалось отправить"),
             str(detail),
         )
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        fade_in_widget(self)

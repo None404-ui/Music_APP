@@ -15,9 +15,9 @@ QWidget#selectedPage QLabel#sectionHeading {
 
 QWidget#selectedPage QPushButton#btnNav {
     min-width: 132px;
-    background-color: #E4EBE2;
-    color: #4A6B5E;
-    border: 1px solid #B8C9B0;
+    background-color: #3d3347;
+    color: #89A194;
+    border: 1px solid #4a3a54;
     border-radius: 16px;
     padding: 6px 20px;
     font-family: "Courier New";
@@ -26,8 +26,8 @@ QWidget#selectedPage QPushButton#btnNav {
 }
 QWidget#selectedPage QPushButton#btnNav:hover {
     background-color: #A14016;
-    color: #FCFAF4;
-    border: 1px solid #8B3A12;
+    color: #CFC89A;
+    border: 1px solid #4a3a54;
 }
 QWidget#selectedPage QPushButton#btnNav:checked {
     background-color: #CB883A;

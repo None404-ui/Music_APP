@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtGui import QColor, QImage, QMouseEvent, QPixmap
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -15,10 +17,21 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 from ui import i18n
 from ui.artist_link_label import ArtistLinkLabel
+from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame
+
+_review_cover_nam: QNetworkAccessManager | None = None
+
+
+def _review_cover_network() -> QNetworkAccessManager:
+    global _review_cover_nam
+    if _review_cover_nam is None:
+        _review_cover_nam = QNetworkAccessManager(QApplication.instance())
+    return _review_cover_nam
 
 
 def _response_list(body) -> list:
@@ -47,6 +60,22 @@ def _subtitle(review: dict) -> str:
     return ""
 
 
+def _cover_url(review: dict, api_base: str = "") -> str:
+    mi = review.get("music_item")
+    if isinstance(mi, dict):
+        return resolve_backend_media_url(
+            api_base,
+            (mi.get("artwork_url") or "").strip(),
+        )
+    col = review.get("collection")
+    if isinstance(col, dict):
+        return resolve_backend_media_url(
+            api_base,
+            (col.get("cover_url") or "").strip(),
+        )
+    return ""
+
+
 class ReviewRow(InteractiveRowFrame):
     def __init__(
         self,
@@ -65,6 +94,7 @@ class ReviewRow(InteractiveRowFrame):
         self._session = session
         self._on_changed = on_changed
         self._on_open_review = on_open_review
+        self._cover_reply: QNetworkReply | None = None
         if on_open_review is not None:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             self.setToolTip(i18n.tr("Нажмите, чтобы открыть рецензию, комментарии и лайки."))
@@ -73,12 +103,21 @@ class ReviewRow(InteractiveRowFrame):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(14)
 
-        thumb = QLabel()
-        thumb.setObjectName("reviewThumb")
-        thumb.setFixedSize(70, 70)
-        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb.setText("♪")
-        thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._thumb = CoverArtWidget(
+            radius=6,
+            border_width=1,
+            border_color=QColor("#89A194"),
+            fill_color=QColor("#BDB685"),
+            mask_color=QColor("#5c5748"),
+            placeholder_text="♪",
+            placeholder_color=QColor("#A14016"),
+            placeholder_px=22,
+        )
+        self._thumb.setObjectName("reviewThumb")
+        self._thumb.setFixedSize(70, 70)
+        self._thumb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._apply_thumb_style(False)
+        self._load_cover(_cover_url(self._review, self._session.client.base_url))
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -160,10 +199,45 @@ class ReviewRow(InteractiveRowFrame):
         like_col.addWidget(self._like_btn, 0, Qt.AlignmentFlag.AlignHCenter)
         like_col.addWidget(self._like_count, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        layout.addWidget(thumb)
+        layout.addWidget(self._thumb)
         layout.addLayout(text_col, stretch=1)
         layout.addLayout(like_col)
         self.install_interaction_filters()
+
+    def _apply_thumb_style(self, hovered: bool) -> None:
+        self._thumb.set_style_colors(
+            border_color=QColor("#CB883A") if hovered else QColor("#89A194"),
+            fill_color=QColor("#d1c996") if hovered else QColor("#BDB685"),
+            mask_color=QColor("#6d6756") if hovered else QColor("#5c5748"),
+        )
+
+    def _load_cover(self, url: str) -> None:
+        raw = (url or "").strip()
+        self._thumb.clear_cover()
+        if not raw.startswith(("http://", "https://")):
+            return
+        self._cover_reply = _review_cover_network().get(QNetworkRequest(QUrl(raw)))
+        self._cover_reply.finished.connect(self._on_cover_finished)
+
+    def _on_cover_finished(self) -> None:
+        reply = self.sender()
+        if not isinstance(reply, QNetworkReply):
+            return
+        if reply is not self._cover_reply:
+            reply.deleteLater()
+            return
+        self._cover_reply = None
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self._thumb.clear_cover()
+                return
+            img = QImage()
+            if not img.loadFromData(reply.readAll()):
+                self._thumb.clear_cover()
+                return
+            self._thumb.set_cover_pixmap(QPixmap.fromImage(img))
+        finally:
+            reply.deleteLater()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if (
@@ -181,6 +255,14 @@ class ReviewRow(InteractiveRowFrame):
                 return
             self._on_open_review(dict(self._review))
         super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event) -> None:
+        self._apply_thumb_style(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._apply_thumb_style(False)
+        super().leaveEvent(event)
 
     def _toggle_like(self) -> None:
         rid = self._review.get("id")
@@ -230,10 +312,6 @@ class ReviewsTab(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 16, 24, 24)
         root.setSpacing(10)
-
-        heading = QLabel(i18n.tr("ТОП РЕЦЕНЗИЙ"))
-        heading.setObjectName("reviewsHeading")
-        root.addWidget(heading)
 
         self._hint = QLabel()
         self._hint.setObjectName("reviewsEmptyHint")

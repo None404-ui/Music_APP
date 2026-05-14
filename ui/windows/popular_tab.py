@@ -17,6 +17,18 @@ from ui.track_like_review import TrackLikeReviewBar
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 
 _album_cover_nam: QNetworkAccessManager | None = None
+_SOFT_WRAP_AT = 9
+
+
+def _soft_wrap_long_words(text: str, chunk: int = _SOFT_WRAP_AT) -> str:
+    parts: list[str] = []
+    for word in (text or "").split(" "):
+        if len(word) > chunk:
+            word = "\u200b".join(
+                word[i : i + chunk] for i in range(0, len(word), chunk)
+            )
+        parts.append(word)
+    return " ".join(parts)
 
 
 def _album_cover_network() -> QNetworkAccessManager:
@@ -192,7 +204,11 @@ class ArtistWidget(QWidget):
         self._label.setObjectName("artistName")
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setWordWrap(True)
-        self._label.setFixedWidth(90)
+        self._label.setFixedWidth(112)
+        self._label.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Preferred,
+        )
         self._label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         layout.addWidget(self._avatar, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -244,6 +260,12 @@ class ArtistWidget(QWidget):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+        self._label.setText(
+            _soft_wrap_long_words(self._name_key)
+            if self._name_key
+            else self._label.text()
+        )
+        self._label.setToolTip(self._name_key)
 
     def set_name(self, name: str) -> None:
         self._name_key = name.strip()
@@ -252,6 +274,12 @@ class ArtistWidget(QWidget):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+        self._label.setText(
+            _soft_wrap_long_words(self._name_key)
+            if self._name_key
+            else self._label.text()
+        )
+        self._label.setToolTip(self._name_key)
 
     def set_avatar_url(self, url: str) -> None:
         self._abort_avatar_load()
@@ -326,7 +354,7 @@ class CarouselSection(QWidget):
         self._ilayout.setSpacing(14)
 
         self._scroll.setWidget(self._inner)
-        self._scroll.setMinimumHeight(208)
+        self._scroll.setMinimumHeight(1)
         self._scroll.viewport().installEventFilter(self)
         self._scroll.horizontalScrollBar().valueChanged.connect(self._sync_arrows)
 
@@ -358,6 +386,7 @@ class CarouselSection(QWidget):
         self._inner.setMinimumWidth(w)
         self._inner.setMinimumHeight(h)
         self._inner.resize(w, h)
+        self._scroll.setMinimumHeight(h + 2)
         self._scroll.updateGeometry()
         self._sync_arrows()
 
@@ -596,10 +625,6 @@ class PopularTab(QWidget):
         root = QVBoxLayout(inner)
         root.setContentsMargins(24, 16, 24, 24)
         root.setSpacing(10)
-
-        page_title = QLabel(i18n.tr("ПОПУЛЯРНОЕ"))
-        page_title.setObjectName("sectionHeading")
-        root.addWidget(page_title)
 
         self._status = QLabel(inner)
         self._status.setObjectName("popularLoadStatus")

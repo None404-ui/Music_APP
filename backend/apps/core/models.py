@@ -400,7 +400,8 @@ class Report(models.Model):
 class AdUnit(models.Model):
     placement = models.CharField(max_length=64)
     is_active = models.BooleanField(default=True)
-    config_json = models.TextField()
+    banner_image = models.FileField(upload_to="ads/banners/", blank=True)
+    config_json = models.TextField(blank=True, default="{}")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

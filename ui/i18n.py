@@ -128,6 +128,8 @@ _EN: dict[str, str] = {
     "исполнители": "artists",
     "поиск . . . .": "search . . . .",
     "недавние треки": "recent tracks",
+    "недавние запросы": "recent searches",
+    "очистить": "clear",
     "результаты": "results",
     # Main window / диалоги
     "Вы": "You",

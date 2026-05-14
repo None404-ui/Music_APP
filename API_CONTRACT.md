@@ -57,6 +57,8 @@
   "avatar_url": "https://...",
   "bio": "text",
   "is_premium": false,
+  "is_staff": false,
+  "is_superuser": false,
   "premium_until": null,
   "favorite_genres": "rock,metal",
   "ui_theme_color": "#ff0000",
@@ -571,13 +573,18 @@
   - `placement` (string; по умолчанию `feed_banner`)
   - `limit` (int; по умолчанию 3)
 - **Логика**:
-  - если пользователь premium (`Profile.is_premium=true`) -> `ads: []`
+  - если пользователь staff/admin или premium (`Profile.is_premium=true`) -> `ads: []`
   - иначе -> активные `AdUnit` по `placement`
 - **200**:
 ```json
 {
   "ads": [
-    { "id": 1, "placement": "feed_banner", "config": { "...": true } }
+    {
+      "id": 1,
+      "placement": "app_top_banner",
+      "config": {},
+      "image_url": "http://127.0.0.1:8000/media/ads/banners/banner.png"
+    }
   ]
 }
 ```
@@ -605,5 +612,6 @@
 #### Поля `AdUnit`
 - `placement` (string, обязательное)
 - `is_active` (bool, обязательное/по умолчанию)
-- `config_json` (string, обязательное) — JSON как строка
+- `banner_image` (file, необязательное) — картинка горизонтального баннера
+- `config_json` (string, необязательное, по умолчанию `{}`) — JSON как строка
 

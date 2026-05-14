@@ -22,6 +22,8 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import Profile
+
 
 User = get_user_model()
 
@@ -56,15 +58,23 @@ class RegisterView(APIView):
 
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
+        nickname = (request.data.get("nickname") or "").strip()
         password = request.data.get("password") or ""
         if not email or "@" not in email:
             return Response({"detail": "Invalid email"}, status=400)
+        if not nickname:
+            return Response({"detail": "Nickname is required"}, status=400)
+        if len(nickname) > 64:
+            return Response({"detail": "Nickname is too long"}, status=400)
         if len(password) < 6:
             return Response({"detail": "Password too short"}, status=400)
         if User.objects.filter(username=email).exists():
             return Response({"detail": "User already exists"}, status=400)
+        if Profile.objects.filter(nickname__iexact=nickname).exists():
+            return Response({"detail": "Nickname already exists"}, status=400)
 
         user = User.objects.create_user(username=email, email=email, password=password)
+        Profile.objects.create(user=user, nickname=nickname)
         login(request, user)
         return Response({"detail": "ok"}, status=201)
 

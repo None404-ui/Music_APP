@@ -13,14 +13,24 @@ _ORG = "CRATES"
 _APP = "CRATES"
 _KEY_BANDS = "equalizer/band_db_json"
 _KEY_PRESET = "equalizer/preset_id"
+_scope_prefix = ""
 
 
 def _s() -> QSettings:
     return QSettings(QSettings.Scope.UserScope, _ORG, _APP)
 
 
+def set_user_scope(user_id: int | None) -> None:
+    global _scope_prefix
+    _scope_prefix = f"users/{int(user_id)}/" if user_id else ""
+
+
+def _key(name: str) -> str:
+    return f"{_scope_prefix}{name}"
+
+
 def preset_id() -> str:
-    v = (_s().value(_KEY_PRESET, "flat", str) or "flat").strip()
+    v = (_s().value(_key(_KEY_PRESET), "flat", str) or "flat").strip()
     if v == "custom" or v in EQ_PRESET_GAINS_DB:
         return v
     return "flat"
@@ -30,12 +40,12 @@ def set_preset_id(preset: str) -> None:
     p = (preset or "flat").strip()
     if p != "custom" and p not in EQ_PRESET_GAINS_DB:
         p = "flat"
-    _s().setValue(_KEY_PRESET, p)
+    _s().setValue(_key(_KEY_PRESET), p)
 
 
 def band_gains_db() -> List[float]:
     n = len(BAND_CENTER_HZ)
-    raw = _s().value(_KEY_BANDS, "", str)
+    raw = _s().value(_key(_KEY_BANDS), "", str)
     if raw and raw.strip():
         try:
             arr = json.loads(raw)
@@ -52,4 +62,4 @@ def set_band_gains_db(gains: List[float]) -> None:
     g = [max(-12.0, min(12.0, float(gains[i]))) for i in range(min(n, len(gains)))]
     while len(g) < n:
         g.append(0.0)
-    _s().setValue(_KEY_BANDS, json.dumps(g))
+    _s().setValue(_key(_KEY_BANDS), json.dumps(g))

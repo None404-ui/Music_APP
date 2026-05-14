@@ -138,6 +138,11 @@ class AuthDialog(QDialog):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(12)
 
+        self._reg_nickname = QLineEdit()
+        self._reg_nickname.setObjectName("authField")
+        self._reg_nickname.setPlaceholderText("имя пользователя")
+        lay.addWidget(self._reg_nickname)
+
         self._reg_email = QLineEdit()
         self._reg_email.setObjectName("authField")
         self._reg_email.setPlaceholderText("email")
@@ -217,14 +222,18 @@ class AuthDialog(QDialog):
             self._err_reg.setText("Пароли не совпадают.")
             return
         email = self._reg_email.text().strip().lower()
+        nickname = self._reg_nickname.text().strip()
         if not email or "@" not in email:
             self._err_reg.setText("Укажите корректный email.")
+            return
+        if not nickname:
+            self._err_reg.setText("Укажите имя пользователя.")
             return
         if len(p1) < 6:
             self._err_reg.setText("Пароль не короче 6 символов.")
             return
         client = CratesApiClient()
-        ok, err = api_register(client, email, p1)
+        ok, err = api_register(client, email, p1, nickname)
         if not ok:
             self._err_reg.setText(err or "Ошибка регистрации.")
             return

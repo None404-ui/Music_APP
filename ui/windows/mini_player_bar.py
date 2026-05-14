@@ -86,8 +86,6 @@ class MiniPlayerBar(InteractiveRowFrame):
         self._title.setObjectName("miniPlayerTitle")
         self._title.setWordWrap(False)
         self._title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._title.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._title.installEventFilter(self)
 
         self._artist = ArtistLinkLabel()
         self._artist.setObjectName("miniPlayerArtist")
@@ -418,7 +416,7 @@ class MiniPlayerBar(InteractiveRowFrame):
 
     def eventFilter(self, watched, event):
         if (
-            watched in (self._cover, self._title)
+            watched is self._cover
             and event.type() == QEvent.Type.MouseButtonRelease
             and isinstance(event, QMouseEvent)
         ):

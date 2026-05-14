@@ -204,10 +204,19 @@ def api_logout(client: CratesApiClient) -> None:
     client.post_json("/api/auth/logout/", {})
 
 
-def api_register(client: CratesApiClient, email: str, password: str) -> tuple[bool, str | None]:
+def api_register(
+    client: CratesApiClient,
+    email: str,
+    password: str,
+    nickname: str,
+) -> tuple[bool, str | None]:
     status, body = client.post_json(
         "/api/auth/register/",
-        {"email": (email or "").strip().lower(), "password": password},
+        {
+            "email": (email or "").strip().lower(),
+            "password": password,
+            "nickname": (nickname or "").strip(),
+        },
     )
     if status in (200, 201):
         return True, None
@@ -224,7 +233,7 @@ def build_user_session(client: CratesApiClient, email: str) -> "UserSession | No
     uid = prof.get("user")
     if uid is None:
         return None
-    role = "premium" if prof.get("is_premium") else "free"
+    role = "admin" if prof.get("is_staff") else ("premium" if prof.get("is_premium") else "free")
     nick = (prof.get("nickname") or "").strip()
     return UserSession(
         user_id=int(uid),

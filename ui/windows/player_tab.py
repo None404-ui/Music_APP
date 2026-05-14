@@ -6,7 +6,20 @@ import json
 import os
 from typing import TYPE_CHECKING, Callable, Optional
 
-from PyQt6.QtCore import Qt, QUrl, QByteArray, QIODevice, QTimer, QSize, QCoreApplication, pyqtSignal, QRectF
+from PyQt6.QtCore import (
+    Qt,
+    QUrl,
+    QByteArray,
+    QIODevice,
+    QTimer,
+    QSize,
+    QCoreApplication,
+    QObject,
+    QThread,
+    pyqtSignal,
+    pyqtSlot,
+    QRectF,
+)
 from PyQt6.QtGui import QPixmap, QImage, QColor, QIcon
 from PyQt6.QtMultimedia import (
     QAudioBuffer,
@@ -198,6 +211,157 @@ class PlayerArtworkWidget(CoverArtWidget):
         self.set_fill_gradient(QColor(216, 228, 236), QColor(184, 200, 212))
 
 
+class _EqAudioWorker(QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._active = False
+        self._volume = 0.75
+        self._channels = 2
+        self._graphic_eq = GraphicEQProcessor(self._channels)
+        self._sink: Optional[QAudioSink] = None
+        self._sink_io: Optional[QIODevice] = None
+        self._sink_format: Optional[QAudioFormat] = None
+
+    @pyqtSlot(bool)
+    def set_active(self, active: bool) -> None:
+        active = bool(active)
+        if self._active == active:
+            return
+        self._active = active
+        if active:
+            self._graphic_eq.reset()
+            return
+        self._release_sink()
+
+    @pyqtSlot(list)
+    def set_gains_db(self, gains: list) -> None:
+        self._graphic_eq.set_gains_db(gains)
+        self._graphic_eq.reset()
+
+    @pyqtSlot(float)
+    def set_volume(self, volume: float) -> None:
+        self._volume = min(1.0, max(0.0, float(volume)))
+        if self._sink is not None:
+            self._sink.setVolume(self._volume)
+
+    @pyqtSlot()
+    def reset(self) -> None:
+        self._graphic_eq.reset()
+
+    @pyqtSlot()
+    def shutdown(self) -> None:
+        self._release_sink()
+
+    def _release_sink(self) -> None:
+        if self._sink is not None:
+            self._sink.stop()
+            self._sink.deleteLater()
+            self._sink = None
+        self._sink_io = None
+        self._sink_format = None
+
+    def _ensure_sink(self, fmt: QAudioFormat) -> bool:
+        if self._sink is not None and self._sink_format is not None:
+            if (
+                fmt.sampleRate() == self._sink_format.sampleRate()
+                and fmt.channelCount() == self._sink_format.channelCount()
+                and fmt.sampleFormat() == self._sink_format.sampleFormat()
+            ):
+                return self._sink_io is not None
+        self._release_sink()
+        dev = QMediaDevices.defaultAudioOutput()
+        if dev.isNull():
+            return False
+        self._sink = QAudioSink(dev, fmt)
+        bytes_per_second = max(1, fmt.bytesPerFrame() * fmt.sampleRate())
+        self._sink.setBufferSize(bytes_per_second // 10)
+        self._sink_io = self._sink.start()
+        if self._sink_io is None:
+            self._sink = None
+            return False
+        self._sink_format = fmt
+        self._sink.setVolume(self._volume)
+        return True
+
+    def _write_all_sink(self, data: bytes) -> None:
+        if not self._sink_io:
+            return
+        off = 0
+        while off < len(data):
+            n = self._sink_io.write(data[off:])
+            if n is None or n <= 0:
+                break
+            off += int(n)
+
+    def _process_int16(self, raw: bytes, n_ch: int) -> bytes:
+        a = array.array("h")
+        a.frombytes(raw)
+        for i in range(0, len(a), n_ch):
+            for c in range(n_ch):
+                x = a[i + c] / 32768.0
+                y = self._graphic_eq.process_sample(x, c)
+                if y > 1.0:
+                    y = 1.0
+                elif y < -1.0:
+                    y = -1.0
+                iv = int(round(y * 32767.0))
+                a[i + c] = max(-32768, min(32767, iv))
+        return a.tobytes()
+
+    def _process_float32(self, raw: bytes, n_ch: int) -> bytes:
+        a = array.array("f")
+        a.frombytes(raw)
+        for i in range(0, len(a), n_ch):
+            for c in range(n_ch):
+                y = self._graphic_eq.process_sample(float(a[i + c]), c)
+                if y > 1.0:
+                    y = 1.0
+                elif y < -1.0:
+                    y = -1.0
+                a[i + c] = y
+        return a.tobytes()
+
+    @pyqtSlot(object)
+    def process_buffer(self, payload: object) -> None:
+        if not self._active:
+            return
+        if not isinstance(payload, tuple) or len(payload) != 5:
+            return
+        raw, sample_rate, channel_count, sample_format, bytes_per_frame = payload
+        if not isinstance(raw, (bytes, bytearray)) or not raw:
+            return
+        fmt = QAudioFormat()
+        fmt.setSampleRate(int(sample_rate))
+        fmt.setChannelCount(int(channel_count))
+        fmt.setSampleFormat(sample_format)
+        if not fmt.isValid():
+            return
+        n_ch = int(channel_count)
+        if n_ch < 1:
+            return
+        if self._channels != n_ch:
+            self._channels = n_ch
+            gains = self._graphic_eq.gains_db()
+            self._graphic_eq = GraphicEQProcessor(n_ch)
+            self._graphic_eq.set_gains_db(gains)
+        self._graphic_eq.set_sample_rate(float(fmt.sampleRate()))
+        raw = bytes(raw)
+        if int(bytes_per_frame) <= 0 or len(raw) < int(bytes_per_frame):
+            return
+
+        if not self._ensure_sink(fmt):
+            return
+
+        sf = fmt.sampleFormat()
+        if sf == QAudioFormat.SampleFormat.Int16:
+            out = self._process_int16(raw, n_ch)
+        elif sf == QAudioFormat.SampleFormat.Float:
+            out = self._process_float32(raw, n_ch)
+        else:
+            out = raw
+        self._write_all_sink(out)
+
+
 class PlayerTab(QWidget):
     """Изменения избранного / рецензий — для обновления вкладки «Моё»."""
 
@@ -207,6 +371,12 @@ class PlayerTab(QWidget):
     transport_state_changed = pyqtSignal(bool, bool)
     progress_changed = pyqtSignal(int, int)
     volume_changed = pyqtSignal(int)
+    _eq_active_changed = pyqtSignal(bool)
+    _eq_gains_changed = pyqtSignal(list)
+    _eq_volume_changed = pyqtSignal(float)
+    _eq_reset_requested = pyqtSignal()
+    _eq_shutdown_requested = pyqtSignal()
+    _eq_buffer_received = pyqtSignal(object)
 
     def __init__(
         self,
@@ -241,10 +411,39 @@ class PlayerTab(QWidget):
         self._graphic_eq = GraphicEQProcessor(self._graphic_eq_channels)
         self._audio_out = QAudioOutput(self)
         self._buf_out = QAudioBufferOutput(self)
-        self._buf_out.audioBufferReceived.connect(self._on_eq_audio_buffer)
-        self._eq_sink: Optional[QAudioSink] = None
-        self._eq_sink_io: Optional[QIODevice] = None
-        self._eq_sink_format: Optional[QAudioFormat] = None
+        self._player.setAudioOutput(self._audio_out)
+        self._player.setAudioBufferOutput(self._buf_out)
+        self._eq_pipeline_active: Optional[bool] = None
+        self._eq_buffer_connected = False
+        self._eq_thread = QThread(self)
+        self._eq_worker = _EqAudioWorker()
+        self._eq_worker.moveToThread(self._eq_thread)
+        self._eq_thread.finished.connect(self._eq_worker.deleteLater)
+        self._eq_active_changed.connect(
+            self._eq_worker.set_active,
+            Qt.ConnectionType.BlockingQueuedConnection,
+        )
+        self._eq_buffer_received.connect(
+            self._eq_worker.process_buffer,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._eq_gains_changed.connect(
+            self._eq_worker.set_gains_db,
+            Qt.ConnectionType.BlockingQueuedConnection,
+        )
+        self._eq_volume_changed.connect(
+            self._eq_worker.set_volume,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._eq_reset_requested.connect(
+            self._eq_worker.reset,
+            Qt.ConnectionType.BlockingQueuedConnection,
+        )
+        self._eq_shutdown_requested.connect(
+            self._eq_worker.shutdown,
+            Qt.ConnectionType.BlockingQueuedConnection,
+        )
+        self._eq_thread.start()
         self.sync_equalizer_from_settings()
         self._player.positionChanged.connect(self._on_position_changed)
         self._player.durationChanged.connect(self._on_duration_changed)
@@ -567,7 +766,7 @@ class PlayerTab(QWidget):
         if not self._playlist:
             return
         self._player.setPosition(int(pos_ms))
-        self._graphic_eq.reset()
+        self._reset_equalizer_state()
         self._refresh_progress_time_labels()
         self._emit_progress_state()
 
@@ -689,9 +888,13 @@ class PlayerTab(QWidget):
         """Остановить декодер и вывод, чтобы при пересоздании окна звук не «висел» в фоне."""
         self._player.stop()
         self._player.setSource(QUrl())
+        self._disconnect_eq_buffer_stream()
         self._player.setAudioBufferOutput(None)
         self._player.setAudioOutput(None)
-        self._release_eq_sink()
+        if self._eq_thread.isRunning():
+            self._eq_shutdown_requested.emit()
+            self._eq_thread.quit()
+            self._eq_thread.wait(1500)
         QCoreApplication.processEvents()
 
     def apply_language_restart_snapshot(self, data: dict) -> bool:
@@ -919,9 +1122,8 @@ class PlayerTab(QWidget):
 
     def _apply_volume(self) -> None:
         ml = self._compute_master_linear()
-        self._audio_out.setVolume(ml)
-        if self._eq_sink is not None:
-            self._eq_sink.setVolume(ml)
+        self._audio_out.setVolume(0.0 if self._equalizer_is_active() else ml)
+        self._eq_volume_changed.emit(float(ml))
         volume_widget = getattr(self, "_volume", None)
         if volume_widget is not None:
             self.volume_changed.emit(int(volume_widget.value()))
@@ -948,124 +1150,64 @@ class PlayerTab(QWidget):
     def _equalizer_is_active(self) -> bool:
         return any(abs(float(gain)) >= 1e-3 for gain in self._graphic_eq.gains_db())
 
-    def _sync_audio_pipeline(self) -> None:
-        if self._equalizer_is_active():
-            self._player.setAudioOutput(None)
-            self._player.setAudioBufferOutput(self._buf_out)
+    def _reset_equalizer_state(self) -> None:
+        self._graphic_eq.reset()
+        self._eq_reset_requested.emit()
+
+    def _connect_eq_buffer_stream(self) -> None:
+        if self._eq_buffer_connected:
             return
-        self._player.setAudioBufferOutput(None)
-        self._release_eq_sink()
-        self._player.setAudioOutput(self._audio_out)
+        self._buf_out.audioBufferReceived.connect(self._forward_eq_audio_buffer)
+        self._eq_buffer_connected = True
 
-    def sync_equalizer_from_settings(self) -> None:
-        gains = equalizer_settings.band_gains_db()
-        self._graphic_eq.set_gains_db(gains)
-        self._sync_audio_pipeline()
-        self._apply_volume()
-
-    def _release_eq_sink(self) -> None:
-        if self._eq_sink is not None:
-            self._eq_sink.stop()
-            self._eq_sink.deleteLater()
-            self._eq_sink = None
-        self._eq_sink_io = None
-        self._eq_sink_format = None
-
-    def _ensure_eq_sink(self, fmt: QAudioFormat) -> bool:
-        if self._eq_sink is not None and self._eq_sink_format is not None:
-            if (
-                fmt.sampleRate() == self._eq_sink_format.sampleRate()
-                and fmt.channelCount() == self._eq_sink_format.channelCount()
-                and fmt.sampleFormat() == self._eq_sink_format.sampleFormat()
-            ):
-                return self._eq_sink_io is not None
-        self._release_eq_sink()
-        dev = QMediaDevices.defaultAudioOutput()
-        if dev.isNull():
-            return False
-        self._eq_sink = QAudioSink(dev, fmt, self)
-        self._eq_sink_io = self._eq_sink.start()
-        if self._eq_sink_io is None:
-            self._eq_sink = None
-            return False
-        self._eq_sink_format = fmt
-        self._eq_sink.setVolume(self._compute_master_linear())
-        return True
-
-    def _write_all_sink(self, data: bytes) -> None:
-        if not self._eq_sink_io:
+    def _disconnect_eq_buffer_stream(self) -> None:
+        if not self._eq_buffer_connected:
             return
-        off = 0
-        b = data
-        while off < len(b):
-            n = self._eq_sink_io.write(b[off:])
-            if n is None or n <= 0:
-                break
-            off += int(n)
+        try:
+            self._buf_out.audioBufferReceived.disconnect(self._forward_eq_audio_buffer)
+        except TypeError:
+            pass
+        self._eq_buffer_connected = False
 
-    def _eq_process_int16(self, raw: bytes, n_ch: int) -> bytes:
-        a = array.array("h")
-        a.frombytes(raw)
-        for i in range(0, len(a), n_ch):
-            for c in range(n_ch):
-                x = a[i + c] / 32768.0
-                y = self._graphic_eq.process_sample(x, c)
-                if y > 1.0:
-                    y = 1.0
-                elif y < -1.0:
-                    y = -1.0
-                iv = int(round(y * 32767.0))
-                a[i + c] = max(-32768, min(32767, iv))
-        return a.tobytes()
-
-    def _eq_process_float32(self, raw: bytes, n_ch: int) -> bytes:
-        a = array.array("f")
-        a.frombytes(raw)
-        for i in range(0, len(a), n_ch):
-            for c in range(n_ch):
-                y = self._graphic_eq.process_sample(float(a[i + c]), c)
-                if y > 1.0:
-                    y = 1.0
-                elif y < -1.0:
-                    y = -1.0
-                a[i + c] = y
-        return a.tobytes()
-
-    def _on_eq_audio_buffer(self, buffer: QAudioBuffer) -> None:
-        if not self._equalizer_is_active():
-            return
+    def _forward_eq_audio_buffer(self, buffer: QAudioBuffer) -> None:
         if not buffer.isValid() or buffer.frameCount() == 0:
             return
         fmt = buffer.format()
         if not fmt.isValid():
             return
-        n_ch = fmt.channelCount()
-        if n_ch < 1:
-            return
-        if self._graphic_eq_channels != n_ch:
-            self._graphic_eq_channels = n_ch
-            self._graphic_eq = GraphicEQProcessor(n_ch)
-            self._graphic_eq.set_gains_db(equalizer_settings.band_gains_db())
-        self._graphic_eq.set_sample_rate(float(fmt.sampleRate()))
-
+        expected = buffer.frameCount() * fmt.bytesPerFrame()
         raw = bytes(buffer.data())
-        bpf = fmt.bytesPerFrame()
-        expected = buffer.frameCount() * bpf
         if len(raw) < expected:
             return
-        raw = raw[:expected]
+        payload = (
+            raw[:expected],
+            int(fmt.sampleRate()),
+            int(fmt.channelCount()),
+            fmt.sampleFormat(),
+            int(fmt.bytesPerFrame()),
+        )
+        self._eq_buffer_received.emit(payload)
 
-        if not self._ensure_eq_sink(fmt):
+    def _sync_audio_pipeline(self) -> None:
+        active = self._equalizer_is_active()
+        if self._eq_pipeline_active == active:
+            return
+        self._eq_pipeline_active = active
+        if active:
+            self._connect_eq_buffer_stream()
+        else:
+            self._disconnect_eq_buffer_stream()
+        self._eq_active_changed.emit(active)
+        if active:
+            self._reset_equalizer_state()
             return
 
-        sf = fmt.sampleFormat()
-        if sf == QAudioFormat.SampleFormat.Int16:
-            out = self._eq_process_int16(raw, n_ch)
-        elif sf == QAudioFormat.SampleFormat.Float:
-            out = self._eq_process_float32(raw, n_ch)
-        else:
-            out = raw
-        self._write_all_sink(out)
+    def sync_equalizer_from_settings(self) -> None:
+        gains = equalizer_settings.band_gains_db()
+        self._graphic_eq.set_gains_db(gains)
+        self._eq_gains_changed.emit(gains)
+        self._sync_audio_pipeline()
+        self._apply_volume()
 
     def _toggle_equalizer_popup(self) -> None:
         self._equalizer_popup.toggle_near(self._btn_playback_settings)
@@ -1096,7 +1238,7 @@ class PlayerTab(QWidget):
     def _on_seek_released(self) -> None:
         self._user_seeking = False
         self._player.setPosition(self._progress.value())
-        self._graphic_eq.reset()
+        self._reset_equalizer_state()
 
     def _toggle_play(self) -> None:
         if not self._playlist:
@@ -1203,7 +1345,7 @@ class PlayerTab(QWidget):
             self._refresh_track_sidebar()
             self._refresh_progress_time_labels(0)
             self._apply_volume()
-            self._graphic_eq.reset()
+            self._reset_equalizer_state()
             return
         self._player.stop()
         self._player.setSource(QUrl())
@@ -1214,7 +1356,7 @@ class PlayerTab(QWidget):
         self._refresh_track_sidebar()
         self._refresh_progress_time_labels(0)
         self._apply_volume()
-        self._graphic_eq.reset()
+        self._reset_equalizer_state()
 
     def _load_artwork(self, url: Optional[str]) -> None:
         if self._art_reply is not None:
@@ -1541,7 +1683,7 @@ class PlayerTab(QWidget):
         self._emit_playback_state()
         self._emit_progress_state()
 
-    def set_track(self, music_item: dict) -> None:
+    def set_track(self, music_item: dict, *, force_play: bool = False) -> None:
         """Задаёт текущий трек (из поиска); очередь = один трек, пока нет альбома из API."""
         self._flush_listen_session()
         self._queue_artwork_fallback = ""
@@ -1563,7 +1705,7 @@ class PlayerTab(QWidget):
         self._progress.blockSignals(False)
         self._load_current()
         self._rebuild_list()
-        if playback_settings.autoplay():
+        if force_play or playback_settings.autoplay():
             self._player.play()
         else:
             self._player.stop()

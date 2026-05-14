@@ -114,6 +114,8 @@ class GraphicEQProcessor:
     def process_sample(self, x: float, channel: int) -> float:
         c = channel % self._ch
         y = x
-        for bq in self._chains[c]:
+        for i, bq in enumerate(self._chains[c]):
+            if abs(self._gains_db[i]) < 1e-4:
+                continue
             y = bq.process(y)
         return y

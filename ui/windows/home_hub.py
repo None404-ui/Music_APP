@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -30,6 +31,10 @@ class HomeHubWidget(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 8)
         root.setSpacing(8)
+
+        self._heading = QLabel()
+        self._heading.setObjectName("homeHubHeading")
+        root.addWidget(self._heading)
 
         toggle_row = QHBoxLayout()
         toggle_row.setSpacing(8)
@@ -63,16 +68,27 @@ class HomeHubWidget(QWidget):
 
         self._btn_popular.clicked.connect(self._sync_stack_from_buttons)
         self._btn_reviews.clicked.connect(self._sync_stack_from_buttons)
-        self._stack.currentChanged.connect(self.sub_page_changed.emit)
+        self._stack.currentChanged.connect(self._on_stack_changed)
 
         self._btn_popular.setChecked(True)
         self._stack.setCurrentIndex(self._SUB_POPULAR)
+        self._set_heading(self._SUB_POPULAR)
 
     def _sync_stack_from_buttons(self) -> None:
         if self._btn_popular.isChecked():
             animate_stack_fade(self._stack, self._SUB_POPULAR)
         elif self._btn_reviews.isChecked():
             animate_stack_fade(self._stack, self._SUB_REVIEWS)
+
+    def _set_heading(self, index: int) -> None:
+        if index == self._SUB_REVIEWS:
+            self._heading.setText(i18n.tr("ТОП РЕЦЕНЗИЙ"))
+        else:
+            self._heading.setText(i18n.tr("ПОПУЛЯРНОЕ"))
+
+    def _on_stack_changed(self, index: int) -> None:
+        self._set_heading(index)
+        self.sub_page_changed.emit(index)
 
     def reset_to_popular(self) -> None:
         self._group.blockSignals(True)
@@ -82,6 +98,7 @@ class HomeHubWidget(QWidget):
         finally:
             self._group.blockSignals(False)
         self._stack.setCurrentIndex(self._SUB_POPULAR)
+        self._set_heading(self._SUB_POPULAR)
 
     def current_sub_index(self) -> int:
         return self._stack.currentIndex()

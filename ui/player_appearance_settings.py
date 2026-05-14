@@ -7,18 +7,28 @@ import os
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-from PyQt6.QtCore import QSettings, QUrl
+from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QColor
 
 _ORG = "CRATES"
 _APP = "CRATES"
 _JSON_KEY = "player_appearance/state_json"
+_scope_prefix = ""
 
 PageMode = Literal["default", "color", "image"]
 
 
 def _s() -> QSettings:
     return QSettings(QSettings.Scope.UserScope, _ORG, _APP)
+
+
+def set_user_scope(user_id: int | None) -> None:
+    global _scope_prefix
+    _scope_prefix = f"users/{int(user_id)}/" if user_id else ""
+
+
+def _key(name: str) -> str:
+    return f"{_scope_prefix}{name}"
 
 
 def _rgba(c: QColor) -> tuple[int, int, int, int]:
@@ -113,7 +123,7 @@ def defaults() -> PlayerAppearanceState:
 
 
 def load() -> PlayerAppearanceState:
-    raw = _s().value(_JSON_KEY, "", str)
+    raw = _s().value(_key(_JSON_KEY), "", str)
     if not (raw or "").strip():
         return defaults()
     try:
@@ -126,7 +136,7 @@ def load() -> PlayerAppearanceState:
 
 
 def save(state: PlayerAppearanceState) -> None:
-    _s().setValue(_JSON_KEY, json.dumps(state.to_json_dict(), ensure_ascii=False))
+    _s().setValue(_key(_JSON_KEY), json.dumps(state.to_json_dict(), ensure_ascii=False))
 
 
 def color_css_rgba(t: tuple[int, int, int, int]) -> str:
@@ -203,21 +213,13 @@ def _preview_band_header_info(
 
 
 def resolved_page_background_style(state: PlayerAppearanceState) -> str:
-    """CSS-фрагмент для слоя ambientPlayerFill (цвет или картинка). Режим default сюда не попадает."""
+    """CSS fallback for color backgrounds. Images are painted by widgets."""
     if state.page_mode == "default":
         return "background-color: rgba(0, 0, 0, 0);"
     if state.page_mode == "image":
         img = (state.page_image_path or "").strip()
         if img and os.path.isfile(img):
-            url = QUrl.fromLocalFile(os.path.abspath(img)).toString()
-            return (
-                f'background-image: url("{url}");'
-                "background-position: center;"
-                "background-repeat: no-repeat;"
-                "background-size: cover;"
-                "background-attachment: fixed;"
-                "background-color: transparent;"
-            )
+            return "background-color: rgba(0, 0, 0, 0);"
         # файл пропал — подложка цвета страницы
         return f"background-color: {color_css_rgba(state.page_color_rgba)};"
     return f"background-color: {color_css_rgba(state.page_color_rgba)};"
@@ -339,30 +341,8 @@ def volume_slider_fragment(state: PlayerAppearanceState) -> str:
     )
 
 
-def volume_slider_preview_fragment(state: PlayerAppearanceState) -> str:
-    """Те же цвета для превью (objectName playerVolumePreview)."""
-    g = color_css_rgba(state.volume_groove_rgba)
-    f = color_css_rgba(state.volume_filled_rgba)
-    hf = color_css_rgba(state.volume_handle_fill_rgba)
-    hb = color_css_rgba(state.volume_handle_border_rgba)
-    border_dark = "#312938"
-    oid = "playerVolumePreview"
-    return (
-        f"QSlider#{oid}::groove:horizontal {{"
-        f"background-color: {g}; border: 2px solid {border_dark}; height: 6px; border-radius: 0px; }}"
-        f"QSlider#{oid}::sub-page:horizontal {{"
-        f"background-color: {f}; border: 2px solid {border_dark}; height: 6px; border-radius: 0px; }}"
-        f"QSlider#{oid}::add-page:horizontal {{"
-        f"background-color: {g}; border: 2px solid {border_dark}; height: 6px; border-radius: 0px; }}"
-        f"QSlider#{oid}::handle:horizontal {{"
-        f"background-color: {hf}; border: 2px solid {hb}; width: 12px; height: 14px; border-radius: 0px; margin: -6px 0; }}"
-        f"QSlider#{oid}::handle:horizontal:hover {{"
-        f"background-color: {hb}; border-color: {border_dark}; }}"
-    )
-
-
 def player_tab_widget_stylesheet(state: PlayerAppearanceState) -> str:
-    """Плеер: карточки и внутренности; фон страницы рисует слой ambientPlayerFill под вкладкой."""
+    """Плеер: фон страницы, карточки и внутренности."""
     return (
         "QWidget#playerPage { background-color: rgba(0, 0, 0, 0); }"
         + card_style_fragment(True, state)
@@ -388,7 +368,6 @@ def player_tab_dynamic_stylesheet(state: PlayerAppearanceState) -> str:
 
 def editor_preview_style_sheet(state: PlayerAppearanceState) -> str:
     """Стили макета-превью: те же пропорции цветов, свои objectName."""
-    body = preview_page_background_style(state)
     band_css, header_css, info_inner = _preview_band_header_info(state)
     br = _q_rgb(state.card_border_rgba)
     rc = _q_rgb(state.right_card_rgba)
@@ -415,7 +394,7 @@ def editor_preview_style_sheet(state: PlayerAppearanceState) -> str:
             "border-radius: 8px; border: 1px solid #CB883A;"
         )
     return (
-        f"QWidget#playerPagePreview {{ {body} }}"
+        "QWidget#playerPagePreview { background-color: rgba(0, 0, 0, 0); }"
         + _card_style_for_object_id("playerLeftCardPreview", True, state)
         + _card_style_for_object_id("playerRightCardPreview", False, state)
         + "QWidget#playerCtrlBlockPreview { background: transparent; }"
@@ -425,7 +404,10 @@ def editor_preview_style_sheet(state: PlayerAppearanceState) -> str:
         f"QFrame#playerTrackRowPreview {{ {row1} }}"
         f"QFrame#playerTrackRowActivePreview {{ {row2} }}"
         "QScrollArea#playerAlbumScrollPreview { background: transparent; border: none; }"
-        + volume_slider_preview_fragment(state)
+        "QFrame#playerRightCardPreview QScrollArea { border-bottom-left-radius: 18px; border-bottom-right-radius: 18px; }"
+        "QScrollArea#playerAlbumScrollPreview > QWidget { background: transparent; }"
+        "QScrollArea#playerAlbumScrollPreview > QWidget > QWidget { background: transparent; }"
+        + volume_slider_fragment(state)
     )
 
 

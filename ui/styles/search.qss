@@ -13,14 +13,17 @@ QScrollArea#searchPageScroll {
 QScrollArea#searchPageScroll > QWidget > QWidget {
     background-color: transparent;
 }
+QWidget#searchInner {
+    background-color: transparent;
+}
 
 /* Компактная строка поиска — в общей палитре приложения
    (rust-бордер, светлый beige фон, dark purple текст, оранжевый фокус) */
 QLineEdit#searchInput {
-    background-color: #CFC89A;
+    background-color: rgba(49, 41, 56, 0.74);
     border: 2px solid #A14016;
     border-radius: 10px;
-    color: #312938;
+    color: #CFC89A;
     font-family: "Courier New";
     font-size: 15px;
     font-weight: bold;
@@ -31,7 +34,7 @@ QLineEdit#searchInput {
 }
 QLineEdit#searchInput:focus {
     border: 2px solid #CB883A;
-    background-color: #D4CFA0;
+    background-color: rgba(49, 41, 56, 0.86);
 }
 
 QPushButton#btnSearchCompact {
@@ -47,6 +50,46 @@ QPushButton#btnSearchCompact:hover {
 }
 QPushButton#btnSearchCompact:pressed {
     background-color: #312938;
+    color: #CFC89A;
+}
+
+QWidget#searchPage QPushButton#btnNav {
+    background-color: #3d3347;
+    color: #89A194;
+    border: 1px solid #4a3a54;
+    border-radius: 16px;
+    padding: 6px 20px;
+    font-family: "Courier New";
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+QWidget#searchPage QPushButton#btnNav:hover {
+    background-color: #A14016;
+    color: #CFC89A;
+}
+QWidget#searchPage QPushButton#btnNav:checked {
+    background-color: #CB883A;
+    color: #312938;
+    border: 1px solid #A14016;
+}
+
+QPushButton#btnHistoryClear {
+    background-color: transparent;
+    color: #A14016;
+    border: 1px solid #A14016;
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+QPushButton#btnHistoryClear:hover {
+    background-color: rgba(161, 64, 22, 0.14);
+    color: #CFC89A;
+}
+QPushButton#btnHistoryClear:pressed {
+    background-color: #A14016;
     color: #CFC89A;
 }
 

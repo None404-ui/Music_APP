@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.session import UserSession
+from ui.ad_banner import AdBannerWidget
 from ui.ambient_background import ContentWithAmbient
 from ui.interactive_fx import animate_stack_fade
 from ui.windows.artist_profile_tab import ArtistProfileTab
@@ -21,13 +22,19 @@ from ui.windows.home_hub import HomeHubWidget
 from ui.windows.mini_player_bar import MiniPlayerBar
 from ui.windows.player_tab import PlayerTab
 from ui.windows.popular_tab import PopularTab
-from ui.windows.review_detail_dialog import ReviewDetailDialog
+from ui.windows.review_detail_dialog import ReviewDetailPage
 from ui.windows.reviews_tab import ReviewsTab
 from ui.windows.search_tab import SearchTab
 from ui.windows.selected_tab import SelectedTab
 from ui.windows.player_appearance_page import PlayerAppearancePage
 from ui.windows.settings_tab import SettingsTab
-from ui import i18n, playback_resume, player_appearance_settings
+from ui import (
+    equalizer_settings,
+    i18n,
+    playback_resume,
+    playback_settings,
+    player_appearance_settings,
+)
 
 _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
@@ -167,6 +174,7 @@ class MainWindow(QMainWindow):
     _SETTINGS_PAGE_INDEX = 4
     _ARTIST_PAGE_INDEX = 5
     _PLAYER_APPEARANCE_PAGE_INDEX = 6
+    _REVIEW_DETAIL_PAGE_INDEX = 7
 
     def _open_artist_profile(self, artist_name: str) -> None:
         name = (artist_name or "").strip()
@@ -196,6 +204,9 @@ class MainWindow(QMainWindow):
     def __init__(self, session: UserSession):
         super().__init__()
         self._session = session
+        playback_settings.set_user_scope(session.user_id)
+        player_appearance_settings.set_user_scope(session.user_id)
+        equalizer_settings.set_user_scope(session.user_id)
         self._logout_restart = False
         self._language_restart = False
         self.setWindowTitle(i18n.tr("CRATES"))
@@ -215,13 +226,15 @@ class MainWindow(QMainWindow):
         self._ambient_host = ContentWithAmbient()
         self._stack = self._ambient_host.page_stack
         root_layout.addWidget(self._ambient_host, stretch=1)
+        self._ad_banner = AdBannerWidget(session)
+        self._ambient_host.set_top_banner_widget(self._ad_banner, height=124, margin=16)
 
         self._artist_return_index = 0
+        self._review_return_index = self._HOME_PAGE_INDEX
 
         def on_select_track(music_item: dict) -> None:
-            self._player.set_track(music_item)
-            animate_stack_fade(self._stack, self._PLAYER_PAGE_INDEX)
-            self._side_nav.set_current_index(self._PLAYER_PAGE_INDEX)
+            self._player.set_track(music_item, force_play=True)
+            self._sync_mini_player_visibility()
 
         def on_open_album_queue(tracks: list, source_card: dict | None = None) -> None:
             ctx_id = None
@@ -258,23 +271,28 @@ class MainWindow(QMainWindow):
         )
         self._ambient_host.set_overlay_widget(self._mini_player, height=94, margin=14)
 
-        def on_open_review_dialog(review: dict) -> None:
+        def on_open_review_page(review: dict) -> None:
             if not isinstance(review, dict):
                 return
-            dlg = ReviewDetailDialog(
-                review,
-                session,
-                on_changed=self._reviews_tab.reload_content,
-                on_open_artist=self._open_artist_profile,
-                parent=self,
-            )
-            dlg.exec()
+            cur = self._stack.currentIndex()
+            if cur == self._REVIEW_DETAIL_PAGE_INDEX:
+                cur = self._review_return_index
+            self._review_return_index = cur
+            self._review_detail.load_review(review, return_index=cur)
+            animate_stack_fade(self._stack, self._REVIEW_DETAIL_PAGE_INDEX)
+
+        self._review_detail = ReviewDetailPage(
+            session,
+            on_back=self._close_review_detail,
+            on_changed=self._refresh_review_sources,
+            on_open_artist=self._open_artist_profile,
+        )
 
         self._selected_tab = SelectedTab(
             session,
             on_play_track=on_select_track,
             on_open_album=on_open_album_queue,
-            on_open_review=on_open_review_dialog,
+            on_open_review=on_open_review_page,
             on_open_artist=self._open_artist_profile,
         )
 
@@ -305,7 +323,7 @@ class MainWindow(QMainWindow):
         self._reviews_tab = ReviewsTab(
             session,
             on_open_artist=self._open_artist_profile,
-            on_open_review=on_open_review_dialog,
+            on_open_review=on_open_review_page,
         )
 
         self._home_hub = HomeHubWidget(self._popular_tab, self._reviews_tab)
@@ -315,7 +333,7 @@ class MainWindow(QMainWindow):
             on_select_track=on_select_track,
             on_open_album=on_open_album_queue,
             on_open_artist=self._open_artist_profile,
-            on_open_review=on_open_review_dialog,
+            on_open_review=on_open_review_page,
         )
         self._search_tab.library_changed.connect(self._selected_tab.reload_content)
 
@@ -327,6 +345,7 @@ class MainWindow(QMainWindow):
             self._settings,
             self._artist_profile,
             self._player_appearance,
+            self._review_detail,
         ]
         for page in self._pages:
             page.setSizePolicy(
@@ -398,6 +417,24 @@ class MainWindow(QMainWindow):
         animate_stack_fade(self._stack, self._SETTINGS_PAGE_INDEX)
         self._side_nav.set_current_index(self._SETTINGS_PAGE_INDEX)
 
+    def _close_review_detail(self, return_index: int | None = None) -> None:
+        idx = self._review_return_index if return_index is None else return_index
+        if (
+            idx == self._REVIEW_DETAIL_PAGE_INDEX
+            or idx < 0
+            or idx >= self._stack.count()
+        ):
+            idx = self._HOME_PAGE_INDEX
+        animate_stack_fade(self._stack, idx)
+        nav = idx if idx <= self._SETTINGS_PAGE_INDEX else self._HOME_PAGE_INDEX
+        self._side_nav.set_current_index(nav)
+
+    def _refresh_review_sources(self) -> None:
+        if hasattr(self, "_reviews_tab"):
+            self._reviews_tab.reload_content()
+        if hasattr(self, "_selected_tab"):
+            self._selected_tab.reload_content()
+
     def _apply_player_appearance(self) -> None:
         self._player.apply_appearance_settings()
         self._mini_player.apply_appearance_settings()
@@ -408,12 +445,13 @@ class MainWindow(QMainWindow):
             self._PLAYER_PAGE_INDEX,
             self._SETTINGS_PAGE_INDEX,
             self._PLAYER_APPEARANCE_PAGE_INDEX,
+            self._REVIEW_DETAIL_PAGE_INDEX,
         }
         should_show = (
             self._stack.currentIndex() not in hidden_pages
             and self._mini_player.has_track()
         )
-        self._mini_player.setVisible(should_show)
+        self._ambient_host.set_overlay_visible(should_show)
         if should_show:
             self._mini_player.raise_()
 

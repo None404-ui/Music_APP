@@ -5,32 +5,104 @@ QWidget#playerAppearancePage {
 }
 
 QLabel#playerAppearanceTitle {
-    font-family: "Segoe UI", "Arial", sans-serif;
+    font-family: "Courier New";
     font-size: 14px;
     font-weight: bold;
-    color: #312938;
+    color: #A14016;
     letter-spacing: 2px;
 }
 
 QLabel#playerAppearanceHint {
-    font-family: "Courier New", monospace;
+    font-family: "Courier New";
     font-size: 10px;
     color: #6B5348;
+}
+
+QLabel#playerAppearanceControlLabel {
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+    color: #CFC89A;
+}
+
+QLabel#playerAppearanceFileLabel {
+    font-family: "Courier New";
+    font-size: 10px;
+    color: #89A194;
+}
+
+QComboBox#playerPageBgMode {
+    font-family: "Courier New";
+    font-size: 10px;
+    color: #CFC89A;
+    background-color: rgba(49, 41, 56, 0.72);
+    border: 1px solid #89A194;
+    border-radius: 4px;
+    padding: 4px 10px;
+    min-width: 190px;
+}
+QComboBox#playerPageBgMode:hover {
+    border-color: #CB883A;
+}
+QComboBox#playerPageBgMode::drop-down {
+    border: none;
+    width: 20px;
+}
+QComboBox#playerPageBgMode::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #89A194;
+    width: 0px;
+    height: 0px;
+}
+QComboBox#playerPageBgMode QAbstractItemView {
+    font-family: "Courier New";
+    font-size: 10px;
+    color: #CFC89A;
+    background-color: #312938;
+    border: 1px solid #89A194;
+    selection-background-color: #A14016;
+    selection-color: #F5E6C8;
+}
+
+QCheckBox#playerAppearanceCheck {
+    font-family: "Courier New";
+    font-size: 10px;
+    color: #CFC89A;
+    spacing: 6px;
+}
+QCheckBox#playerAppearanceCheck::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #89A194;
+    background-color: rgba(49, 41, 56, 0.72);
+    border-radius: 3px;
+}
+QCheckBox#playerAppearanceCheck::indicator:checked {
+    background-color: #89A194;
+    border-color: #CFC89A;
 }
 
 QPushButton#playerAppearanceToolBtn {
     font-family: "Courier New";
     font-size: 9px;
     font-weight: bold;
-    color: #312938;
-    background-color: #E4DFC8;
+    color: #CFC89A;
+    background-color: #312938;
     border: 2px solid #89A194;
     border-radius: 0px;
     padding: 6px 10px;
 }
 QPushButton#playerAppearanceToolBtn:hover {
-    background-color: #CFC89A;
+    background-color: #A14016;
     border-color: #CB883A;
+    color: #F5E6C8;
+}
+QPushButton#playerAppearanceToolBtn:disabled {
+    color: rgba(207, 200, 154, 0.45);
+    background-color: rgba(49, 41, 56, 0.45);
+    border-color: rgba(137, 161, 148, 0.45);
 }
 
 QPushButton#playerAppearanceActionBtn {
