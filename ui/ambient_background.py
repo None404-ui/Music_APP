@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import os
 import random
-from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtProperty
+from PyQt6.QtCore import QEvent, Qt, QTimer, QSize, pyqtProperty
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
 from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 
@@ -194,10 +195,18 @@ class PlayerBackgroundFill(QWidget):
         self._color = QColor(0, 0, 0, 0)
         self._image_path = ""
         self._pixmap = QPixmap()
+        self._scaled_cache = QPixmap()
+        self._last_scaled_for = QSize(0, 0)
+        self._scale_timer = QTimer(self)
+        self._scale_timer.setSingleShot(True)
+        self._scale_timer.setInterval(80)
+        self._scale_timer.timeout.connect(self._rebuild_scaled_cache)
 
     def apply_state(self, state) -> None:
         self._image_path = ""
         self._pixmap = QPixmap()
+        self._scaled_cache = QPixmap()
+        self._last_scaled_for = QSize(0, 0)
         rgba = getattr(state, "page_color_rgba", (0, 0, 0, 0))
         self._color = QColor(rgba[0], rgba[1], rgba[2], rgba[3])
         if getattr(state, "page_mode", "") == "image":
@@ -207,20 +216,44 @@ class PlayerBackgroundFill(QWidget):
                 if not pm.isNull():
                     self._image_path = os.path.normpath(path)
                     self._pixmap = pm
+        if not self._pixmap.isNull():
+            self._rebuild_scaled_cache_for_size(self.size())
         self.update()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if not self._pixmap.isNull():
+            self._scale_timer.start()
+
+    def _rebuild_scaled_cache(self) -> None:
+        self._rebuild_scaled_cache_for_size(self.size())
+
+    def _rebuild_scaled_cache_for_size(self, size: QSize) -> None:
+        if (
+            not self._scaled_cache.isNull()
+            and size == self._last_scaled_for
+        ):
+            return
+        if self._pixmap.isNull() or size.width() < 2 or size.height() < 2:
+            self._scaled_cache = QPixmap()
+            self._last_scaled_for = QSize(0, 0)
+            return
+        self._scaled_cache = self._pixmap.scaled(
+            size,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._last_scaled_for = QSize(size)
 
     def paintEvent(self, event) -> None:
         del event
         p = QPainter(self)
         if not self._pixmap.isNull():
-            scaled = self._pixmap.scaled(
-                self.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = int((self.width() - scaled.width()) / 2)
-            y = int((self.height() - scaled.height()) / 2)
-            p.drawPixmap(x, y, scaled)
+            if not self._scaled_cache.isNull():
+                scaled = self._scaled_cache
+                x = int((self.width() - scaled.width()) / 2)
+                y = int((self.height() - scaled.height()) / 2)
+                p.drawPixmap(x, y, scaled)
         elif self._color.alpha() > 0:
             p.fillRect(self.rect(), self._color)
         p.end()

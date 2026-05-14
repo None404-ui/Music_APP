@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal, QThread
 from PyQt6.QtGui import QColor, QImage, QMouseEvent, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
-from backend.api_client import resolve_backend_media_url
+from backend.api_client import CratesApiClient, resolve_backend_media_url
 from ui import i18n
 from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from backend.session import UserSession
@@ -99,9 +99,9 @@ class AlbumCard(QFrame):
         self._artist.setObjectName("albumArtist")
         self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._artist.setWordWrap(True)
-        self._artist.setMaximumWidth(self._COVER_SIZE)
+        self._artist.setFixedWidth(self._COVER_SIZE)
         self._artist.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
             QSizePolicy.Policy.Preferred,
         )
 
@@ -165,6 +165,8 @@ class AlbumCard(QFrame):
         self._name.setText(_soft_wrap_long_words(title))
         artist = (item.get("artist") or "").strip()
         self._artist.set_artist(artist)
+        if artist:
+            self._artist.setText(_soft_wrap_long_words(artist))
         url = (item.get("artwork_url") or "").strip()
         self._apply_cover_placeholder()
         if url.startswith(("http://", "https://")):
@@ -605,6 +607,34 @@ class TrackRow(InteractiveRowFrame):
         super().leaveEvent(event)
 
 
+def _fetch_popular_feed_bundle(client: CratesApiClient) -> dict:
+    try:
+        status, body = client.get_json("/api/music-items/popular-feed/")
+    except OSError as e:
+        return {"kind": "os", "msg": str(e)}
+    except Exception as e:
+        return {"kind": "exc", "msg": str(e)}
+    if status != 200 or not isinstance(body, dict):
+        detail = ""
+        if isinstance(body, dict):
+            detail = str(body.get("detail", body))
+        return {"kind": "http", "status": status, "detail": detail}
+    api_base = (client.base_url or "").strip()
+    return {"kind": "ok", "body": body, "api_base": api_base}
+
+
+class _PopularTabReloadThread(QThread):
+    fetched = pyqtSignal(int, object)
+
+    def __init__(self, client: CratesApiClient, token: int, parent=None):
+        super().__init__(parent)
+        self._client = client
+        self._token = token
+
+    def run(self) -> None:
+        self.fetched.emit(self._token, _fetch_popular_feed_bundle(self._client))
+
+
 class PopularTab(QWidget):
     library_changed = pyqtSignal()
     def __init__(
@@ -618,6 +648,7 @@ class PopularTab(QWidget):
         super().__init__(parent)
         self.setObjectName("popularPage")
         self._session = session
+        self._popular_reload_token = 0
         self._on_play_tracks = on_play_tracks
         self._tracks_queue_source: list[dict] = []
         self._on_open_album = on_open_album
@@ -668,63 +699,53 @@ class PopularTab(QWidget):
         outer.addWidget(page_scroll)
         enable_transient_vertical_page_scroll(page_scroll)
 
-        QTimer.singleShot(0, self._load_popular)
+        QTimer.singleShot(0, self.reload_content_async)
 
     def reload_content(self) -> None:
-        """Снова запросить каталог с сервера (после правок в админке / перезапуска бэкенда)."""
-        self._load_popular()
+        """Снова запросить каталог с сервера (синхронно)."""
+        self._apply_popular_bundle(
+            _fetch_popular_feed_bundle(self._session.client)
+        )
 
-    def _on_album_card_clicked(self, item: dict) -> None:
-        if not self._on_open_album:
+    def reload_content_async(self) -> None:
+        """Запрос в фоне — не блокирует GUI при переключении вкладок."""
+        self._popular_reload_token += 1
+        tok = self._popular_reload_token
+        th = _PopularTabReloadThread(self._session.client, tok, self)
+        th.fetched.connect(self._on_popular_reload_async_done)
+        th.finished.connect(th.deleteLater)
+        th.start()
+
+    def _on_popular_reload_async_done(self, token: int, bundle: object) -> None:
+        if token != self._popular_reload_token:
             return
-        tracks = self._fetch_playback_queue(item)
-        self._status.hide()
-        if not tracks:
+        if not isinstance(bundle, dict):
             return
-        self._on_open_album(tracks, item)
+        self._apply_popular_bundle(bundle)
 
-    def _fetch_playback_queue(self, item: dict) -> list[dict]:
-        prov = (item.get("provider") or "").strip()
-        if prov == "collection":
-            cid = item.get("external_id")
-            if cid is None:
-                return []
-            path = f"/api/music-items/playback-queue/?collection_id={cid}"
-        else:
-            mid = item.get("id")
-            if mid is None:
-                return []
-            path = f"/api/music-items/playback-queue/?music_item_id={mid}"
-        st, body = self._session.client.get_json(path)
-        if st != 200 or not isinstance(body, dict):
-            return []
-        raw = body.get("tracks")
-        if not isinstance(raw, list):
-            return []
-        return [x for x in raw if isinstance(x, dict)]
-
-    def _load_popular(self) -> None:
-        try:
-            status, body = self._session.client.get_json("/api/music-items/popular-feed/")
-        except OSError as e:
-            self._status.setText(f"{i18n.tr('Нет связи с сервером:')} {e}")
+    def _apply_popular_bundle(self, bundle: dict) -> None:
+        kind = bundle.get("kind")
+        if kind == "os":
+            self._status.setText(
+                f"{i18n.tr('Нет связи с сервером:')} {bundle.get('msg', '')}"
+            )
             self._status.show()
             self._album_carousel.set_items([])
             self._artist_carousel.set_items([])
             self._clear_tracks()
             return
-        except Exception as e:
-            self._status.setText(f"{i18n.tr('Ошибка загрузки:')} {e}")
+        if kind == "exc":
+            self._status.setText(
+                f"{i18n.tr('Ошибка загрузки:')} {bundle.get('msg', '')}"
+            )
             self._status.show()
             self._album_carousel.set_items([])
             self._artist_carousel.set_items([])
             self._clear_tracks()
             return
-
-        if status != 200 or not isinstance(body, dict):
-            detail = ""
-            if isinstance(body, dict):
-                detail = str(body.get("detail", body))
+        if kind == "http":
+            detail = str(bundle.get("detail") or "")
+            status = int(bundle.get("status") or 0)
             self._status.setText(
                 f"{i18n.tr('Сервер ответил')} {status}. {detail}".strip()
             )
@@ -734,9 +755,17 @@ class PopularTab(QWidget):
             self._clear_tracks()
             return
 
-        self._status.hide()
+        body = bundle.get("body")
+        if not isinstance(body, dict):
+            self._status.setText(i18n.tr("Ошибка загрузки:"))
+            self._status.show()
+            self._album_carousel.set_items([])
+            self._artist_carousel.set_items([])
+            self._clear_tracks()
+            return
 
-        api_base = self._session.client.base_url if self._session else ""
+        self._status.hide()
+        api_base = str(bundle.get("api_base") or "")
 
         albums = body.get("albums")
         if not isinstance(albums, list):
@@ -796,6 +825,35 @@ class PopularTab(QWidget):
                 row["artwork_url"] = au
             norm_tracks.append(row)
         self._fill_tracks(norm_tracks)
+
+    def _on_album_card_clicked(self, item: dict) -> None:
+        if not self._on_open_album:
+            return
+        tracks = self._fetch_playback_queue(item)
+        self._status.hide()
+        if not tracks:
+            return
+        self._on_open_album(tracks, item)
+
+    def _fetch_playback_queue(self, item: dict) -> list[dict]:
+        prov = (item.get("provider") or "").strip()
+        if prov == "collection":
+            cid = item.get("external_id")
+            if cid is None:
+                return []
+            path = f"/api/music-items/playback-queue/?collection_id={cid}"
+        else:
+            mid = item.get("id")
+            if mid is None:
+                return []
+            path = f"/api/music-items/playback-queue/?music_item_id={mid}"
+        st, body = self._session.client.get_json(path)
+        if st != 200 or not isinstance(body, dict):
+            return []
+        raw = body.get("tracks")
+        if not isinstance(raw, list):
+            return []
+        return [x for x in raw if isinstance(x, dict)]
 
     def _clear_tracks(self) -> None:
         while self._tracks_layout.count():

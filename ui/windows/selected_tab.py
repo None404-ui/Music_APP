@@ -18,10 +18,11 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QStackedWidget,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QThread, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
+from backend.api_client import CratesApiClient
 from ui import i18n
 from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.artist_link_label import ArtistLinkLabel
@@ -39,6 +40,117 @@ def _response_list(body) -> list:
     if isinstance(body, dict) and "results" in body:
         return body["results"]
     return []
+
+
+def _load_favorites_core(
+    client: CratesApiClient,
+) -> tuple[int, list[dict], list[dict], list[dict]]:
+    st_fav, fav_body = client.get_json("/api/favorites/")
+    favs = _response_list(fav_body) if st_fav == 200 else []
+    fav_tracks: list[dict] = []
+    fav_albums: list[dict] = []
+    fav_playlists: list[dict] = []
+    for row in favs:
+        mi = row.get("music_item")
+        if not isinstance(mi, dict) or mi.get("id") is None:
+            continue
+        kind = (mi.get("kind") or "").strip().lower()
+        if kind == "album":
+            fav_albums.append(mi)
+        elif kind == "playlist":
+            fav_playlists.append(mi)
+        else:
+            row_mi = dict(mi)
+            row_mi["user_favorited"] = True
+            fav_tracks.append(row_mi)
+    return st_fav, fav_tracks, fav_albums, fav_playlists
+
+
+def _load_favorite_reviews_core(client: CratesApiClient) -> tuple[int, list[dict]]:
+    st_fav, body = client.get_json("/api/review-favorites/")
+    if st_fav != 200:
+        return st_fav, []
+    rows = _response_list(body)
+    reviews: list[dict] = []
+    for row in rows:
+        review_id = row.get("review")
+        try:
+            rid = int(review_id)
+        except (TypeError, ValueError):
+            continue
+        st_review, review_body = client.get_json(f"/api/reviews/{rid}/")
+        if st_review == 200 and isinstance(review_body, dict):
+            reviews.append(review_body)
+    return st_fav, reviews
+
+
+def _load_user_music_core(
+    client: CratesApiClient, user_id: int, kind: str
+) -> tuple[int, list[dict]]:
+    st, body = client.get_json(
+        f"/api/music-items/?artist_user_id={user_id}&kind={kind}"
+    )
+    items = _response_list(body) if st == 200 else []
+    out = [
+        dict(item)
+        for item in items
+        if isinstance(item, dict) and item.get("id") is not None
+    ]
+    return st, out
+
+
+def _load_own_collections_core(
+    client: CratesApiClient, user_id: int
+) -> tuple[int, list[dict]]:
+    st_col, col_body = client.get_json("/api/collections/")
+    collections = _response_list(col_body) if st_col == 200 else []
+    own = [c for c in collections if _owner_id(c) == user_id]
+    return st_col, own
+
+
+def _load_own_reviews_core(
+    client: CratesApiClient, user_id: int
+) -> tuple[int, list[dict]]:
+    st_rev, rev_body = client.get_json(f"/api/reviews/?author_id={user_id}")
+    reviews = _response_list(rev_body) if st_rev == 200 else []
+    return st_rev, [r for r in reviews if isinstance(r, dict)]
+
+
+def _gather_selected_reload_dict(client: CratesApiClient, user_id: int) -> dict:
+    st_fav, fav_tracks, fav_albums, fav_playlists = _load_favorites_core(client)
+    st_review_fav, favorite_reviews = _load_favorite_reviews_core(client)
+    st_own_tracks, own_tracks = _load_user_music_core(client, user_id, "track")
+    st_own_albums, own_albums = _load_user_music_core(client, user_id, "album")
+    st_col, own_collections = _load_own_collections_core(client, user_id)
+    st_rev, own_reviews = _load_own_reviews_core(client, user_id)
+    return {
+        "fav": (st_fav, fav_tracks, fav_albums, fav_playlists),
+        "fav_rev": (st_review_fav, favorite_reviews),
+        "own_tr": (st_own_tracks, own_tracks),
+        "own_al": (st_own_albums, own_albums),
+        "col": (st_col, own_collections),
+        "rev": (st_rev, own_reviews),
+    }
+
+
+class _SelectedTabReloadThread(QThread):
+    """Сбор данных «Моё» в фоне, чтобы не блокировать GUI (аудио, resize)."""
+
+    fetched = pyqtSignal(int, object)
+
+    def __init__(
+        self, client: CratesApiClient, user_id: int, token: int, parent=None
+    ):
+        super().__init__(parent)
+        self._client = client
+        self._user_id = user_id
+        self._token = token
+
+    def run(self) -> None:
+        self.fetched.emit(
+            self._token,
+            _gather_selected_reload_dict(self._client, self._user_id),
+        )
 
 
 def _owner_id(collection: dict):
@@ -247,6 +359,7 @@ class SelectedTab(QWidget):
         self.setAutoFillBackground(True)
         self._session = session
         self._client = session.client
+        self._reload_async_token = 0
         self._on_play_tracks = on_play_tracks
         self._on_open_album = on_open_album
         self._on_open_review = on_open_review
@@ -299,21 +412,39 @@ class SelectedTab(QWidget):
         self._btn_uploads.clicked.connect(self._sync_stack_from_buttons)
         self.reset_to_favorites()
 
-        self.reload_content()
+        self.reload_content_async()
 
     def reload_content(self) -> None:
-        """Перечитать списки с API для обеих внутренних страниц."""
-        (
-            st_fav,
-            fav_tracks,
-            fav_albums,
-            fav_playlists,
-        ) = self._load_favorites()
-        st_review_fav, favorite_reviews = self._load_favorite_reviews()
-        st_own_tracks, own_tracks = self._load_user_music("track")
-        st_own_albums, own_albums = self._load_user_music("album")
-        st_col, own_collections = self._load_own_collections()
-        st_rev, own_reviews = self._load_own_reviews()
+        """Перечитать списки с API (синхронно; после диалогов и т.п.)."""
+        self._apply_selected_reload_dict(
+            _gather_selected_reload_dict(self._client, self._session.user_id)
+        )
+
+    def reload_content_async(self) -> None:
+        """То же в фоновом потоке — не блокирует воспроизведение и UI."""
+        self._reload_async_token += 1
+        tok = self._reload_async_token
+        th = _SelectedTabReloadThread(
+            self._client, self._session.user_id, tok, self
+        )
+        th.fetched.connect(self._on_selected_reload_async_done)
+        th.finished.connect(th.deleteLater)
+        th.start()
+
+    def _on_selected_reload_async_done(self, token: int, payload: object) -> None:
+        if token != self._reload_async_token:
+            return
+        if not isinstance(payload, dict):
+            return
+        self._apply_selected_reload_dict(payload)
+
+    def _apply_selected_reload_dict(self, d: dict) -> None:
+        st_fav, fav_tracks, fav_albums, fav_playlists = d["fav"]
+        st_review_fav, favorite_reviews = d["fav_rev"]
+        st_own_tracks, own_tracks = d["own_tr"]
+        st_own_albums, own_albums = d["own_al"]
+        st_col, own_collections = d["col"]
+        st_rev, own_reviews = d["rev"]
 
         self._set_scroll_content(
             self._favorites_scroll,
@@ -368,70 +499,6 @@ class SelectedTab(QWidget):
         container.setMinimumWidth(0)
         container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         scroll.setWidget(container)
-
-    def _load_favorites(self) -> tuple[int, list[dict], list[dict], list[dict]]:
-        st_fav, fav_body = self._client.get_json("/api/favorites/")
-        favs = _response_list(fav_body) if st_fav == 200 else []
-        fav_tracks: list[dict] = []
-        fav_albums: list[dict] = []
-        fav_playlists: list[dict] = []
-        for row in favs:
-            mi = row.get("music_item")
-            if not isinstance(mi, dict) or mi.get("id") is None:
-                continue
-            kind = (mi.get("kind") or "").strip().lower()
-            if kind == "album":
-                fav_albums.append(mi)
-            elif kind == "playlist":
-                fav_playlists.append(mi)
-            else:
-                row_mi = dict(mi)
-                row_mi["user_favorited"] = True
-                fav_tracks.append(row_mi)
-        return st_fav, fav_tracks, fav_albums, fav_playlists
-
-    def _load_favorite_reviews(self) -> tuple[int, list[dict]]:
-        st_fav, body = self._client.get_json("/api/review-favorites/")
-        if st_fav != 200:
-            return st_fav, []
-        rows = _response_list(body)
-        reviews: list[dict] = []
-        for row in rows:
-            review_id = row.get("review")
-            try:
-                rid = int(review_id)
-            except (TypeError, ValueError):
-                continue
-            st_review, review_body = self._client.get_json(f"/api/reviews/{rid}/")
-            if st_review == 200 and isinstance(review_body, dict):
-                reviews.append(review_body)
-        return st_fav, reviews
-
-    def _load_user_music(self, kind: str) -> tuple[int, list[dict]]:
-        st, body = self._client.get_json(
-            f"/api/music-items/?artist_user_id={self._session.user_id}&kind={kind}"
-        )
-        items = _response_list(body) if st == 200 else []
-        out = [
-            dict(item)
-            for item in items
-            if isinstance(item, dict) and item.get("id") is not None
-        ]
-        return st, out
-
-    def _load_own_collections(self) -> tuple[int, list[dict]]:
-        st_col, col_body = self._client.get_json("/api/collections/")
-        collections = _response_list(col_body) if st_col == 200 else []
-        uid = self._session.user_id
-        own = [c for c in collections if _owner_id(c) == uid]
-        return st_col, own
-
-    def _load_own_reviews(self) -> tuple[int, list[dict]]:
-        st_rev, rev_body = self._client.get_json(
-            f"/api/reviews/?author_id={self._session.user_id}"
-        )
-        reviews = _response_list(rev_body) if st_rev == 200 else []
-        return st_rev, [r for r in reviews if isinstance(r, dict)]
 
     def _build_favorites_page(
         self,
@@ -599,7 +666,7 @@ class SelectedTab(QWidget):
                     play_cb,
                     self._on_open_artist,
                     self._session,
-                    self.reload_content,
+                    self.reload_content_async,
                 )
             )
 

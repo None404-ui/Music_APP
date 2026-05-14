@@ -354,8 +354,8 @@ class MainWindow(QMainWindow):
             on_open_artist=self._open_artist_profile,
         )
 
-        self._player.library_changed.connect(self._selected_tab.reload_content)
-        self._artist_profile.library_changed.connect(self._selected_tab.reload_content)
+        self._player.library_changed.connect(self._selected_tab.reload_content_async)
+        self._artist_profile.library_changed.connect(self._selected_tab.reload_content_async)
 
         self._settings = SettingsTab(
             session=session,
@@ -377,7 +377,7 @@ class MainWindow(QMainWindow):
             on_open_album=on_open_album_queue,
             on_open_artist=self._open_artist_profile,
         )
-        self._popular_tab.library_changed.connect(self._selected_tab.reload_content)
+        self._popular_tab.library_changed.connect(self._selected_tab.reload_content_async)
 
         self._reviews_tab = ReviewsTab(
             session,
@@ -394,7 +394,7 @@ class MainWindow(QMainWindow):
             on_open_artist=self._open_artist_profile,
             on_open_review=on_open_review_page,
         )
-        self._search_tab.library_changed.connect(self._selected_tab.reload_content)
+        self._search_tab.library_changed.connect(self._selected_tab.reload_content_async)
 
         self._pages: list[QWidget] = [
             self._home_hub,
@@ -428,7 +428,7 @@ class MainWindow(QMainWindow):
             self._side_nav.set_current_index(self._HOME_PAGE_INDEX)
             self._stack.setCurrentIndex(self._HOME_PAGE_INDEX)
             self._home_hub.reset_to_popular()
-        self._popular_tab.reload_content()
+        self._popular_tab.reload_content_async()
         self._sync_mini_player_visibility()
         self._sync_player_ambient_layer()
 
@@ -500,7 +500,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_reviews_tab"):
             self._reviews_tab.reload_content()
         if hasattr(self, "_selected_tab"):
-            self._selected_tab.reload_content()
+            self._selected_tab.reload_content_async()
 
     def _apply_player_appearance(self) -> None:
         self._player.apply_appearance_settings()
@@ -535,15 +535,15 @@ class MainWindow(QMainWindow):
         animate_stack_fade(self._stack, index)
         if index == self._HOME_PAGE_INDEX:
             self._home_hub.reset_to_popular()
-            self._popular_tab.reload_content()
+            self._popular_tab.reload_content_async()
         elif index == self._SELECTED_PAGE_INDEX:
             self._selected_tab.reset_to_favorites()
-            self._selected_tab.reload_content()
+            self._selected_tab.reload_content_async()
 
     def _on_home_sub_changed(self, sub: int) -> None:
         if self._stack.currentIndex() != self._HOME_PAGE_INDEX:
             return
         if sub == 0:
-            self._popular_tab.reload_content()
+            self._popular_tab.reload_content_async()
         else:
             self._reviews_tab.reload_content()

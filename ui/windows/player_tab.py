@@ -274,7 +274,8 @@ class _EqAudioWorker(QObject):
             return False
         self._sink = QAudioSink(dev, fmt)
         bytes_per_second = max(1, fmt.bytesPerFrame() * fmt.sampleRate())
-        self._sink.setBufferSize(bytes_per_second // 10)
+        # ~250 ms: короткий буфер (100 ms) давал underrun при занятости GUI (resize, сеть).
+        self._sink.setBufferSize(max(bytes_per_second // 4, 8192))
         self._sink_io = self._sink.start()
         if self._sink_io is None:
             self._sink = None
@@ -1275,19 +1276,25 @@ class PlayerTab(QWidget):
     def _prev_track(self) -> None:
         if self._index > 0:
             self._flush_listen_session()
+            was_playing = (
+                self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+            )
             self._index -= 1
             self._load_current()
             self._rebuild_list()
-            if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            if was_playing or playback_settings.autoplay():
                 self._player.play()
 
     def _next_track(self) -> None:
         if self._index + 1 < len(self._playlist):
             self._flush_listen_session()
+            was_playing = (
+                self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+            )
             self._index += 1
             self._load_current()
             self._rebuild_list()
-            if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            if was_playing or playback_settings.autoplay():
                 self._player.play()
 
     def _sync_now_playing_labels(self, item: dict) -> None:

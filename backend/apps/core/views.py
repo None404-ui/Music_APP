@@ -424,16 +424,105 @@ class MusicItemViewSet(viewsets.ModelViewSet):
         return tracks
 
     @staticmethod
-    def _meta_album_title(meta_json: str) -> str:
+    def _meta_json_dict(meta_json: str) -> dict:
         if not meta_json or not str(meta_json).strip():
-            return ""
+            return {}
         try:
-            j = json.loads(meta_json)
-            if isinstance(j, dict) and j.get("album") is not None:
-                return str(j["album"]).strip()
+            data = json.loads(meta_json)
         except (json.JSONDecodeError, TypeError, ValueError):
-            pass
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _coerce_album_title(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, dict):
+            for key in ("title", "name", "album", "album_title", "album_name"):
+                nested = value.get(key)
+                if nested is None:
+                    continue
+                title = MusicItemViewSet._coerce_album_title(nested)
+                if title:
+                    return title
         return ""
+
+    @staticmethod
+    def _meta_album_title(meta_json: str) -> str:
+        j = MusicItemViewSet._meta_json_dict(meta_json)
+        for key in ("album", "album_title", "album_name"):
+            title = MusicItemViewSet._coerce_album_title(j.get(key))
+            if title:
+                return title
+        return ""
+
+    @staticmethod
+    def _meta_album_item_id(meta_json: str) -> int | None:
+        j = MusicItemViewSet._meta_json_dict(meta_json)
+        raw = j.get("album_item_id")
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    @staticmethod
+    def _meta_track_index(meta_json: str) -> int | None:
+        j = MusicItemViewSet._meta_json_dict(meta_json)
+        raw = j.get("track_index")
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    @staticmethod
+    def _sort_tracks_for_album(tracks: list[MusicItem]) -> list[MusicItem]:
+        return sorted(
+            tracks,
+            key=lambda item: (
+                MusicItemViewSet._meta_track_index(item.meta_json or "") or 10**9,
+                item.id or 0,
+            ),
+        )
+
+    @staticmethod
+    def _album_tracks_from_candidates(
+        *,
+        candidates: list[MusicItem],
+        album_id: int | None,
+        album_title: str,
+    ) -> list[MusicItem]:
+        title_cf = album_title.strip().casefold()
+        explicit: list[MusicItem] = []
+        legacy: list[MusicItem] = []
+        for track in candidates:
+            if album_id is not None:
+                linked_album_id = MusicItemViewSet._meta_album_item_id(track.meta_json or "")
+                if linked_album_id == album_id:
+                    explicit.append(track)
+                    continue
+            if not title_cf:
+                continue
+            linked_title = MusicItemViewSet._meta_album_title(track.meta_json or "")
+            if linked_title and linked_title.casefold() == title_cf:
+                legacy.append(track)
+        selected = explicit if explicit else legacy
+        return MusicItemViewSet._sort_tracks_for_album(selected)
+
+    @staticmethod
+    def _tracks_for_album(base, root: MusicItem) -> list[MusicItem]:
+        art = (root.artist or "").strip()
+        qs = base.filter(kind=MusicItem.Kind.TRACK.value)
+        if art:
+            qs = qs.filter(artist__iexact=art)
+        return MusicItemViewSet._album_tracks_from_candidates(
+            candidates=list(qs.order_by("id")[:300]),
+            album_id=getattr(root, "id", None),
+            album_title=(root.title or "").strip(),
+        )
 
     @action(
         detail=True,
@@ -544,19 +633,15 @@ class MusicItemViewSet(viewsets.ModelViewSet):
                 qs = base.filter(kind=tk)
                 if art:
                     qs = qs.filter(artist__iexact=art)
-                if alb:
-                    qs = qs.filter(meta_json__icontains=alb[:200])
-                siblings = list(qs.order_by("id")[:120])
+                siblings = MusicItemViewSet._album_tracks_from_candidates(
+                    candidates=list(qs.order_by("id")[:300]),
+                    album_id=MusicItemViewSet._meta_album_item_id(root.meta_json or ""),
+                    album_title=alb,
+                )
                 out_models = siblings if siblings else [root]
         elif root.kind == ak:
             art = (root.artist or "").strip()
-            tit = (root.title or "").strip()
-            qs = base.filter(kind=tk)
-            if art:
-                qs = qs.filter(artist__iexact=art)
-            if tit:
-                qs = qs.filter(meta_json__icontains=tit[:200])
-            out_models = list(qs.order_by("id")[:120])
+            out_models = MusicItemViewSet._tracks_for_album(base, root)
             if not out_models and art:
                 out_models = list(
                     base.filter(kind=tk, artist__iexact=art).order_by("id")[:120]

@@ -8,6 +8,7 @@ import json
 import mimetypes
 import os
 import secrets
+import threading
 from dataclasses import dataclass
 from http.cookiejar import CookieJar
 from pathlib import Path
@@ -51,6 +52,7 @@ class CratesApiClient:
             HTTPCookieProcessor(self._jar),
             HTTPRedirectHandler(),
         )
+        self._http_lock = threading.Lock()
 
     def request_json(
         self,
@@ -59,29 +61,30 @@ class CratesApiClient:
         body: dict | None = None,
         timeout: float = 20.0,
     ) -> tuple[int, Any]:
-        url = f"{self.base_url}{path}"
-        data = None if body is None else json.dumps(body).encode("utf-8")
-        headers = {"Accept": "application/json"}
-        if data is not None:
-            headers["Content-Type"] = "application/json"
-        req = Request(url, data=data, method=method.upper(), headers=headers)
-        try:
-            with self._opener.open(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8")
-                if not raw:
-                    return resp.status, None
-                try:
-                    return resp.status, json.loads(raw)
-                except json.JSONDecodeError:
-                    snippet = (raw[:240] + "…") if len(raw) > 240 else raw
-                    return resp.status, {"detail": f"Ответ не JSON: {snippet}"}
-        except HTTPError as e:
-            raw = e.read().decode("utf-8")
+        with self._http_lock:
+            url = f"{self.base_url}{path}"
+            data = None if body is None else json.dumps(body).encode("utf-8")
+            headers = {"Accept": "application/json"}
+            if data is not None:
+                headers["Content-Type"] = "application/json"
+            req = Request(url, data=data, method=method.upper(), headers=headers)
             try:
-                parsed = json.loads(raw) if raw else None
-            except json.JSONDecodeError:
-                parsed = {"detail": raw or str(e)}
-            return e.code, parsed
+                with self._opener.open(req, timeout=timeout) as resp:
+                    raw = resp.read().decode("utf-8")
+                    if not raw:
+                        return resp.status, None
+                    try:
+                        return resp.status, json.loads(raw)
+                    except json.JSONDecodeError:
+                        snippet = (raw[:240] + "…") if len(raw) > 240 else raw
+                        return resp.status, {"detail": f"Ответ не JSON: {snippet}"}
+            except HTTPError as e:
+                raw = e.read().decode("utf-8")
+                try:
+                    parsed = json.loads(raw) if raw else None
+                except json.JSONDecodeError:
+                    parsed = {"detail": raw or str(e)}
+                return e.code, parsed
 
     def post_json(self, path: str, body: dict, timeout: float = 20.0) -> tuple[int, Any]:
         return self.request_json("POST", path, body, timeout=timeout)
@@ -138,22 +141,23 @@ class CratesApiClient:
             "Content-Type": f"multipart/form-data; boundary={boundary}",
         }
         req = Request(url, data=body, method=method.upper(), headers=headers)
-        try:
-            with self._opener.open(req, timeout=timeout) as resp:
-                out = resp.read().decode("utf-8")
-                if not out:
-                    return resp.status, None
-                try:
-                    return resp.status, json.loads(out)
-                except json.JSONDecodeError:
-                    return resp.status, {"detail": out[:240]}
-        except HTTPError as e:
-            raw_e = e.read().decode("utf-8")
+        with self._http_lock:
             try:
-                parsed = json.loads(raw_e) if raw_e else None
-            except json.JSONDecodeError:
-                parsed = {"detail": raw_e or str(e)}
-            return e.code, parsed
+                with self._opener.open(req, timeout=timeout) as resp:
+                    out = resp.read().decode("utf-8")
+                    if not out:
+                        return resp.status, None
+                    try:
+                        return resp.status, json.loads(out)
+                    except json.JSONDecodeError:
+                        return resp.status, {"detail": out[:240]}
+            except HTTPError as e:
+                raw_e = e.read().decode("utf-8")
+                try:
+                    parsed = json.loads(raw_e) if raw_e else None
+                except json.JSONDecodeError:
+                    parsed = {"detail": raw_e or str(e)}
+                return e.code, parsed
 
     def patch_multipart_file(
         self,
