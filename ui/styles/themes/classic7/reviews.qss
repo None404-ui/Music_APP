@@ -1,0 +1,56 @@
+QWidget#reviewsPage {
+    background-color: rgba(244, 228, 194, 0.76);
+}
+
+QLabel#reviewsHeading,
+QLabel#reviewScore {
+    color: #D97A2B;
+}
+
+QFrame#reviewRow {
+    background-color: #F4E4C2;
+    border: 1px solid #B69258;
+}
+QFrame#reviewRow:hover {
+    background-color: #FFF3D2;
+    border: 1px solid #D97A2B;
+}
+
+QLabel#reviewAlbum,
+QLabel#reviewLikeCount {
+    color: #9B4B32;
+}
+QLabel#reviewMeta,
+QLabel#reviewExcerpt {
+    color: #5C3A2A;
+}
+QLabel#reviewArtist {
+    color: #3C83A6;
+}
+QLabel#reviewArtist:hover {
+    color: #D97A2B;
+}
+QLabel#reviewsEmptyHint {
+    color: #77513D;
+}
+
+QPushButton#btnReviewLike {
+    background-color: #FFF3D2;
+    color: #9B4B32;
+    border: 1px solid #9B4B32;
+}
+QPushButton#btnReviewLike:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+}
+
+QFrame#reviewDivider {
+    background-color: rgba(60, 131, 166, 0.55);
+}
+
+CoverArtWidget#reviewThumb {
+    qproperty-borderColor: #3C83A6;
+    qproperty-fillColor: #EAD8B5;
+    qproperty-maskColor: #40372D;
+    qproperty-placeholderColor: #9B4B32;
+}

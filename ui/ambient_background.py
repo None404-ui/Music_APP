@@ -5,9 +5,8 @@
 
 from __future__ import annotations
 
-import os
 import random
-from PyQt6.QtCore import QEvent, Qt, QTimer
+from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtProperty
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
 from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 
@@ -15,7 +14,17 @@ from PyQt6.QtWidgets import QStackedWidget, QWidget, QSizePolicy
 class AmbientBackground(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("ambientBackground")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._base_color = QColor(18, 12, 28)
+        self._blob_warm_color = QColor(255, 120, 40, 55)
+        self._blob_cool_color = QColor(40, 200, 190, 45)
+        self._blob_deep_color = QColor(60, 90, 220, 40)
+        self._blob_rust_color = QColor(200, 80, 30, 35)
+        self._blob_blue_color = QColor(30, 140, 180, 38)
+        self._line_warm_color = QColor(255, 160, 80, 25)
+        self._line_cool_color = QColor(50, 200, 200, 18)
+        self._grain_alpha = 14
         random.seed(42)
         self._grain: list[tuple[int, int, int]] = [
             (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
@@ -46,14 +55,14 @@ class AmbientBackground(QWidget):
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        p.fillRect(pm.rect(), QColor(18, 12, 28))
+        p.fillRect(pm.rect(), self._base_color)
 
         blobs = [
-            (rw * 0.22, rh * 0.35, max(rw, rh) * 0.55, QColor(255, 120, 40, 55)),
-            (rw * 0.78, rh * 0.28, max(rw, rh) * 0.5, QColor(40, 200, 190, 45)),
-            (rw * 0.55, rh * 0.72, max(rw, rh) * 0.6, QColor(60, 90, 220, 40)),
-            (rw * 0.1, rh * 0.85, max(rw, rh) * 0.45, QColor(200, 80, 30, 35)),
-            (rw * 0.9, rh * 0.65, max(rw, rh) * 0.4, QColor(30, 140, 180, 38)),
+            (rw * 0.22, rh * 0.35, max(rw, rh) * 0.55, self._blob_warm_color),
+            (rw * 0.78, rh * 0.28, max(rw, rh) * 0.5, self._blob_cool_color),
+            (rw * 0.55, rh * 0.72, max(rw, rh) * 0.6, self._blob_deep_color),
+            (rw * 0.1, rh * 0.85, max(rw, rh) * 0.45, self._blob_rust_color),
+            (rw * 0.9, rh * 0.65, max(rw, rh) * 0.4, self._blob_blue_color),
         ]
         for cx, cy, r, col in blobs:
             grad = QRadialGradient(cx, cy, r)
@@ -66,12 +75,12 @@ class AmbientBackground(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
 
-        p.setPen(QPen(QColor(255, 160, 80, 25), 3))
+        p.setPen(QPen(self._line_warm_color, 3))
         for i in range(5):
             y = int(rh * (0.15 + i * 0.18))
             p.drawLine(0, y, rw, y + int(12 + i * 4))
 
-        p.setPen(QPen(QColor(50, 200, 200, 18), 2))
+        p.setPen(QPen(self._line_cool_color, 2))
         for i in range(4):
             x = int(rw * (0.1 + i * 0.22))
             p.drawLine(x, 0, x + 40, rh)
@@ -83,11 +92,82 @@ class AmbientBackground(QWidget):
             for x in range(0, rw, step):
                 r, g, b = self._grain[idx % len(self._grain)]
                 idx += 1
-                p.setBrush(QColor(r, g, b, 14))
+                p.setBrush(QColor(r, g, b, self._grain_alpha))
                 p.drawRect(x, y, 2, 2)
 
         p.end()
         self._cache = pm
+
+    def _set_theme_color(self, attr: str, color: QColor) -> None:
+        setattr(self, attr, QColor(color))
+        self._rebuild_cache()
+        self.update()
+
+    def _get_base_color(self) -> QColor:
+        return QColor(self._base_color)
+
+    def _set_base_color(self, color: QColor) -> None:
+        self._set_theme_color("_base_color", color)
+
+    def _get_blob_warm_color(self) -> QColor:
+        return QColor(self._blob_warm_color)
+
+    def _set_blob_warm_color(self, color: QColor) -> None:
+        self._set_theme_color("_blob_warm_color", color)
+
+    def _get_blob_cool_color(self) -> QColor:
+        return QColor(self._blob_cool_color)
+
+    def _set_blob_cool_color(self, color: QColor) -> None:
+        self._set_theme_color("_blob_cool_color", color)
+
+    def _get_blob_deep_color(self) -> QColor:
+        return QColor(self._blob_deep_color)
+
+    def _set_blob_deep_color(self, color: QColor) -> None:
+        self._set_theme_color("_blob_deep_color", color)
+
+    def _get_blob_rust_color(self) -> QColor:
+        return QColor(self._blob_rust_color)
+
+    def _set_blob_rust_color(self, color: QColor) -> None:
+        self._set_theme_color("_blob_rust_color", color)
+
+    def _get_blob_blue_color(self) -> QColor:
+        return QColor(self._blob_blue_color)
+
+    def _set_blob_blue_color(self, color: QColor) -> None:
+        self._set_theme_color("_blob_blue_color", color)
+
+    def _get_line_warm_color(self) -> QColor:
+        return QColor(self._line_warm_color)
+
+    def _set_line_warm_color(self, color: QColor) -> None:
+        self._set_theme_color("_line_warm_color", color)
+
+    def _get_line_cool_color(self) -> QColor:
+        return QColor(self._line_cool_color)
+
+    def _set_line_cool_color(self, color: QColor) -> None:
+        self._set_theme_color("_line_cool_color", color)
+
+    def _get_grain_alpha(self) -> int:
+        return int(self._grain_alpha)
+
+    def _set_grain_alpha(self, alpha: int) -> None:
+        self._grain_alpha = max(0, min(255, int(alpha)))
+        self._rebuild_cache()
+        self.update()
+
+    baseColor = pyqtProperty(QColor, _get_base_color, _set_base_color)
+    blobWarmColor = pyqtProperty(QColor, _get_blob_warm_color, _set_blob_warm_color)
+    blobCoolColor = pyqtProperty(QColor, _get_blob_cool_color, _set_blob_cool_color)
+    blobDeepColor = pyqtProperty(QColor, _get_blob_deep_color, _set_blob_deep_color)
+    blobRustColor = pyqtProperty(QColor, _get_blob_rust_color, _set_blob_rust_color)
+    blobBlueColor = pyqtProperty(QColor, _get_blob_blue_color, _set_blob_blue_color)
+    lineWarmColor = pyqtProperty(QColor, _get_line_warm_color, _set_line_warm_color)
+    lineCoolColor = pyqtProperty(QColor, _get_line_cool_color, _set_line_cool_color)
+    grainAlpha = pyqtProperty(int, _get_grain_alpha, _set_grain_alpha)
 
     def paintEvent(self, event) -> None:
         del event
@@ -164,10 +244,7 @@ class ContentWithAmbient(QWidget):
         self._overlay_margin = 16
         self.page_stack.setObjectName("pageStack")
         self.page_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        # Иначе под вкладкой «Плеер» виден не ambient/слой фона, а стандартная заливка стека.
-        self.page_stack.setStyleSheet(
-            "QStackedWidget#pageStack { background-color: transparent; }"
-        )
+        # Прозрачность стека задаётся в QSS, чтобы тема могла управлять фоном.
         self.page_stack.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,

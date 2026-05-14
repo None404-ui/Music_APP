@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
 from ui.interactive_fx import InteractiveRowFrame
@@ -326,7 +327,7 @@ class ReviewsTab(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setObjectName("reviewsScrollInner")
         self._col = QVBoxLayout(container)
         self._col.setContentsMargins(0, 0, 0, 0)
         self._col.setSpacing(10)
@@ -335,6 +336,7 @@ class ReviewsTab(QWidget):
         self._scroll = scroll
         self._scroll_inner = container
         root.addWidget(scroll, stretch=1)
+        enable_transient_vertical_page_scroll(scroll)
 
         QTimer.singleShot(0, self._load_top)
 

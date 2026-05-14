@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, QTimer, QVariantAnimation
+from PyQt6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, QTimer, QVariantAnimation, pyqtProperty
 from PyQt6.QtGui import QColor, QCursor, QPainter, QPainterPath, QPen, QPixmap, QIcon
 from PyQt6.QtWidgets import QFrame, QGraphicsOpacityEffect, QPushButton, QScrollBar, QStackedWidget, QWidget
 
@@ -178,6 +178,47 @@ class StatefulIconButton(QPushButton):
             super().setIconSize(size)
         self.setIcon(colored_svg_icon(self._icon_path_for_state(), self._color_for_state(), size))
 
+    def _get_base_color(self) -> QColor:
+        return QColor(self._base_color)
+
+    def _set_base_color(self, color: QColor) -> None:
+        self._base_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_hover_color(self) -> QColor:
+        return QColor(self._hover_color)
+
+    def _set_hover_color(self, color: QColor) -> None:
+        self._hover_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_pressed_color(self) -> QColor:
+        return QColor(self._pressed_color)
+
+    def _set_pressed_color(self, color: QColor) -> None:
+        self._pressed_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_checked_color(self) -> QColor:
+        return QColor(self._checked_color)
+
+    def _set_checked_color(self, color: QColor) -> None:
+        self._checked_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_disabled_color(self) -> QColor:
+        return QColor(self._disabled_color)
+
+    def _set_disabled_color(self, color: QColor) -> None:
+        self._disabled_color = QColor(color)
+        self._refresh_icon()
+
+    baseColor = pyqtProperty(QColor, _get_base_color, _set_base_color)
+    hoverColor = pyqtProperty(QColor, _get_hover_color, _set_hover_color)
+    pressedColor = pyqtProperty(QColor, _get_pressed_color, _set_pressed_color)
+    checkedColor = pyqtProperty(QColor, _get_checked_color, _set_checked_color)
+    disabledColor = pyqtProperty(QColor, _get_disabled_color, _set_disabled_color)
+
     def _apply_pulse_frame(self, value) -> None:
         t = float(value)
         peak = 1.0 - abs(1.0 - 2.0 * t)
@@ -268,6 +309,31 @@ class InteractiveRowFrame(QFrame):
     def _on_feedback_changed(self, value) -> None:
         self._feedback = float(value)
         self.update()
+
+    def _get_hover_color(self) -> QColor:
+        return QColor(self._hover_color)
+
+    def _set_hover_color(self, color: QColor) -> None:
+        self._hover_color = QColor(color)
+        self.update()
+
+    def _get_press_color(self) -> QColor:
+        return QColor(self._press_color)
+
+    def _set_press_color(self, color: QColor) -> None:
+        self._press_color = QColor(color)
+        self.update()
+
+    def _get_active_color(self) -> QColor:
+        return QColor(self._active_color)
+
+    def _set_active_color(self, color: QColor) -> None:
+        self._active_color = QColor(color)
+        self.update()
+
+    hoverColor = pyqtProperty(QColor, _get_hover_color, _set_hover_color)
+    pressColor = pyqtProperty(QColor, _get_press_color, _set_press_color)
+    activeColor = pyqtProperty(QColor, _get_active_color, _set_active_color)
 
     def _refresh_hover_from_cursor(self) -> None:
         local = self.mapFromGlobal(QCursor.pos())

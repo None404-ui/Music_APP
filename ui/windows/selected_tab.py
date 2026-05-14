@@ -23,6 +23,7 @@ from PyQt6.QtGui import QColor
 
 from backend.session import UserSession
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.artist_link_label import ArtistLinkLabel
 from ui.windows.upload_music_dialog import UploadMusicDialog
 
@@ -82,6 +83,13 @@ class _ClickableTitle(QLabel):
         super().mouseReleaseEvent(event)
 
 
+def _fit_wrapped_label(label: QLabel) -> QLabel:
+    label.setWordWrap(True)
+    label.setMinimumWidth(0)
+    label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    return label
+
+
 class _FavAlbumRow(InteractiveRowFrame):
     """Строка избранного альбома: клик по названию — очередь; по исполнителю — профиль."""
 
@@ -96,11 +104,14 @@ class _FavAlbumRow(InteractiveRowFrame):
     ):
         super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
         self.setObjectName("selectedRow")
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
         lay.setSpacing(4)
         tt = _ClickableTitle(title_s)
         tt.setObjectName("selectedRowTitle")
+        _fit_wrapped_label(tt)
         if on_album:
             tt.clicked.connect(on_album)
         lay.addWidget(tt)
@@ -113,17 +124,16 @@ class _FavAlbumRow(InteractiveRowFrame):
             link = ArtistLinkLabel()
             link.setObjectName("selectedRowArtist")
             link.set_artist(ar)
+            _fit_wrapped_label(link)
             link.artist_clicked.connect(on_artist)
             row.addWidget(pre)
-            row.addWidget(link)
-            row.addStretch()
+            row.addWidget(link, 1)
             lay.addLayout(row)
         else:
             disp = ar or "—"
             lab = QLabel(f"{sub} · {disp}")
             lab.setObjectName("selectedRowSub")
-            lab.setWordWrap(True)
-            lay.addWidget(lab)
+            lay.addWidget(_fit_wrapped_label(lab))
         self.install_interaction_filters()
 
 
@@ -141,12 +151,15 @@ class _FavTrackRow(InteractiveRowFrame):
     ):
         super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
         self.setObjectName("selectedRow")
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
         lay.setSpacing(4)
         title_s = str(mi.get("title") or "—")
         tt = _ClickableTitle(title_s)
         tt.setObjectName("selectedRowTitle")
+        _fit_wrapped_label(tt)
         if on_play:
             tt.clicked.connect(lambda: on_play(mi))
         lay.addWidget(tt)
@@ -159,13 +172,14 @@ class _FavTrackRow(InteractiveRowFrame):
             link = ArtistLinkLabel()
             link.setObjectName("selectedRowArtist")
             link.set_artist(ar)
+            _fit_wrapped_label(link)
             link.artist_clicked.connect(on_artist)
-            row_meta.addWidget(link, 0, Qt.AlignmentFlag.AlignLeft)
+            row_meta.addWidget(link, 1, Qt.AlignmentFlag.AlignLeft)
         else:
             lab = QLabel(ar if ar else "—")
             lab.setObjectName("selectedRowSub")
-            row_meta.addWidget(lab, 0, Qt.AlignmentFlag.AlignLeft)
-        row_meta.addStretch(1)
+            _fit_wrapped_label(lab)
+            row_meta.addWidget(lab, 1, Qt.AlignmentFlag.AlignLeft)
         self._actions = TrackLikeReviewBar(
             mi,
             session,
@@ -187,7 +201,8 @@ class _ClickableRow(InteractiveRowFrame):
     ):
         super().__init__(radius=8, hover_alpha=24, press_alpha=42, active_alpha=18, parent=parent)
         self.setObjectName("selectedRow")
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._on_click = on_click
         if on_click:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -198,9 +213,8 @@ class _ClickableRow(InteractiveRowFrame):
         t.setObjectName("selectedRowTitle")
         a = QLabel(subtitle)
         a.setObjectName("selectedRowSub")
-        a.setWordWrap(True)
-        lay.addWidget(t)
-        lay.addWidget(a)
+        lay.addWidget(_fit_wrapped_label(t))
+        lay.addWidget(_fit_wrapped_label(a))
         self.install_interaction_filters()
 
     def mousePressEvent(self, event):
@@ -278,6 +292,8 @@ class SelectedTab(QWidget):
         self._stack.addWidget(self._favorites_scroll)
         self._stack.addWidget(self._uploads_scroll)
         self._outer.addWidget(self._stack, stretch=1)
+        enable_transient_vertical_page_scroll(self._favorites_scroll)
+        enable_transient_vertical_page_scroll(self._uploads_scroll)
 
         self._btn_favorites.clicked.connect(self._sync_stack_from_buttons)
         self._btn_uploads.clicked.connect(self._sync_stack_from_buttons)
@@ -349,6 +365,8 @@ class SelectedTab(QWidget):
 
     def _set_scroll_content(self, scroll: QScrollArea, container: QWidget) -> None:
         scroll.takeWidget()
+        container.setMinimumWidth(0)
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         scroll.setWidget(container)
 
     def _load_favorites(self) -> tuple[int, list[dict], list[dict], list[dict]]:
@@ -425,7 +443,7 @@ class SelectedTab(QWidget):
         favorite_reviews: list[dict],
     ) -> QWidget:
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setObjectName("selectedContentContainer")
         col = QVBoxLayout(container)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
@@ -483,7 +501,7 @@ class SelectedTab(QWidget):
         own_collections: list[dict],
     ) -> QWidget:
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setObjectName("selectedContentContainer")
         col = QVBoxLayout(container)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)

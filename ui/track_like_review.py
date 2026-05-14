@@ -31,6 +31,7 @@ class TrackLikeReviewBar(QWidget):
         parent=None,
     ):
         super().__init__(parent)
+        self.setObjectName("trackLikeReviewBar")
         self._item = item
         self._session = session
         self._dialog_parent = dialog_parent

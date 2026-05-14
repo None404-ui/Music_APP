@@ -162,6 +162,34 @@ QFrame#playerPlaybackSettingsPopup QLabel#settingsHint {
     background: transparent;
 }
 
+QFrame#playerPlaybackSettingsPopup QComboBox#settingsCombo {
+    background-color: rgba(49, 41, 56, 0.86);
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+}
+QFrame#playerPlaybackSettingsPopup QComboBox#settingsCombo:hover {
+    border-color: #CB883A;
+    background-color: rgba(49, 41, 56, 0.96);
+}
+QFrame#playerPlaybackSettingsPopup QComboBox#settingsCombo::drop-down {
+    border: none;
+    width: 20px;
+    background: transparent;
+}
+QFrame#playerPlaybackSettingsPopup QComboBox#settingsCombo::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #CB883A;
+    width: 0px;
+    height: 0px;
+    margin-right: 6px;
+}
+
 QSlider#eqBandSlider::groove:vertical {
     background-color: #312938;
     width: 4px;
@@ -401,23 +429,23 @@ QLabel#miniPlayerVolumePopupLabel {
 }
 
 QSlider#miniPlayerVolumeSlider::groove:vertical {
-    background-color: #CFC89A;
-    border: 2px solid #312938;
+    background-color: #312938;
+    border: 2px solid #2A7A8C;
     width: 8px;
     border-radius: 0px;
 }
 QSlider#miniPlayerVolumeSlider::sub-page:vertical {
-    background-color: #CFC89A;
+    background-color: #CB883A;
     border: 2px solid #312938;
     border-radius: 0px;
 }
 QSlider#miniPlayerVolumeSlider::add-page:vertical {
-    background-color: #89A194;
+    background-color: #2A7A8C;
     border: 2px solid #312938;
     border-radius: 0px;
 }
 QSlider#miniPlayerVolumeSlider::handle:vertical {
-    background-color: #312938;
+    background-color: #120C1C;
     border: 2px solid #CB883A;
     width: 14px;
     height: 12px;
@@ -426,5 +454,5 @@ QSlider#miniPlayerVolumeSlider::handle:vertical {
 }
 QSlider#miniPlayerVolumeSlider::handle:vertical:hover {
     background-color: #CB883A;
-    border-color: #312938;
+    border-color: #2A7A8C;
 }

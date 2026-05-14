@@ -1,0 +1,151 @@
+/* Classic 70s cassette palette overlay. */
+
+QMainWindow, QWidget#centralWidget {
+    background-color: #2E2B25;
+}
+
+QWidget#ambientBackground {
+    qproperty-baseColor: #D8C49A;
+    qproperty-blobWarmColor: rgba(217, 122, 43, 34);
+    qproperty-blobCoolColor: rgba(60, 131, 166, 30);
+    qproperty-blobDeepColor: rgba(155, 75, 50, 24);
+    qproperty-blobRustColor: rgba(200, 74, 55, 22);
+    qproperty-blobBlueColor: rgba(60, 131, 166, 22);
+    qproperty-lineWarmColor: rgba(155, 75, 50, 22);
+    qproperty-lineCoolColor: rgba(60, 131, 166, 18);
+    qproperty-grainAlpha: 18;
+}
+
+QWidget#popularPage,
+QWidget#reviewsPage,
+QWidget#homeHubPage,
+QWidget#searchPage,
+QWidget#selectedPage,
+QWidget#settingsPage,
+QWidget#reviewDetailPage {
+    background-color: rgba(244, 228, 194, 0.72);
+}
+
+QWidget#sideNavBar {
+    background-color: rgba(46, 43, 37, 0.96);
+    border-right: 2px solid #9B4B32;
+}
+
+SideNavButton {
+    qproperty-idleColor: #EAD8B5;
+    qproperty-hoverColor: #C84A37;
+    qproperty-activeColor: #D97A2B;
+    qproperty-pressedColor: #FFF3D2;
+}
+
+QPushButton#sideNavButton:hover:!checked {
+    background: rgba(200, 74, 55, 0.16);
+    color: #C84A37;
+}
+QPushButton#sideNavButton:checked {
+    background: rgba(217, 122, 43, 0.18);
+    border: 1px solid rgba(217, 122, 43, 0.52);
+    color: #D97A2B;
+}
+
+QPushButton#btnPrimary {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+QPushButton#btnPrimary:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+}
+QPushButton#btnPrimary:pressed {
+    background-color: #2E2B25;
+    color: #FFF3D2;
+}
+
+QPushButton#btnSecondary {
+    color: #9B4B32;
+    border: 2px solid #9B4B32;
+}
+QPushButton#btnSecondary:hover {
+    background-color: rgba(155, 75, 50, 0.14);
+}
+
+QPushButton#btnNav {
+    background-color: #40372D;
+    color: #EAD8B5;
+    border: 1px solid #5A4A36;
+}
+QPushButton#btnNav:hover {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+QPushButton#btnNav:checked {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border: 1px solid #9B4B32;
+}
+
+QLabel#homeHubHeading {
+    color: #9B4B32;
+}
+
+QPushButton#btnArrow,
+QPushButton#btnCarouselArrow {
+    background-color: rgba(155, 75, 50, 0.58);
+    color: #FFF3D2;
+}
+QPushButton#btnArrow:hover,
+QPushButton#btnCarouselArrow:hover {
+    background-color: rgba(217, 122, 43, 0.88);
+    color: #2E2B25;
+}
+
+QFrame#selectedRow,
+QFrame#trackRow,
+QFrame#reviewRow,
+QFrame#searchListRow {
+    qproperty-hoverColor: #D97A2B;
+    qproperty-pressColor: #9B4B32;
+    qproperty-activeColor: #D97A2B;
+}
+
+QWidget#trackLikeReviewBar StatefulIconButton {
+    qproperty-baseColor: #2E2B25;
+    qproperty-hoverColor: #9B4B32;
+    qproperty-pressedColor: #D97A2B;
+    qproperty-checkedColor: #D97A2B;
+    qproperty-disabledColor: #8A7A62;
+}
+
+QMenu,
+QMessageBox,
+QToolTip {
+    background-color: #F4E4C2;
+    color: #5C3A2A;
+    border: 1px solid #9B4B32;
+}
+QMenu::item {
+    background: transparent;
+    color: #5C3A2A;
+    padding: 7px 22px 7px 18px;
+}
+QMenu::item:selected,
+QMessageBox QPushButton:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+}
+QMenu::separator {
+    background-color: rgba(155, 75, 50, 0.36);
+    height: 1px;
+    margin: 5px 10px;
+}
+QMessageBox QLabel {
+    color: #5C3A2A;
+    background: transparent;
+}
+QMessageBox QPushButton {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+    border-radius: 8px;
+    padding: 7px 16px;
+}

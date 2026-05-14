@@ -11,6 +11,7 @@ from ui.artist_link_label import ArtistLinkLabel
 from ui.interactive_fx import InteractiveRowFrame, colored_svg_icon
 from ui.track_like_review import TrackLikeReviewBar
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -444,6 +445,7 @@ class SearchTab(QWidget):
 
         page_scroll.setWidget(inner)
         root.addWidget(page_scroll, stretch=1)
+        enable_transient_vertical_page_scroll(page_scroll)
 
         self._refresh_recent_list()
         self._sync_results_section_visibility()

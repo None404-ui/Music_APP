@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QRectF, QSize, pyqtSignal
+from PyQt6.QtCore import QRectF, QSize, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QColor, QCloseEvent, QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QHBoxLayout,
     QMainWindow,
@@ -34,7 +35,9 @@ from ui import (
     playback_resume,
     playback_settings,
     player_appearance_settings,
+    theme_settings,
 )
+from ui.style_loader import apply_app_stylesheet
 
 _ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _SIDENAV_ICON_SIZE = QSize(40, 40)
@@ -69,14 +72,13 @@ def _render_tinted_svg(icon_path: Path, color: QColor, size: QSize) -> QIcon:
 
 
 class SideNavButton(QPushButton):
-    _COLOR_IDLE = QColor("#89A194")
-    _COLOR_HOVER = QColor("#A14016")
-    _COLOR_ACTIVE = QColor("#CB883A")
-    _COLOR_PRESSED = QColor("#CFC89A")
-
     def __init__(self, icon_path: Path, parent=None):
         super().__init__(parent)
         self._icon_path = icon_path
+        self._idle_color = QColor("#89A194")
+        self._hover_color = QColor("#A14016")
+        self._active_color = QColor("#CB883A")
+        self._pressed_color = QColor("#CFC89A")
         self._hovered = False
         self.setObjectName("sideNavButton")
         self.setCheckable(True)
@@ -97,7 +99,7 @@ class SideNavButton(QPushButton):
         super().leaveEvent(event)
 
     def mousePressEvent(self, event) -> None:
-        self.setIcon(_render_tinted_svg(self._icon_path, self._COLOR_PRESSED, self.iconSize()))
+        self.setIcon(_render_tinted_svg(self._icon_path, self._pressed_color, self.iconSize()))
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
@@ -106,12 +108,45 @@ class SideNavButton(QPushButton):
 
     def _refresh_icon(self) -> None:
         if self.isChecked():
-            color = self._COLOR_ACTIVE
+            color = self._active_color
         elif self._hovered:
-            color = self._COLOR_HOVER
+            color = self._hover_color
         else:
-            color = self._COLOR_IDLE
+            color = self._idle_color
         self.setIcon(_render_tinted_svg(self._icon_path, color, self.iconSize()))
+
+    def _get_idle_color(self) -> QColor:
+        return QColor(self._idle_color)
+
+    def _set_idle_color(self, color: QColor) -> None:
+        self._idle_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_hover_color(self) -> QColor:
+        return QColor(self._hover_color)
+
+    def _set_hover_color(self, color: QColor) -> None:
+        self._hover_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_active_color(self) -> QColor:
+        return QColor(self._active_color)
+
+    def _set_active_color(self, color: QColor) -> None:
+        self._active_color = QColor(color)
+        self._refresh_icon()
+
+    def _get_pressed_color(self) -> QColor:
+        return QColor(self._pressed_color)
+
+    def _set_pressed_color(self, color: QColor) -> None:
+        self._pressed_color = QColor(color)
+        self._refresh_icon()
+
+    idleColor = pyqtProperty(QColor, _get_idle_color, _set_idle_color)
+    hoverColor = pyqtProperty(QColor, _get_hover_color, _set_hover_color)
+    activeColor = pyqtProperty(QColor, _get_active_color, _set_active_color)
+    pressedColor = pyqtProperty(QColor, _get_pressed_color, _set_pressed_color)
 
 
 class SideNavBar(QWidget):
@@ -207,6 +242,8 @@ class MainWindow(QMainWindow):
         playback_settings.set_user_scope(session.user_id)
         player_appearance_settings.set_user_scope(session.user_id)
         equalizer_settings.set_user_scope(session.user_id)
+        theme_settings.set_user_scope(session.user_id)
+        self._apply_global_theme(theme_settings.theme_key())
         self._logout_restart = False
         self._language_restart = False
         self.setWindowTitle(i18n.tr("CRATES"))
@@ -305,6 +342,7 @@ class MainWindow(QMainWindow):
             on_logout=self._do_logout,
             on_language_changed=self._request_language_restart,
             on_open_player_appearance=self._open_player_appearance,
+            on_theme_changed=self._apply_global_theme,
         )
 
         self._player_appearance = PlayerAppearancePage(
@@ -396,6 +434,14 @@ class MainWindow(QMainWindow):
     def _request_language_restart(self) -> None:
         self._language_restart = True
         self.close()
+
+    def _apply_global_theme(self, theme_key: str) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        theme_settings.set_app_theme_key(theme_key)
+        family = str(app.property("retroFontFamily") or "Courier New")
+        apply_app_stylesheet(app, family, theme_key)
 
     def _do_logout(self) -> None:
         from backend.api_client import api_logout

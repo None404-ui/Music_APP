@@ -14,8 +14,45 @@ QMainWindow, QWidget#centralWidget {
     background-color: #312938;
 }
 
+QWidget#ambientBackground {
+    qproperty-baseColor: #120C1C;
+    qproperty-blobWarmColor: rgba(255, 120, 40, 55);
+    qproperty-blobCoolColor: rgba(40, 200, 190, 45);
+    qproperty-blobDeepColor: rgba(60, 90, 220, 40);
+    qproperty-blobRustColor: rgba(200, 80, 30, 35);
+    qproperty-blobBlueColor: rgba(30, 140, 180, 38);
+    qproperty-lineWarmColor: rgba(255, 160, 80, 25);
+    qproperty-lineCoolColor: rgba(50, 200, 200, 18);
+    qproperty-grainAlpha: 14;
+}
+
+QStackedWidget#pageStack,
 QWidget#pageStack {
     background: transparent;
+}
+
+SideNavButton {
+    qproperty-idleColor: #89A194;
+    qproperty-hoverColor: #A14016;
+    qproperty-activeColor: #CB883A;
+    qproperty-pressedColor: #CFC89A;
+}
+
+QFrame#selectedRow,
+QFrame#trackRow,
+QFrame#reviewRow,
+QFrame#searchListRow {
+    qproperty-hoverColor: #CB883A;
+    qproperty-pressColor: #A14016;
+    qproperty-activeColor: #CB883A;
+}
+
+QWidget#trackLikeReviewBar StatefulIconButton {
+    qproperty-baseColor: #312938;
+    qproperty-hoverColor: #A14016;
+    qproperty-pressedColor: #CB883A;
+    qproperty-checkedColor: #CB883A;
+    qproperty-disabledColor: #7E776B;
 }
 
 /* Полупрозрачные страницы — виден общий ambient-фон (все вкладки) */
@@ -25,6 +62,7 @@ QWidget#homeHubPage,
 QWidget#searchPage,
 QWidget#selectedPage,
 QWidget#settingsPage,
+QWidget#reviewDetailPage,
 QWidget#playerPage {
     background-color: rgba(207, 200, 154, 0.88);
 }
@@ -166,4 +204,69 @@ QPushButton#btnArrow:hover {
 }
 QPushButton#btnArrow:pressed {
     background-color: #A14016;
+}
+
+/* --- Global popups / menus --- */
+QMenu {
+    background-color: rgba(18, 12, 28, 0.98);
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
+    border-radius: 8px;
+    padding: 6px;
+    font-family: "Courier New";
+    font-size: 11px;
+}
+QMenu::item {
+    background: transparent;
+    color: #CFC89A;
+    padding: 7px 22px;
+    border-radius: 5px;
+}
+QMenu::item:selected {
+    background-color: #CB883A;
+    color: #312938;
+}
+QMenu::separator {
+    height: 1px;
+    background: rgba(40, 200, 190, 0.45);
+    margin: 5px 8px;
+}
+
+QMessageBox {
+    background-color: #120C1C;
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
+    font-family: "Courier New";
+}
+QMessageBox QLabel {
+    color: #CFC89A;
+    background: transparent;
+    font-family: "Courier New";
+    font-size: 11px;
+}
+QMessageBox QPushButton {
+    background-color: #A14016;
+    color: #F0E7B8;
+    border: 2px solid #2A7A8C;
+    border-radius: 8px;
+    padding: 8px 18px;
+    min-width: 72px;
+    min-height: 24px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+}
+QMessageBox QPushButton:hover {
+    background-color: #CB883A;
+    color: #312938;
+    border-color: #CB883A;
+}
+
+QToolTip {
+    background-color: rgba(18, 12, 28, 0.96);
+    color: #CFC89A;
+    border: 1px solid #2A7A8C;
+    padding: 5px 8px;
+    font-family: "Courier New";
+    font-size: 10px;
 }

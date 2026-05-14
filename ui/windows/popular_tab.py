@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButt
 
 from backend.api_client import resolve_backend_media_url
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from backend.session import UserSession
 from ui.artist_link_label import ArtistLinkLabel
 from ui.cover_art import CoverArtWidget
@@ -209,7 +210,6 @@ class ArtistWidget(QWidget):
         self._avatar.setFixedSize(80, 80)
         self._avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._avatar.setText("♫")
-        self._avatar.setStyleSheet("font-size: 24px; color: #A14016;")
         self._avatar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         self._label = QLabel("—")
@@ -360,7 +360,6 @@ class CarouselSection(QWidget):
 
         self._inner = QWidget()
         self._inner.setObjectName("carouselInner")
-        self._inner.setStyleSheet("background: transparent;")
         self._ilayout = QHBoxLayout(self._inner)
         self._ilayout.setContentsMargins(8, 0, 8, 0)
         self._ilayout.setSpacing(14)
@@ -665,6 +664,7 @@ class PopularTab(QWidget):
 
         page_scroll.setWidget(inner)
         outer.addWidget(page_scroll)
+        enable_transient_vertical_page_scroll(page_scroll)
 
         QTimer.singleShot(0, self._load_popular)
 

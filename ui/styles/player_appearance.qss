@@ -125,3 +125,12 @@ QPushButton#playerAppearanceActionBtn:pressed {
     background-color: #A14016;
     border-color: #312938;
 }
+
+QScrollArea#playerAlbumScrollPreview {
+    background: transparent;
+    border: none;
+}
+
+QWidget#playerAlbumScrollPreviewInner {
+    background: transparent;
+}

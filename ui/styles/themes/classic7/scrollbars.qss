@@ -1,0 +1,36 @@
+/* Classic7 — те же страничные области, палитра темы */
+
+QScrollArea#searchPageScroll QScrollBar:vertical,
+QScrollArea#popularPageScroll QScrollBar:vertical,
+QScrollArea#settingsScroll QScrollBar:vertical,
+QScrollArea#selectedScroll QScrollBar:vertical,
+QScrollArea#artistPageScroll QScrollBar:vertical {
+    background: #D4BC8D;
+}
+QScrollArea#searchPageScroll QScrollBar::handle:vertical,
+QScrollArea#popularPageScroll QScrollBar::handle:vertical,
+QScrollArea#settingsScroll QScrollBar::handle:vertical,
+QScrollArea#selectedScroll QScrollBar::handle:vertical,
+QScrollArea#artistPageScroll QScrollBar::handle:vertical {
+    background: #3C83A6;
+}
+QScrollArea#searchPageScroll QScrollBar::handle:vertical:hover,
+QScrollArea#popularPageScroll QScrollBar::handle:vertical:hover,
+QScrollArea#settingsScroll QScrollBar::handle:vertical:hover,
+QScrollArea#selectedScroll QScrollBar::handle:vertical:hover,
+QScrollArea#artistPageScroll QScrollBar::handle:vertical:hover {
+    background: #D97A2B;
+}
+
+QScrollArea#reviewsScroll QScrollBar:vertical,
+QScrollArea#reviewDetailScroll QScrollBar:vertical {
+    background: rgba(234, 216, 181, 0.82);
+}
+QScrollArea#reviewsScroll QScrollBar::handle:vertical,
+QScrollArea#reviewDetailScroll QScrollBar::handle:vertical {
+    background: #9B4B32;
+}
+QScrollArea#reviewsScroll QScrollBar::handle:vertical:hover,
+QScrollArea#reviewDetailScroll QScrollBar::handle:vertical:hover {
+    background: #D97A2B;
+}

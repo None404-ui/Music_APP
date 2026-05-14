@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.artist_link_label import ArtistLinkLabel
 from ui.interactive_fx import fade_in_widget
 
@@ -307,6 +308,7 @@ class ReviewDetailPage(QWidget):
         bl.addStretch()
         self._scroll.setWidget(self._body_w)
         root.addWidget(self._scroll, stretch=1)
+        enable_transient_vertical_page_scroll(self._scroll)
 
     def load_review(self, review: dict, return_index: int = 0) -> None:
         self._review = dict(review or {})

@@ -1,0 +1,44 @@
+QWidget#selectedPage {
+    background-color: rgba(244, 228, 194, 0.76);
+}
+
+QWidget#selectedPage QLabel#sectionHeading,
+QLabel#selectedSectionLabel,
+QLabel#selectedRowTitle {
+    color: #9B4B32;
+}
+
+QWidget#selectedPage QPushButton#btnNav {
+    background-color: #40372D;
+    color: #EAD8B5;
+    border: 1px solid #5A4A36;
+}
+QWidget#selectedPage QPushButton#btnNav:hover {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+QWidget#selectedPage QPushButton#btnNav:checked {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border: 1px solid #9B4B32;
+}
+
+QFrame#selectedRow {
+    background-color: #F4E4C2;
+    border: 1px solid #B69258;
+}
+QFrame#selectedRow:hover {
+    background-color: #FFF3D2;
+    border: 1px solid #D97A2B;
+}
+
+QLabel#selectedRowSub,
+QLabel#selectedEmpty {
+    color: #77513D;
+}
+QLabel#selectedRowArtist {
+    color: #3C83A6;
+}
+QLabel#selectedRowArtist:hover {
+    color: #D97A2B;
+}

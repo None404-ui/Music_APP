@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
@@ -15,16 +16,17 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QFileDialog,
 )
-from PyQt6.QtCore import Qt, QUrl, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QUrl, QSize, pyqtProperty, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPainter, QColor, QImage, QPainterPath, QPixmap
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PyQt6.QtSvg import QSvgRenderer
 
 from backend.api_client import resolve_backend_media_url
-from ui import i18n, locale_settings, playback_settings
+from ui import i18n, locale_settings, playback_settings, theme_settings
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 
 # Светлые строки настроек: более тёмный текст для контраста.
-_SETTINGS_ROW_LABEL_COLOR = "#4A6B5E"
-_SETTINGS_ROW_VALUE_COLOR = "#6B5348"
+_ICONS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "icons"))
 
 
 class ToggleSwitch(QWidget):
@@ -41,6 +43,9 @@ class ToggleSwitch(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._checked = False
         self._circle_x = self._OFF_X
+        self._track_off_color = QColor(214, 222, 214)
+        self._track_on_color = QColor(236, 206, 128)
+        self._handle_color = QColor("#5C6460")
 
         self._anim = QPropertyAnimation(self, b"circle_x")
         self._anim.setDuration(220)
@@ -85,8 +90,10 @@ class ToggleSwitch(QWidget):
         t = max(0.0, min(1.0, (self._circle_x - self._OFF_X) / (self._ON_X - self._OFF_X)))
 
         # Светлая дорожка: выкл — мягкий шалфей; вкл — тёплый янтарь (читается на светлом фоне вкладки)
-        br0, bg0, bb0 = 214, 222, 214
-        br1, bg1, bb1 = 236, 206, 128
+        off = self._track_off_color
+        on = self._track_on_color
+        br0, bg0, bb0 = off.red(), off.green(), off.blue()
+        br1, bg1, bb1 = on.red(), on.green(), on.blue()
         br = int(br0 + t * (br1 - br0))
         bg = int(bg0 + t * (bg1 - bg0))
         bb = int(bb0 + t * (bb1 - bb0))
@@ -95,10 +102,35 @@ class ToggleSwitch(QWidget):
         p.drawRoundedRect(0, 0, w, h, r, r)
 
         cx = int(self._circle_x)
-        p.setBrush(QColor("#5C6460"))
+        p.setBrush(self._handle_color)
         p.drawEllipse(cx - circle_r, h // 2 - circle_r, circle_r * 2, circle_r * 2)
 
         p.end()
+
+    def _get_track_off_color(self) -> QColor:
+        return QColor(self._track_off_color)
+
+    def _set_track_off_color(self, color: QColor) -> None:
+        self._track_off_color = QColor(color)
+        self.update()
+
+    def _get_track_on_color(self) -> QColor:
+        return QColor(self._track_on_color)
+
+    def _set_track_on_color(self, color: QColor) -> None:
+        self._track_on_color = QColor(color)
+        self.update()
+
+    def _get_handle_color(self) -> QColor:
+        return QColor(self._handle_color)
+
+    def _set_handle_color(self, color: QColor) -> None:
+        self._handle_color = QColor(color)
+        self.update()
+
+    trackOffColor = pyqtProperty(QColor, _get_track_off_color, _set_track_off_color)
+    trackOnColor = pyqtProperty(QColor, _get_track_on_color, _set_track_on_color)
+    handleColor = pyqtProperty(QColor, _get_handle_color, _set_handle_color)
 
 
 class ClickableAvatarLabel(QLabel):
@@ -127,7 +159,6 @@ class SettingsRow(QFrame):
 
         lbl = QLabel(label)
         lbl.setObjectName("settingsRowLabel")
-        lbl.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         layout.addWidget(lbl, stretch=1)
 
         if row_type == "toggle":
@@ -144,9 +175,66 @@ class SettingsRow(QFrame):
         elif row_type == "text" and row_data:
             val = QLabel(str(row_data) + "  ›")
             val.setObjectName("settingsRowValue")
-            val.setStyleSheet(f"color: {_SETTINGS_ROW_VALUE_COLOR};")
             val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             layout.addWidget(val)
+
+
+class SvgPreviewLabel(QLabel):
+    def __init__(self, path: str, size: QSize, parent=None):
+        super().__init__(parent)
+        self.setObjectName("settingsThemeIcon")
+        self.setFixedSize(size)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._renderer = QSvgRenderer(path)
+        self._pixmap = QPixmap()
+        self._render_svg(size)
+
+    def _render_svg(self, size: QSize) -> None:
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._renderer.render(painter)
+        painter.end()
+        self._pixmap = pixmap
+        self.setPixmap(pixmap)
+
+
+class ThemeOption(QFrame):
+    selected = pyqtSignal(str)
+
+    def __init__(self, theme_key: str, icon_name: str, label: str, parent=None):
+        super().__init__(parent)
+        self.theme_key = theme_key
+        self.setObjectName("settingsThemeOption")
+        self.setFixedSize(268, 210)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setProperty("selected", False)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon = SvgPreviewLabel(os.path.join(_ICONS_DIR, icon_name), QSize(216, 140))
+        layout.addWidget(icon, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        text = QLabel(label)
+        text.setObjectName("settingsThemeCaption")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text.setWordWrap(False)
+        layout.addWidget(text, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def set_selected(self, selected: bool) -> None:
+        self.setProperty("selected", bool(selected))
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.selected.emit(self.theme_key)
+        super().mouseReleaseEvent(event)
 
 
 class ClickableSettingsRow(QFrame):
@@ -167,12 +255,10 @@ class ClickableSettingsRow(QFrame):
 
         lbl = QLabel(label)
         lbl.setObjectName("settingsRowLabel")
-        lbl.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         layout.addWidget(lbl, stretch=1)
 
         val = QLabel("›")
         val.setObjectName("settingsRowValue")
-        val.setStyleSheet(f"color: {_SETTINGS_ROW_VALUE_COLOR};")
         val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(val)
 
@@ -184,12 +270,6 @@ class ClickableSettingsRow(QFrame):
 
 _INTERFACE_SECTION = "ИНТЕРФЕЙС"
 
-_SECTIONS_OTHER = {
-    _INTERFACE_SECTION: [
-        ("Тёмная тема", None, "toggle"),
-    ],
-}
-
 
 class SettingsTab(QWidget):
     def __init__(
@@ -199,6 +279,7 @@ class SettingsTab(QWidget):
         on_logout: Optional[Callable[[], None]] = None,
         on_language_changed: Optional[Callable[[], None]] = None,
         on_open_player_appearance: Optional[Callable[[], None]] = None,
+        on_theme_changed: Optional[Callable[[str], None]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -208,6 +289,8 @@ class SettingsTab(QWidget):
         self._on_logout = on_logout
         self._on_language_changed = on_language_changed
         self._on_open_player_appearance = on_open_player_appearance
+        self._on_theme_changed = on_theme_changed
+        self._theme_options: list[ThemeOption] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 24)
@@ -285,7 +368,7 @@ class SettingsTab(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setObjectName("settingsScrollContent")
         col = QVBoxLayout(container)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(6)
@@ -311,16 +394,11 @@ class SettingsTab(QWidget):
             pw_row.clicked.connect(self._open_change_password)
             col.addWidget(pw_row)
 
-        for section_name, rows in _SECTIONS_OTHER.items():
-            section_lbl = QLabel(i18n.tr(section_name))
-            section_lbl.setObjectName("settingsSectionLabel")
-            col.addWidget(section_lbl)
-            for row_label, row_data, row_type in rows:
-                col.addWidget(
-                    SettingsRow(i18n.tr(row_label), row_data, row_type),
-                )
-            if section_name == _INTERFACE_SECTION:
-                col.addWidget(self._build_language_row())
+        section_lbl = QLabel(i18n.tr(_INTERFACE_SECTION))
+        section_lbl.setObjectName("settingsSectionLabel")
+        col.addWidget(section_lbl)
+        col.addWidget(self._build_theme_row())
+        col.addWidget(self._build_language_row())
 
         pb_lbl = QLabel(i18n.tr("ВОСПРОИЗВЕДЕНИЕ"))
         pb_lbl.setObjectName("settingsSectionLabel")
@@ -337,7 +415,6 @@ class SettingsTab(QWidget):
         ql.setContentsMargins(16, 0, 16, 0)
         q_lab = QLabel(i18n.tr("Качество звука"))
         q_lab.setObjectName("settingsRowLabel")
-        q_lab.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         ql.addWidget(q_lab)
         ql.addStretch()
         ql.addWidget(self._quality_combo)
@@ -389,12 +466,49 @@ class SettingsTab(QWidget):
         col.addStretch()
         scroll.setWidget(container)
         outer.addWidget(scroll, stretch=1)
+        enable_transient_vertical_page_scroll(scroll)
 
     def showEvent(self, event):
         super().showEvent(event)
         self._sync_playback_and_language_widgets()
         if self._session:
             self._reload_profile_header()
+
+    def _build_theme_row(self) -> QFrame:
+        row = QFrame()
+        row.setObjectName("settingsThemeRow")
+        row.setFixedHeight(260)
+
+        lay = QVBoxLayout(row)
+        lay.setContentsMargins(16, 8, 16, 0)
+        lay.setSpacing(10)
+
+        title = QLabel(i18n.tr("Тема:"))
+        title.setObjectName("settingsThemeTitle")
+        lay.addWidget(title)
+
+        options = QHBoxLayout()
+        options.setContentsMargins(0, 0, 0, 0)
+        options.setSpacing(72)
+        options.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        neon = ThemeOption(
+            theme_settings.RETRO_NEON,
+            "dark_cassette.svg",
+            i18n.tr("Ретро-неон"),
+        )
+        classic = ThemeOption(
+            theme_settings.CLASSIC7,
+            "light_cassette.svg",
+            i18n.tr("Ретро-классика"),
+        )
+        self._theme_options = [neon, classic]
+        for option in self._theme_options:
+            option.selected.connect(self._on_theme_selected)
+            options.addWidget(option)
+        self._sync_theme_options()
+        lay.addLayout(options, stretch=1)
+
+        return row
 
     def _build_language_row(self) -> QFrame:
         row = QFrame()
@@ -404,7 +518,6 @@ class SettingsTab(QWidget):
         lay.setContentsMargins(16, 0, 16, 0)
         lab = QLabel(i18n.tr("Язык"))
         lab.setObjectName("settingsRowLabel")
-        lab.setStyleSheet(f"color: {_SETTINGS_ROW_LABEL_COLOR};")
         lay.addWidget(lab)
         lay.addStretch()
         self._lang_combo = QComboBox()
@@ -430,6 +543,22 @@ class SettingsTab(QWidget):
         self._lang_combo.blockSignals(False)
         self._autoplay_toggle.setChecked(playback_settings.autoplay())
         self._norm_toggle.setChecked(playback_settings.normalization())
+        self._sync_theme_options()
+
+    def _sync_theme_options(self) -> None:
+        current = theme_settings.theme_key()
+        for option in self._theme_options:
+            option.set_selected(option.theme_key == current)
+
+    def _on_theme_selected(self, key: str) -> None:
+        normalized = theme_settings.normalize_theme_key(key)
+        if normalized == theme_settings.theme_key():
+            self._sync_theme_options()
+            return
+        theme_settings.set_theme_key(normalized)
+        self._sync_theme_options()
+        if self._on_theme_changed:
+            self._on_theme_changed(normalized)
 
     def _round_avatar_pixmap(self, src: QPixmap) -> QPixmap:
         size = 90

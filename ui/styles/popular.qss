@@ -14,6 +14,11 @@ QWidget#popularPageInner {
     background: transparent;
 }
 
+QWidget#carouselInner,
+QWidget#artistHeroTracksInner {
+    background: transparent;
+}
+
 QFrame#artistHeroBlock {
     background: transparent;
 }
@@ -105,21 +110,21 @@ QScrollArea#carouselScroll {
 QScrollArea#carouselScroll > QWidget > QWidget {
     background: transparent;
 }
-QScrollBar:horizontal {
+QScrollArea#carouselScroll QScrollBar:horizontal {
     background: #BDB685;
     height: 6px;
     border-radius: 3px;
 }
-QScrollBar::handle:horizontal {
+QScrollArea#carouselScroll QScrollBar::handle:horizontal {
     background: #89A194;
     border-radius: 3px;
     min-width: 30px;
 }
-QScrollBar::handle:horizontal:hover {
+QScrollArea#carouselScroll QScrollBar::handle:horizontal:hover {
     background: #CB883A;
 }
-QScrollBar::add-line:horizontal,
-QScrollBar::sub-line:horizontal {
+QScrollArea#carouselScroll QScrollBar::add-line:horizontal,
+QScrollArea#carouselScroll QScrollBar::sub-line:horizontal {
     width: 0px;
 }
 
@@ -227,4 +232,21 @@ QLabel#trackDuration {
     font-weight: bold;
     color: #CFC89A;
     min-width: 52px;
+}
+
+CoverArtWidget#albumCover,
+CoverArtWidget#trackRowThumb,
+CoverArtWidget#artistHeroCover {
+    qproperty-borderColor: #89A194;
+    qproperty-fillColor: #BDB685;
+    qproperty-maskColor: #5c5748;
+    qproperty-placeholderColor: #A14016;
+}
+
+QLabel#artistPageAvatar {
+    background-color: #BDB685;
+    border-radius: 48px;
+    border: 2px solid #89A194;
+    font-size: 36px;
+    color: #A14016;
 }

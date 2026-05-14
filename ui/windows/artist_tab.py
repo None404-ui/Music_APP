@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 from backend.api_client import resolve_backend_media_url
 from backend.session import UserSession
 from ui import i18n
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 
 OnPlayTrack = Callable[[dict], None]
 
@@ -133,7 +134,6 @@ class ArtistTab(QWidget):
         self._avatar.setFixedSize(96, 96)
         self._avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._avatar.setText("♫")
-        self._avatar.setStyleSheet("font-size: 36px; color: #A14016;")
 
         meta = QVBoxLayout()
         self._nickname = QLabel("—")
@@ -159,6 +159,7 @@ class ArtistTab(QWidget):
         outer.addWidget(self._status)
 
         scroll = QScrollArea()
+        scroll.setObjectName("artistPageScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -169,6 +170,7 @@ class ArtistTab(QWidget):
         self._tracks_layout.setSpacing(8)
         scroll.setWidget(self._tracks_host)
         outer.addWidget(scroll, stretch=1)
+        enable_transient_vertical_page_scroll(scroll)
 
     def _abort_avatar(self) -> None:
         if self._avatar_reply is None:

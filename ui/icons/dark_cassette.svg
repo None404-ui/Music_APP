@@ -1,0 +1,161 @@
+<svg width="512" height="512" viewBox="40 126 432 280" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Neon Retro Cassette Icon</title>
+  <desc id="desc">Minimal neon styled 1970s retro cassette with glowing purple, blue, cyan and orange details.</desc>
+
+  <defs>
+    <linearGradient id="bodyGradient" x1="72" y1="126" x2="440" y2="386" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A0A5E"/>
+      <stop offset="0.48" stop-color="#111126"/>
+      <stop offset="1" stop-color="#00306B"/>
+    </linearGradient>
+
+    <linearGradient id="edgeGradient" x1="72" y1="126" x2="440" y2="386" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B026FF"/>
+      <stop offset="0.36" stop-color="#00E5FF"/>
+      <stop offset="0.72" stop-color="#FF2BD6"/>
+      <stop offset="1" stop-color="#FF7A18"/>
+    </linearGradient>
+
+    <linearGradient id="labelGradient" x1="112" y1="166" x2="400" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1C1248"/>
+      <stop offset="0.52" stop-color="#10182F"/>
+      <stop offset="1" stop-color="#2A1028"/>
+    </linearGradient>
+
+    <radialGradient id="reelGradient" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(176 270) rotate(90) scale(64)">
+      <stop offset="0" stop-color="#FDF7FF"/>
+      <stop offset="0.18" stop-color="#00E5FF"/>
+      <stop offset="0.55" stop-color="#2D165F"/>
+      <stop offset="1" stop-color="#090713"/>
+    </radialGradient>
+
+    <radialGradient id="reelGradientRight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(336 270) rotate(90) scale(64)">
+      <stop offset="0" stop-color="#FFF7E8"/>
+      <stop offset="0.18" stop-color="#FF7A18"/>
+      <stop offset="0.55" stop-color="#441044"/>
+      <stop offset="1" stop-color="#090713"/>
+    </radialGradient>
+
+    <filter id="neonGlow" x="-45%" y="-45%" width="190%" height="190%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="3" result="blurSoft"/>
+      <feGaussianBlur stdDeviation="8" result="blurWide"/>
+      <feMerge>
+        <feMergeNode in="blurWide"/>
+        <feMergeNode in="blurSoft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="thinGlow" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <style>
+      .line {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .microcopy {
+        font-family: "Arial Narrow", "DIN Condensed", Arial, sans-serif;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+      }
+
+      .labelcopy {
+        font-family: "Arial Narrow", "DIN Condensed", Arial, sans-serif;
+        font-weight: 800;
+        letter-spacing: 4px;
+      }
+    </style>
+  </defs>
+
+  <g opacity="0.42" filter="url(#neonGlow)">
+    <path class="line" d="M96 138H416C440.301 138 460 157.699 460 182V350C460 374.301 440.301 394 416 394H96C71.6995 394 52 374.301 52 350V182C52 157.699 71.6995 138 96 138Z" stroke="url(#edgeGradient)" stroke-width="6"/>
+  </g>
+
+  <g>
+    <path d="M96 132H416C443.614 132 466 154.386 466 182V350C466 377.614 443.614 400 416 400H96C68.3858 400 46 377.614 46 350V182C46 154.386 68.3858 132 96 132Z" fill="url(#bodyGradient)"/>
+    <path class="line" d="M96 132H416C443.614 132 466 154.386 466 182V350C466 377.614 443.614 400 416 400H96C68.3858 400 46 377.614 46 350V182C46 154.386 68.3858 132 96 132Z" stroke="url(#edgeGradient)" stroke-width="4" filter="url(#thinGlow)"/>
+
+    <path class="line" d="M91 154H421" stroke="#00E5FF" stroke-width="2" opacity="0.65"/>
+    <path class="line" d="M76 362H436" stroke="#B026FF" stroke-width="2" opacity="0.5"/>
+  </g>
+
+  <g filter="url(#thinGlow)">
+    <rect x="104" y="164" width="304" height="92" rx="16" fill="url(#labelGradient)" stroke="#00E5FF" stroke-width="2.5"/>
+    <path class="line" d="M126 188H386" stroke="#FF2BD6" stroke-width="3"/>
+    <path class="line" d="M126 216H386" stroke="#00E5FF" stroke-width="2"/>
+    <path class="line" d="M126 234H214" stroke="#FF7A18" stroke-width="2"/>
+    <path class="line" d="M298 234H386" stroke="#FF7A18" stroke-width="2"/>
+
+    <text x="128" y="207" class="labelcopy" font-size="20" fill="#FDF7FF">NEON TAPE</text>
+    <text x="128" y="246" class="microcopy" font-size="12" fill="#FF7A18">SIDE A</text>
+    <text x="315" y="246" class="microcopy" font-size="12" fill="#00E5FF">70s MIX</text>
+  </g>
+
+  <g>
+    <rect x="118" y="260" width="276" height="86" rx="28" fill="#080713" stroke="#B026FF" stroke-width="3" filter="url(#thinGlow)"/>
+    <path d="M193 295H319C330.598 295 340 304.402 340 316C340 327.598 330.598 337 319 337H193C181.402 337 172 327.598 172 316C172 304.402 181.402 295 193 295Z" fill="#120A24" stroke="#00E5FF" stroke-width="2.5" opacity="0.95"/>
+
+    <circle cx="176" cy="270" r="48" fill="url(#reelGradient)" stroke="#00E5FF" stroke-width="3" filter="url(#thinGlow)"/>
+    <circle cx="336" cy="270" r="48" fill="url(#reelGradientRight)" stroke="#FF7A18" stroke-width="3" filter="url(#thinGlow)"/>
+
+    <circle cx="176" cy="270" r="28" fill="#070611" stroke="#B026FF" stroke-width="2.5"/>
+    <circle cx="336" cy="270" r="28" fill="#070611" stroke="#FF2BD6" stroke-width="2.5"/>
+
+    <circle cx="176" cy="270" r="8" fill="#FDF7FF"/>
+    <circle cx="336" cy="270" r="8" fill="#FDF7FF"/>
+
+    <g stroke="#FDF7FF" stroke-width="3" stroke-linecap="round" opacity="0.95">
+      <path d="M176 242V252"/>
+      <path d="M176 288V298"/>
+      <path d="M148 270H158"/>
+      <path d="M194.5 251.5L187.5 258.5"/>
+      <path d="M194.5 288.5L187.5 281.5"/>
+      <path d="M157.5 251.5L164.5 258.5"/>
+      <path d="M157.5 288.5L164.5 281.5"/>
+
+      <path d="M336 242V252"/>
+      <path d="M336 288V298"/>
+      <path d="M308 270H318"/>
+      <path d="M354.5 251.5L347.5 258.5"/>
+      <path d="M354.5 288.5L347.5 281.5"/>
+      <path d="M317.5 251.5L324.5 258.5"/>
+      <path d="M317.5 288.5L324.5 281.5"/>
+    </g>
+
+    <path class="line" d="M224 319C244 309 269 309 288 319" stroke="#FF7A18" stroke-width="5" filter="url(#thinGlow)"/>
+  </g>
+
+  <g filter="url(#thinGlow)">
+    <path class="line" d="M130 366H382" stroke="#00E5FF" stroke-width="3"/>
+    <path class="line" d="M160 382H352" stroke="#FF2BD6" stroke-width="3"/>
+    <rect x="204" y="354" width="104" height="28" rx="12" fill="#0D0A1A" stroke="#FF7A18" stroke-width="2.5"/>
+    <path class="line" d="M224 368H288" stroke="#FF7A18" stroke-width="3"/>
+  </g>
+
+  <g fill="#070611" stroke="#FDF7FF" stroke-width="2" opacity="0.95">
+    <circle cx="88" cy="174" r="9"/>
+    <circle cx="424" cy="174" r="9"/>
+    <circle cx="88" cy="358" r="9"/>
+    <circle cx="424" cy="358" r="9"/>
+  </g>
+
+  <g stroke="#B026FF" stroke-width="2" stroke-linecap="round" opacity="0.9">
+    <path d="M82 168L94 180"/>
+    <path d="M94 168L82 180"/>
+    <path d="M418 168L430 180"/>
+    <path d="M430 168L418 180"/>
+    <path d="M82 352L94 364"/>
+    <path d="M94 352L82 364"/>
+    <path d="M418 352L430 364"/>
+    <path d="M430 352L418 364"/>
+  </g>
+
+</svg>

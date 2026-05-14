@@ -1,0 +1,76 @@
+QWidget#searchPage {
+    background-color: rgba(244, 228, 194, 0.74);
+}
+
+QLineEdit#searchInput {
+    background-color: #FFF3D2;
+    border: 2px solid #9B4B32;
+    color: #5C3A2A;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QLineEdit#searchInput:focus {
+    border: 2px solid #D97A2B;
+    background-color: #FFF8E2;
+}
+
+QPushButton#btnSearchCompact {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+QPushButton#btnSearchCompact:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+}
+
+QWidget#searchPage QPushButton#btnNav {
+    background-color: #40372D;
+    color: #EAD8B5;
+    border: 1px solid #5A4A36;
+}
+QWidget#searchPage QPushButton#btnNav:hover {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+QWidget#searchPage QPushButton#btnNav:checked {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border: 1px solid #9B4B32;
+}
+
+QPushButton#btnHistoryClear,
+QLabel#searchSectionLabel {
+    color: #9B4B32;
+    border-color: #9B4B32;
+}
+QPushButton#btnHistoryClear:hover {
+    background-color: rgba(155, 75, 50, 0.14);
+    color: #FFF3D2;
+}
+
+QLabel#searchEmptyLabel,
+QLabel#searchRowMeta {
+    color: #77513D;
+}
+
+QFrame#searchListRow {
+    background-color: #F4E4C2;
+    border: 1px solid #B69258;
+}
+QFrame#searchListRow:hover {
+    background-color: #FFF3D2;
+    border: 1px solid #D97A2B;
+}
+QLabel#searchRowTitle {
+    color: #9B4B32;
+}
+QLabel#searchRowArtist {
+    color: #3C83A6;
+}
+QLabel#searchRowArtist:hover,
+QFrame#searchListRow:hover QLabel#searchRowArtist {
+    color: #D97A2B;
+}
+QLabel#searchRowBody {
+    color: #5C3A2A;
+}

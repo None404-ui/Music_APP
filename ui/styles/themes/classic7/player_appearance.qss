@@ -1,0 +1,48 @@
+QWidget#playerAppearancePage {
+    background-color: rgba(244, 228, 194, 0.76);
+}
+
+QLabel#playerAppearanceTitle {
+    color: #9B4B32;
+}
+QLabel#playerAppearanceControlLabel,
+QLabel#playerAppearanceFileLabel {
+    color: #77513D;
+}
+
+QComboBox#playerPageBgMode,
+QCheckBox#playerAppearanceCheck,
+QPushButton#playerAppearanceToolBtn,
+QPushButton#playerAppearanceActionBtn {
+    color: #5C3A2A;
+    background-color: #FFF3D2;
+    border-color: #9B4B32;
+}
+QComboBox#playerPageBgMode QAbstractItemView {
+    color: #5C3A2A;
+    background-color: #FFF3D2;
+    border: 2px solid #9B4B32;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QComboBox#playerPageBgMode::down-arrow {
+    border-top: 6px solid #D97A2B;
+}
+QCheckBox#playerAppearanceCheck::indicator {
+    background-color: #FFF3D2;
+    border-color: #9B4B32;
+}
+QCheckBox#playerAppearanceCheck::indicator:checked {
+    background-color: #D97A2B;
+    border-color: #9B4B32;
+}
+QPushButton#playerAppearanceToolBtn:hover,
+QPushButton#playerAppearanceActionBtn:hover {
+    background-color: rgba(217, 122, 43, 0.18);
+    border-color: #D97A2B;
+    color: #9B4B32;
+}
+QPushButton#playerAppearanceActionBtn:pressed {
+    background-color: #D97A2B;
+    color: #2E2B25;
+}

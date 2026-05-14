@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QRectF, QSize
+from PyQt6.QtCore import Qt, QRectF, QSize, pyqtProperty
 from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QBrush
 from PyQt6.QtWidgets import QWidget
 
@@ -105,6 +105,39 @@ class CoverArtWidget(QWidget):
         if mask_color is not None:
             self._mask_color = mask_color
         self.update()
+
+    def _get_border_color(self) -> QColor:
+        return QColor(self._border_color)
+
+    def _set_border_color(self, color: QColor) -> None:
+        self._border_color = QColor(color)
+        self.update()
+
+    def _get_fill_color(self) -> QColor:
+        return QColor(self._fill_color or QColor(0, 0, 0, 0))
+
+    def _set_fill_color(self, color: QColor) -> None:
+        self._fill_color = QColor(color)
+        self.update()
+
+    def _get_mask_color(self) -> QColor:
+        return QColor(self._mask_color or QColor(0, 0, 0, 0))
+
+    def _set_mask_color(self, color: QColor) -> None:
+        self._mask_color = QColor(color)
+        self.update()
+
+    def _get_placeholder_color(self) -> QColor:
+        return QColor(self._placeholder_color)
+
+    def _set_placeholder_color(self, color: QColor) -> None:
+        self._placeholder_color = QColor(color)
+        self.update()
+
+    borderColor = pyqtProperty(QColor, _get_border_color, _set_border_color)
+    fillColor = pyqtProperty(QColor, _get_fill_color, _set_fill_color)
+    maskColor = pyqtProperty(QColor, _get_mask_color, _set_mask_color)
+    placeholderColor = pyqtProperty(QColor, _get_placeholder_color, _set_placeholder_color)
 
     def set_radius(self, radius: int) -> None:
         self._radius = radius

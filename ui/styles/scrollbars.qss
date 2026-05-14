@@ -1,0 +1,69 @@
+/* ============================================================
+   page_scrollbars.qss — только корневые QScrollArea вкладок
+   (узкая вертикальная полоса; не трогает списки/карусель/плеер)
+   ============================================================ */
+
+/* Светлый фон вкладки (поиск, популярное, настройки, моё, страница артиста) */
+QScrollArea#searchPageScroll QScrollBar:vertical,
+QScrollArea#popularPageScroll QScrollBar:vertical,
+QScrollArea#settingsScroll QScrollBar:vertical,
+QScrollArea#selectedScroll QScrollBar:vertical,
+QScrollArea#artistPageScroll QScrollBar:vertical {
+    background: #E4DFC8;
+    width: 5px;
+    border-radius: 2px;
+    margin: 0;
+}
+QScrollArea#searchPageScroll QScrollBar::handle:vertical,
+QScrollArea#popularPageScroll QScrollBar::handle:vertical,
+QScrollArea#settingsScroll QScrollBar::handle:vertical,
+QScrollArea#selectedScroll QScrollBar::handle:vertical,
+QScrollArea#artistPageScroll QScrollBar::handle:vertical {
+    background: #A8BDA8;
+    border-radius: 2px;
+    min-height: 28px;
+}
+QScrollArea#searchPageScroll QScrollBar::handle:vertical:hover,
+QScrollArea#popularPageScroll QScrollBar::handle:vertical:hover,
+QScrollArea#settingsScroll QScrollBar::handle:vertical:hover,
+QScrollArea#selectedScroll QScrollBar::handle:vertical:hover,
+QScrollArea#artistPageScroll QScrollBar::handle:vertical:hover {
+    background: #CB883A;
+}
+QScrollArea#searchPageScroll QScrollBar::add-line:vertical,
+QScrollArea#searchPageScroll QScrollBar::sub-line:vertical,
+QScrollArea#popularPageScroll QScrollBar::add-line:vertical,
+QScrollArea#popularPageScroll QScrollBar::sub-line:vertical,
+QScrollArea#settingsScroll QScrollBar::add-line:vertical,
+QScrollArea#settingsScroll QScrollBar::sub-line:vertical,
+QScrollArea#selectedScroll QScrollBar::add-line:vertical,
+QScrollArea#selectedScroll QScrollBar::sub-line:vertical,
+QScrollArea#artistPageScroll QScrollBar::add-line:vertical,
+QScrollArea#artistPageScroll QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* Тёмнее/ambient: рецензии и полноэкранная рецензия */
+QScrollArea#reviewsScroll QScrollBar:vertical,
+QScrollArea#reviewDetailScroll QScrollBar:vertical {
+    background: rgba(49, 41, 56, 0.55);
+    width: 5px;
+    border-radius: 2px;
+    margin: 0;
+}
+QScrollArea#reviewsScroll QScrollBar::handle:vertical,
+QScrollArea#reviewDetailScroll QScrollBar::handle:vertical {
+    background: #2A7A8C;
+    border-radius: 2px;
+    min-height: 28px;
+}
+QScrollArea#reviewsScroll QScrollBar::handle:vertical:hover,
+QScrollArea#reviewDetailScroll QScrollBar::handle:vertical:hover {
+    background: #CB883A;
+}
+QScrollArea#reviewsScroll QScrollBar::add-line:vertical,
+QScrollArea#reviewsScroll QScrollBar::sub-line:vertical,
+QScrollArea#reviewDetailScroll QScrollBar::add-line:vertical,
+QScrollArea#reviewDetailScroll QScrollBar::sub-line:vertical {
+    height: 0px;
+}

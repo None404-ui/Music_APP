@@ -1,0 +1,83 @@
+QWidget#popularPage {
+    background-color: transparent;
+}
+
+QWidget#popularPage QLabel#sectionHeading,
+QWidget#popularPage QLabel#subSectionHeading,
+QLabel#carouselHeading {
+    color: #9B4B32;
+}
+
+QLabel#popularLoadStatus,
+QLabel#popularEmptyHint {
+    color: #77513D;
+}
+
+QScrollArea#carouselScroll QScrollBar:horizontal {
+    background: #BFA273;
+}
+QScrollArea#carouselScroll QScrollBar::handle:horizontal {
+    background: #3C83A6;
+}
+QScrollArea#carouselScroll QScrollBar::handle:horizontal:hover {
+    background: #D97A2B;
+}
+
+QFrame#albumCard,
+QFrame#trackRow {
+    background-color: #40372D;
+    border: 1px solid #9B4B32;
+}
+QFrame#albumCard:hover,
+QFrame#trackRow:hover {
+    background-color: #5A4A36;
+    border: 1px solid #D97A2B;
+}
+
+QLabel#albumTitle,
+QLabel#trackTitle,
+QLabel#trackStats,
+QLabel#trackDuration {
+    color: #FFF3D2;
+}
+
+QLabel#albumArtist,
+QLabel#artistName,
+QLabel#trackArtist {
+    color: #3C83A6;
+}
+QFrame#albumCard:hover QLabel#albumArtist,
+QFrame#trackRow:hover QLabel#trackArtist,
+QLabel#artistName:hover,
+QLabel#trackArtist:hover {
+    color: #D97A2B;
+}
+
+QLabel#artistAvatar {
+    background-color: #EAD8B5;
+    border: 2px solid #3C83A6;
+    color: #9B4B32;
+}
+QLabel#artistAvatar:hover {
+    background-color: #F4E4C2;
+    border: 2px solid #D97A2B;
+}
+
+QLabel#trackNumber {
+    color: rgba(255, 243, 210, 0.78);
+}
+
+CoverArtWidget#albumCover,
+CoverArtWidget#trackRowThumb,
+CoverArtWidget#artistHeroCover {
+    qproperty-borderColor: #3C83A6;
+    qproperty-fillColor: #EAD8B5;
+    qproperty-maskColor: #40372D;
+    qproperty-placeholderColor: #9B4B32;
+}
+
+QLabel#artistPageAvatar {
+    background-color: #EAD8B5;
+    border: 2px solid #3C83A6;
+    color: #9B4B32;
+}

@@ -1,22 +1,20 @@
-/* ============================================================
-   reviews.qss — Reviews tab styles (Retro 70s palette)
-   ============================================================ */
+/* Reviews tab: neon/ambient palette */
 
 QWidget#reviewsPage {
-    background-color: rgba(207, 200, 154, 0.88);
+    background-color: rgba(18, 12, 28, 0.22);
 }
 
-/* Page heading */
 QLabel#reviewsHeading {
     font-family: "Courier New";
     font-size: 28px;
     font-weight: bold;
-    color: #A14016;
-    letter-spacing: 5px;
+    color: #CB883A;
+    letter-spacing: 2px;
     margin-bottom: 8px;
+    background: transparent;
+    min-height: 40px;
 }
 
-/* Scroll area */
 QScrollArea#reviewsScroll {
     background: transparent;
     border: none;
@@ -24,80 +22,61 @@ QScrollArea#reviewsScroll {
 QScrollArea#reviewsScroll > QWidget > QWidget {
     background: transparent;
 }
-QScrollBar:vertical {
-    background: #BDB685;
-    width: 6px;
-    border-radius: 3px;
-}
-QScrollBar::handle:vertical {
-    background: #89A194;
-    border-radius: 3px;
-    min-height: 30px;
-}
-QScrollBar::handle:vertical:hover {
-    background: #CB883A;
-}
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0px;
+QWidget#reviewsScrollInner {
+    background: transparent;
 }
 
-/* Review card row — тёмная карточка под акцентный текст */
 QFrame#reviewRow {
-    background-color: #5c5748;
-    border: 1px solid #89A194;
+    background-color: rgba(24, 18, 32, 0.90);
+    border: 1px solid rgba(40, 200, 190, 0.48);
     border-radius: 10px;
 }
 QFrame#reviewRow:hover {
     border: 2px solid #CB883A;
-    background-color: #6d6756;
+    background-color: rgba(49, 41, 56, 0.94);
 }
 QFrame#reviewRow:hover QLabel#reviewThumb {
     border: 1px solid #CB883A;
-    background-color: #d1c996;
+    background-color: rgba(40, 200, 190, 0.20);
 }
 
-/* Album thumbnail placeholder */
 QLabel#reviewThumb {
-    background-color: #BDB685;
+    background-color: rgba(49, 41, 56, 0.82);
     border-radius: 6px;
-    border: 1px solid #89A194;
+    border: 1px solid #2A7A8C;
     font-size: 22px;
-    color: #A14016;
+    color: #CB883A;
 }
 
-/* Album / track title inside review card */
 QLabel#reviewAlbum {
     font-family: "Courier New";
     font-size: 14px;
     font-weight: bold;
-    color: #CFC89A;
-    letter-spacing: 1px;
+    color: #F0E7B8;
+    letter-spacing: 0px;
 }
 
 QLabel#reviewMeta {
     font-family: "Courier New";
     font-size: 11px;
-    color: rgba(207, 200, 154, 0.95);
-    letter-spacing: 1px;
+    color: rgba(207, 200, 154, 0.88);
+    letter-spacing: 0px;
 }
 
-/* Artist name */
 QLabel#reviewArtist {
     font-family: "Courier New";
     font-size: 12px;
-    color: #2A7A8C;
+    color: #28C8BE;
     text-decoration: underline;
 }
 QLabel#reviewArtist:hover {
     color: #CB883A;
 }
 
-/* Review excerpt text */
 QLabel#reviewExcerpt {
     font-family: "Courier New";
     font-size: 11px;
-    color: rgba(207, 200, 154, 0.92);
+    color: rgba(240, 231, 184, 0.90);
     line-height: 1.4;
 }
 
@@ -107,12 +86,13 @@ QLabel#reviewsEmptyHint {
     color: #89A194;
     font-style: italic;
     padding: 4px 0;
+    background: transparent;
 }
 
 QPushButton#btnReviewLike {
-    background-color: rgba(161, 64, 22, 0.55);
-    color: #CFC89A;
-    border: none;
+    background-color: rgba(161, 64, 22, 0.62);
+    color: #F0E7B8;
+    border: 1px solid rgba(203, 136, 58, 0.55);
     border-radius: 18px;
     font-size: 20px;
     min-width: 40px;
@@ -122,10 +102,12 @@ QPushButton#btnReviewLike {
     padding: 0px;
 }
 QPushButton#btnReviewLike:hover {
-    background-color: rgba(161, 64, 22, 0.85);
+    background-color: rgba(203, 136, 58, 0.92);
+    color: #312938;
 }
 QPushButton#btnReviewLike:pressed {
     background-color: #A14016;
+    color: #CFC89A;
 }
 
 QLabel#reviewLikeCount {
@@ -135,7 +117,6 @@ QLabel#reviewLikeCount {
     color: #CFC89A;
 }
 
-/* Score badge */
 QLabel#reviewScore {
     font-family: "Courier New";
     font-size: 22px;
@@ -144,8 +125,14 @@ QLabel#reviewScore {
     min-width: 48px;
 }
 
-/* Score divider line */
 QFrame#reviewDivider {
-    background-color: #89A194;
+    background-color: rgba(40, 200, 190, 0.50);
     max-height: 1px;
+}
+
+CoverArtWidget#reviewThumb {
+    qproperty-borderColor: #89A194;
+    qproperty-fillColor: #BDB685;
+    qproperty-maskColor: #5c5748;
+    qproperty-placeholderColor: #A14016;
 }

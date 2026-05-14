@@ -1,0 +1,79 @@
+QDialog#authDialog {
+    background-color: #D8C49A;
+}
+
+QFrame#authChrome {
+    background-color: #F4E4C2;
+    border: 3px solid #9B4B32;
+}
+
+QFrame#authHeaderBar {
+    background-color: #EAD8B5;
+    border-bottom: 1px solid rgba(155, 75, 50, 0.40);
+}
+
+QLabel#authTitle {
+    color: #9B4B32;
+}
+QLabel#authError {
+    color: #D97A2B;
+}
+
+QLineEdit#authField {
+    background-color: #FFF3D2;
+    border: 2px solid #3C83A6;
+    color: #5C3A2A;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QLineEdit#authField:hover {
+    border-color: #9B4B32;
+}
+QLineEdit#authField:focus {
+    border: 2px solid #D97A2B;
+    background-color: #FFF8E2;
+}
+
+QPushButton#authBtnPrimary,
+QDialog#authDialog QPushButton#btnPrimary {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+    border: 2px solid #9B4B32;
+}
+QPushButton#authBtnPrimary:hover,
+QDialog#authDialog QPushButton#btnPrimary:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border-color: #D97A2B;
+}
+
+QPushButton#authBtnSecondary,
+QDialog#authDialog QPushButton#btnSecondary {
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+    background-color: rgba(255, 243, 210, 0.72);
+}
+QPushButton#authBtnSecondary:hover,
+QDialog#authDialog QPushButton#btnSecondary:hover {
+    background-color: rgba(217, 122, 43, 0.18);
+    color: #9B4B32;
+}
+
+QPushButton#authBtnLink {
+    color: #3C83A6;
+}
+QPushButton#authBtnLink:hover {
+    color: #D97A2B;
+}
+
+QCheckBox#authRememberCheck {
+    color: #5C3A2A;
+}
+QCheckBox#authRememberCheck::indicator {
+    border: 2px solid #9B4B32;
+    background-color: #FFF3D2;
+}
+QCheckBox#authRememberCheck::indicator:checked {
+    background-color: #D97A2B;
+    border: 2px solid #9B4B32;
+}

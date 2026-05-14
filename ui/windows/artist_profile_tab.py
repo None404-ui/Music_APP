@@ -17,12 +17,13 @@ from PyQt6.QtWidgets import (
 )
 
 from backend.api_client import resolve_backend_media_url
-from ui import i18n
 from backend.session import UserSession
+from ui import i18n
 from ui.cover_art import CoverArtWidget
 from ui.duration_util import effective_duration_sec, format_duration_mm_ss
 from ui.interactive_fx import InteractiveRowFrame
 from ui.track_like_review import TrackLikeReviewBar
+from ui.transient_scrollbars import enable_transient_vertical_page_scroll
 from ui.windows.popular_tab import AlbumCard, CarouselSection, _album_cover_network
 
 # Высота левой колонки (аватар) = высота правой колонки (имя + «популярное» + список)
@@ -331,7 +332,7 @@ class ArtistProfileTab(QWidget):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self._tracks_inner = QWidget()
-        self._tracks_inner.setStyleSheet("background: transparent;")
+        self._tracks_inner.setObjectName("artistHeroTracksInner")
         self._tracks_layout = QVBoxLayout(self._tracks_inner)
         self._tracks_layout.setContentsMargins(0, 0, 0, 0)
         self._tracks_layout.setSpacing(6)
@@ -386,6 +387,7 @@ class ArtistProfileTab(QWidget):
 
         page_scroll.setWidget(inner)
         outer.addWidget(page_scroll)
+        enable_transient_vertical_page_scroll(page_scroll)
 
     def _toggle_tracks_expand(self) -> None:
         if len(self._norm_tracks) <= self._max_visible_preview:

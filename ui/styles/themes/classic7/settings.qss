@@ -1,0 +1,109 @@
+QWidget#settingsPage {
+    background-color: rgba(244, 228, 194, 0.76);
+}
+
+QFrame#profileCard {
+    background-color: #40372D;
+    border: 1px solid #3C83A6;
+}
+QFrame#profileCard:hover {
+    background-color: #5A4A36;
+    border: 2px solid #D97A2B;
+}
+
+QLabel#profileAvatar {
+    background-color: #EAD8B5;
+    border: 2px solid #3C83A6;
+    color: #9B4B32;
+}
+
+QLabel#profileName {
+    color: #FFF3D2 !important;
+}
+QLabel#profileHandle {
+    color: #3C83A6 !important;
+}
+
+QPushButton#settingsLogoutBtn {
+    background-color: #2E2B25;
+    color: #FFF3D2;
+    border: 3px solid #3C83A6;
+}
+QPushButton#settingsLogoutBtn:hover {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+    border: 3px solid #2E2B25;
+}
+QPushButton#settingsLogoutBtn:pressed {
+    background-color: #2E2B25;
+    color: #D97A2B;
+    border: 3px solid #9B4B32;
+}
+
+QLabel#settingsSectionLabel {
+    color: #9B4B32;
+}
+QLabel#settingsHint {
+    color: #77513D;
+}
+
+QFrame#settingsRow,
+QFrame#settingsThemeOption {
+    background-color: #F4E4C2;
+    border: 1px solid #B69258;
+}
+QFrame#settingsRow:hover,
+QFrame#settingsThemeOption:hover {
+    background-color: #FFF3D2;
+    border: 1px solid #D97A2B;
+}
+QFrame#settingsThemeOption[selected="true"],
+QFrame#settingsThemeOption[selected=true] {
+    background-color: #FFF3D2;
+    border: 3px solid #D97A2B;
+}
+
+QLabel#settingsThemeTitle,
+QLabel#settingsRowLabel {
+    color: #77513D;
+}
+QLabel#settingsThemeCaption,
+QWidget#settingsPage QLabel#settingsRowValue,
+QFrame#settingsRow QLabel#settingsRowValue {
+    color: #5C3A2A;
+}
+
+QComboBox#settingsCombo {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+}
+QComboBox#settingsCombo:hover {
+    border: 2px solid #D97A2B;
+    background-color: #FFF8E2;
+    color: #5C3A2A;
+}
+QComboBox#settingsCombo::down-arrow {
+    border-top: 6px solid #D97A2B;
+}
+QComboBox#settingsCombo QAbstractItemView {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QComboBox#settingsCombo QAbstractItemView::item {
+    color: #5C3A2A;
+    background-color: #FFF3D2;
+}
+QComboBox#settingsCombo QAbstractItemView::item:selected {
+    color: #2E2B25;
+    background-color: #D97A2B;
+}
+
+ToggleSwitch {
+    qproperty-trackOffColor: #D4BC8D;
+    qproperty-trackOnColor: #D97A2B;
+    qproperty-handleColor: #40372D;
+}

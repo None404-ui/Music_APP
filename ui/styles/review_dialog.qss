@@ -1,30 +1,40 @@
-/* Страница полной рецензии */
+/* Review detail page and review-related dialogs: neon/ambient palette */
 
 QWidget#reviewDetailPage {
-    background-color: #EDE6CC;
+    background-color: rgba(18, 12, 28, 0.26);
 }
 
 QLabel#reviewDetailPageTitle {
     font-family: "Courier New";
     font-size: 16px;
     font-weight: bold;
-    color: #A14016;
-    letter-spacing: 3px;
+    color: #CB883A;
+    letter-spacing: 1px;
+    min-height: 28px;
+    padding: 4px 0;
+    background: transparent;
 }
 
 QPushButton#reviewDetailBackBtn {
-    background-color: transparent;
-    color: #312938;
-    border: 2px solid #312938;
+    background-color: rgba(49, 41, 56, 0.78);
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
-    padding: 8px 16px;
+    padding: 9px 16px;
+    min-height: 24px;
     font-family: "Courier New";
     font-size: 10px;
     font-weight: bold;
+    letter-spacing: 0px;
 }
 QPushButton#reviewDetailBackBtn:hover {
-    background-color: #CB883A;
+    background-color: rgba(203, 136, 58, 0.90);
     color: #312938;
+    border-color: #CB883A;
+}
+QPushButton#reviewDetailBackBtn:pressed {
+    background-color: #A14016;
+    color: #CFC89A;
 }
 
 QLabel#reviewDetailAlbum {
@@ -32,22 +42,26 @@ QLabel#reviewDetailAlbum {
     font-size: 11px;
     font-weight: bold;
     color: #89A194;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
+    background: transparent;
 }
 
 QLabel#reviewDetailKind {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
-    color: #A14016;
-    letter-spacing: 3px;
+    color: #28C8BE;
+    letter-spacing: 1px;
+    min-height: 22px;
+    background: transparent;
 }
 
 QLabel#reviewDetailArtist {
     font-family: "Courier New";
     font-size: 12px;
-    color: #2A7A8C;
+    color: #28C8BE;
     text-decoration: underline;
+    background: transparent;
 }
 QLabel#reviewDetailArtist:hover {
     color: #CB883A;
@@ -57,25 +71,30 @@ QLabel#reviewDetailHeadline {
     font-family: "Courier New";
     font-size: 14px;
     font-weight: bold;
-    color: #312938;
-    letter-spacing: 1px;
+    color: #F0E7B8;
+    letter-spacing: 0px;
+    min-height: 26px;
+    padding: 4px 0;
+    background: transparent;
 }
 
 QLabel#reviewDetailMeta {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
+    color: rgba(207, 200, 154, 0.90);
+    background: transparent;
 }
 
 QLabel#reviewDetailScore {
     font-family: "Courier New";
     font-size: 12px;
     font-weight: bold;
-    color: #A14016;
+    color: #CB883A;
+    background: transparent;
 }
 
 QFrame#reviewDetailLine {
-    background-color: #89A194;
+    background-color: rgba(40, 200, 190, 0.58);
     border: none;
     max-height: 2px;
 }
@@ -84,18 +103,22 @@ QScrollArea#reviewDetailScroll {
     background: transparent;
     border: none;
 }
+QScrollArea#reviewDetailScroll > QWidget > QWidget {
+    background: transparent;
+}
 
 QLabel#reviewDetailBody {
     font-family: "Courier New";
     font-size: 12px;
-    color: #312938;
+    color: #F0E7B8;
     line-height: 1.4;
+    background: transparent;
 }
 
 QPushButton#reviewDetailLikeBtn {
-    background-color: rgba(161, 64, 22, 0.55);
-    color: #CFC89A;
-    border: none;
+    background-color: rgba(161, 64, 22, 0.62);
+    color: #F0E7B8;
+    border: 1px solid rgba(203, 136, 58, 0.55);
     border-radius: 18px;
     font-size: 20px;
     min-width: 44px;
@@ -105,25 +128,31 @@ QPushButton#reviewDetailLikeBtn {
     padding: 0px;
 }
 QPushButton#reviewDetailLikeBtn:hover {
-    background-color: rgba(161, 64, 22, 0.85);
+    background-color: rgba(203, 136, 58, 0.92);
+    color: #312938;
 }
 QPushButton#reviewDetailLikeBtn:pressed {
     background-color: #A14016;
+    color: #CFC89A;
 }
 
 QLabel#reviewDetailLikeCount {
     font-family: "Courier New";
     font-size: 13px;
     font-weight: bold;
-    color: #A14016;
+    color: #CFC89A;
+    background: transparent;
 }
 
 QLabel#reviewDetailCommentsHead {
     font-family: "Courier New";
     font-size: 12px;
     font-weight: bold;
-    color: #A14016;
-    letter-spacing: 2px;
+    color: #CB883A;
+    letter-spacing: 1px;
+    min-height: 24px;
+    padding-top: 4px;
+    background: transparent;
 }
 
 QLabel#reviewDetailEmptyHint {
@@ -131,11 +160,12 @@ QLabel#reviewDetailEmptyHint {
     font-size: 11px;
     color: #89A194;
     font-style: italic;
+    background: transparent;
 }
 
 QFrame#reviewCommentRow {
-    background-color: #F5F0DC;
-    border: 1px solid #89A194;
+    background-color: rgba(24, 18, 32, 0.88);
+    border: 1px solid rgba(40, 200, 190, 0.48);
     border-radius: 8px;
 }
 
@@ -143,119 +173,197 @@ QLabel#reviewCommentAuthor {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
-    color: #312938;
+    color: #F0E7B8;
+    background: transparent;
 }
 
 QLabel#reviewCommentDate {
     font-family: "Courier New";
     font-size: 10px;
     color: #89A194;
+    background: transparent;
 }
 
 QLabel#reviewCommentBody {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
+    color: rgba(240, 231, 184, 0.92);
+    background: transparent;
 }
 
 QTextEdit#reviewCommentCompose {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
-    background-color: #F5F0DC;
-    border: 2px solid #89A194;
+    color: #F0E7B8;
+    background-color: rgba(24, 18, 32, 0.88);
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
     padding: 8px;
+    selection-background-color: #CB883A;
+    selection-color: #312938;
+}
+QTextEdit#reviewCommentCompose:focus {
+    border: 2px solid #CB883A;
+}
+QTextEdit#reviewCommentCompose:disabled {
+    color: rgba(207, 200, 154, 0.45);
+    border-color: rgba(137, 161, 148, 0.35);
 }
 
 QPushButton#reviewCommentSubmitBtn {
     background-color: #A14016;
-    color: #F5E6C8;
-    border: 2px solid #312938;
+    color: #F0E7B8;
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
-    padding: 8px 20px;
+    padding: 9px 20px;
+    min-height: 24px;
     font-family: "Courier New";
     font-size: 10px;
     font-weight: bold;
-    letter-spacing: 1px;
+    letter-spacing: 0px;
 }
 QPushButton#reviewCommentSubmitBtn:hover {
     background-color: #CB883A;
     color: #312938;
+    border-color: #CB883A;
+}
+QPushButton#reviewCommentSubmitBtn:disabled {
+    background-color: rgba(49, 41, 56, 0.70);
+    color: rgba(207, 200, 154, 0.45);
+    border-color: rgba(137, 161, 148, 0.35);
 }
 
-QWidget#reviewDetailScrollBody {
-    background: transparent;
-}
-
+QWidget#reviewDetailScrollBody,
 QWidget#reviewCommentsHost {
     background: transparent;
 }
 
-/* Диалог написания рецензии на трек (плеер) */
-QDialog#writeReviewDialog {
-    background-color: #EDE6CC;
-    border: 3px solid #4A3428;
+QDialog#writeReviewDialog,
+QDialog#uploadMusicDialog {
+    background-color: #120C1C;
+    border: 3px solid #2A7A8C;
     border-radius: 10px;
 }
 
-QDialog#uploadMusicDialog {
-    background-color: #EDE6CC;
-    border: 3px solid #A14016;
-    border-radius: 10px;
+QDialog#uploadMusicDialog QLabel {
+    font-family: "Courier New";
+    color: #CFC89A;
 }
+
 QLabel#uploadMusicHead {
     font-family: "Courier New";
     font-size: 13px;
     font-weight: bold;
-    color: #A14016;
-    letter-spacing: 2px;
+    color: #CB883A;
+    letter-spacing: 1px;
+    min-height: 24px;
 }
 QLabel#uploadMusicHint {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
+    color: #89A194;
 }
 QLabel#uploadMusicError {
     font-family: "Courier New";
     font-size: 11px;
-    color: #A14016;
+    color: #CB883A;
+}
+
+QDialog#uploadMusicDialog QLineEdit#authField {
+    background-color: rgba(49, 41, 56, 0.86);
+    border: 2px solid #2A7A8C;
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-family: "Courier New";
+    font-size: 12px;
+    color: #F0E7B8;
+    selection-background-color: #CB883A;
+    selection-color: #312938;
+}
+QDialog#uploadMusicDialog QLineEdit#authField:focus {
+    border-color: #CB883A;
+}
+
+QDialog#uploadMusicDialog QPushButton#btnPrimary {
+    background-color: #A14016;
+    color: #F0E7B8;
+    border: 2px solid #2A7A8C;
+    border-radius: 8px;
+    padding: 9px 18px;
+    min-height: 24px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+}
+QDialog#uploadMusicDialog QPushButton#btnPrimary:hover {
+    background-color: #CB883A;
+    color: #312938;
+    border-color: #CB883A;
+}
+QDialog#uploadMusicDialog QPushButton#btnSecondary {
+    background-color: transparent;
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
+    border-radius: 8px;
+    padding: 8px 16px;
+    min-height: 22px;
+    font-family: "Courier New";
+    font-size: 10px;
+    font-weight: bold;
+}
+QDialog#uploadMusicDialog QPushButton#btnSecondary:hover {
+    background-color: rgba(40, 200, 190, 0.14);
+    color: #F0E7B8;
+    border-color: #CB883A;
 }
 
 QLabel#writeReviewHead {
     font-family: "Courier New";
     font-size: 11px;
     font-weight: bold;
-    color: #A14016;
+    color: #CB883A;
+    min-height: 24px;
+    letter-spacing: 0px;
 }
 QTextEdit#writeReviewBody {
     font-family: "Courier New";
     font-size: 11px;
-    color: #312938;
-    background-color: #F5F0DC;
-    border: 2px solid #89A194;
+    color: #F0E7B8;
+    background-color: rgba(49, 41, 56, 0.86);
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
     padding: 8px;
+    selection-background-color: #CB883A;
+    selection-color: #312938;
+}
+QTextEdit#writeReviewBody:focus {
+    border-color: #CB883A;
 }
 QFrame#writeReviewLine {
-    background-color: #89A194;
+    background-color: rgba(40, 200, 190, 0.58);
     border: none;
 }
 QPushButton#writeReviewCancelBtn {
     background-color: transparent;
-    color: #312938;
-    border: 2px solid #312938;
+    color: #CFC89A;
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
-    padding: 8px 16px;
+    padding: 9px 16px;
+    min-height: 24px;
     font-family: "Courier New";
     font-size: 10px;
 }
+QPushButton#writeReviewCancelBtn:hover {
+    background-color: rgba(40, 200, 190, 0.14);
+    border-color: #CB883A;
+}
 QPushButton#writeReviewOkBtn {
     background-color: #A14016;
-    color: #F5E6C8;
-    border: 2px solid #312938;
+    color: #F0E7B8;
+    border: 2px solid #2A7A8C;
     border-radius: 8px;
-    padding: 8px 16px;
+    padding: 9px 16px;
+    min-height: 24px;
     font-family: "Courier New";
     font-size: 10px;
     font-weight: bold;
@@ -263,4 +371,5 @@ QPushButton#writeReviewOkBtn {
 QPushButton#writeReviewOkBtn:hover {
     background-color: #CB883A;
     color: #312938;
+    border-color: #CB883A;
 }

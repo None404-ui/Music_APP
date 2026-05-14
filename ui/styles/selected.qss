@@ -46,26 +46,26 @@ QLabel#selectedSectionLabel {
 }
 
 QFrame#selectedRow {
-    background-color: #EDE8D8;
-    border: 1px solid #C5D0C0;
+    background-color: rgba(49, 41, 56, 0.88);
+    border: 1px solid #2A7A8C;
     border-radius: 8px;
 }
 QFrame#selectedRow:hover {
     border: 1px solid #CB883A;
-    background-color: #F5F1E4;
+    background-color: rgba(67, 55, 72, 0.94);
 }
 
 QLabel#selectedRowTitle {
     font-family: "Courier New";
     font-size: 13px;
     font-weight: bold;
-    color: #A14016;
+    color: #F0E7B8;
 }
 
 QLabel#selectedRowSub {
     font-family: "Courier New";
     font-size: 11px;
-    color: #4A6B5E;
+    color: #89A194;
 }
 
 QLabel#selectedRowArtist {
@@ -93,20 +93,6 @@ QScrollArea#selectedScroll {
 QScrollArea#selectedScroll > QWidget > QWidget {
     background: transparent;
 }
-QScrollBar:vertical {
-    background: #E4DFC8;
-    width: 6px;
-    border-radius: 3px;
-}
-QScrollBar::handle:vertical {
-    background: #A8BDA8;
-    border-radius: 3px;
-    min-height: 30px;
-}
-QScrollBar::handle:vertical:hover {
-    background: #CB883A;
-}
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0px;
+QWidget#selectedContentContainer {
+    background: transparent;
 }

@@ -1,0 +1,176 @@
+/* Classic 70s review detail, comments and review/upload dialogs. */
+
+QWidget#reviewDetailPage {
+    background-color: rgba(244, 228, 194, 0.66);
+}
+
+QLabel#reviewDetailPageTitle {
+    color: #9B4B32;
+}
+
+QPushButton#reviewDetailBackBtn {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+}
+QPushButton#reviewDetailBackBtn:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border-color: #D97A2B;
+}
+QPushButton#reviewDetailBackBtn:pressed {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+}
+
+QLabel#reviewDetailAlbum,
+QLabel#reviewDetailKind,
+QLabel#reviewDetailCommentsHead {
+    color: #9B4B32;
+}
+
+QLabel#reviewDetailArtist {
+    color: #3C83A6;
+}
+QLabel#reviewDetailArtist:hover {
+    color: #D97A2B;
+}
+
+QLabel#reviewDetailHeadline,
+QLabel#reviewDetailBody,
+QLabel#reviewCommentAuthor,
+QLabel#reviewDetailLikeCount {
+    color: #5C3A2A;
+}
+
+QLabel#reviewDetailMeta,
+QLabel#reviewCommentDate,
+QLabel#reviewDetailEmptyHint {
+    color: #7B614B;
+}
+
+QLabel#reviewDetailScore {
+    color: #D97A2B;
+}
+
+QFrame#reviewDetailLine,
+QFrame#writeReviewLine {
+    background-color: rgba(155, 75, 50, 0.42);
+}
+
+QScrollArea#reviewDetailScroll,
+QWidget#reviewDetailScrollBody,
+QWidget#reviewCommentsHost {
+    background: transparent;
+    border: none;
+}
+
+QFrame#reviewCommentRow {
+    background-color: rgba(255, 243, 210, 0.92);
+    border: 1px solid rgba(155, 75, 50, 0.42);
+    border-radius: 8px;
+}
+
+QLabel#reviewCommentBody {
+    color: #40372D;
+}
+
+QTextEdit#reviewCommentCompose,
+QTextEdit#writeReviewBody {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+    border-radius: 8px;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QTextEdit#reviewCommentCompose:focus,
+QTextEdit#writeReviewBody:focus {
+    border-color: #D97A2B;
+    background-color: #FFF8E2;
+}
+QTextEdit#reviewCommentCompose:disabled {
+    color: rgba(92, 58, 42, 0.45);
+    border-color: rgba(155, 75, 50, 0.28);
+}
+
+QPushButton#reviewDetailLikeBtn,
+QPushButton#reviewCommentSubmitBtn,
+QPushButton#writeReviewOkBtn {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+    border: 2px solid #9B4B32;
+}
+QPushButton#reviewDetailLikeBtn:hover,
+QPushButton#reviewCommentSubmitBtn:hover,
+QPushButton#writeReviewOkBtn:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border-color: #D97A2B;
+}
+QPushButton#reviewCommentSubmitBtn:disabled {
+    background-color: #D4BC8D;
+    color: rgba(92, 58, 42, 0.48);
+    border-color: rgba(155, 75, 50, 0.30);
+}
+
+QDialog#writeReviewDialog,
+QDialog#uploadMusicDialog {
+    background-color: #F4E4C2;
+    border: 3px solid #9B4B32;
+    border-radius: 10px;
+}
+
+QDialog#uploadMusicDialog QLabel {
+    color: #5C3A2A;
+    background: transparent;
+}
+
+QLabel#uploadMusicHead,
+QLabel#writeReviewHead {
+    color: #9B4B32;
+}
+
+QLabel#uploadMusicHint {
+    color: #7B614B;
+}
+QLabel#uploadMusicError {
+    color: #C84A37;
+}
+
+QDialog#uploadMusicDialog QLineEdit#authField {
+    background-color: #FFF3D2;
+    border: 2px solid #9B4B32;
+    border-radius: 6px;
+    color: #5C3A2A;
+    selection-background-color: #D97A2B;
+    selection-color: #2E2B25;
+}
+QDialog#uploadMusicDialog QLineEdit#authField:focus {
+    border-color: #D97A2B;
+    background-color: #FFF8E2;
+}
+
+QDialog#uploadMusicDialog QPushButton#btnPrimary {
+    background-color: #9B4B32;
+    color: #FFF3D2;
+    border: 2px solid #9B4B32;
+}
+QDialog#uploadMusicDialog QPushButton#btnPrimary:hover {
+    background-color: #D97A2B;
+    color: #2E2B25;
+    border-color: #D97A2B;
+}
+
+QDialog#uploadMusicDialog QPushButton#btnSecondary,
+QPushButton#writeReviewCancelBtn {
+    background-color: #FFF3D2;
+    color: #5C3A2A;
+    border: 2px solid #9B4B32;
+}
+QDialog#uploadMusicDialog QPushButton#btnSecondary:hover,
+QPushButton#writeReviewCancelBtn:hover {
+    background-color: rgba(217, 122, 43, 0.18);
+    color: #9B4B32;
+    border-color: #D97A2B;
+}
